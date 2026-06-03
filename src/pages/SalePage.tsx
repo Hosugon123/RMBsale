@@ -1,0 +1,235 @@
+import * as React from "react";
+import { HandCoins } from "lucide-react";
+import { CustomerManagerModal } from "../components/CustomerManagerModal";
+import { SaleAmountSummary } from "../components/SaleAmountSummary";
+import { SaleExchangeRateField } from "../components/SaleExchangeRateField";
+import { saleFieldLabelRowClass } from "../components/saleFormLayout";
+import { SaleConfirmModal, validateSaleForm } from "../components/SaleConfirmModal";
+import { SaleCustomerFields } from "../components/SaleCustomerFields";
+import { useAppStore } from "../features/AppStore";
+import { useSaleCustomerSource } from "../hooks/useSaleCustomerSource";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Select } from "../components/ui/select";
+import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
+import { previewSaleProfit } from "../lib/localStore";
+import { profit, receivable, rmb } from "../lib/currencyStyles";
+import { cn, fmtMoney, fmtRate } from "../lib/utils";
+
+const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+
+function accountOptionLabel(holderName: string, name: string, balance: string) {
+  return `${holderName}/${name} (${fmtMoney(balance, "RMB")})`;
+}
+
+function settlementLabel(status: string) {
+  if (status === "settled") return "已結清";
+  if (status === "partial") return "部分收款";
+  return "待收款";
+}
+
+export function SalePage() {
+  const { state, createSale } = useAppStore();
+  const rmbAccounts = state.accounts.filter((account) => account.currency === "RMB" && account.isActive);
+  const activeCustomers = state.customers.filter((customer) => customer.isActive);
+  const [customerManagerOpen, setCustomerManagerOpen] = React.useState(false);
+  const {
+    presetId: customerPresetId,
+    setPresetId: setCustomerPresetId,
+    custom: customerCustom,
+    setCustom: setCustomerCustom,
+    customerName,
+    hasPreset: hasPresetCustomer,
+    hasCustom: hasCustomCustomer,
+    reset: resetCustomerSource
+  } = useSaleCustomerSource(activeCustomers);
+  const [form, setForm] = React.useState({
+    rmbAccountId: String(rmbAccounts[0]?.id ?? ""),
+    rmbAmount: "",
+    exchangeRate: ""
+  });
+  const [formError, setFormError] = React.useState("");
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  const amountPreview = React.useMemo(
+    () =>
+      previewSaleProfit(state, {
+        rmbAccountId: Number(form.rmbAccountId),
+        rmbAmount: form.rmbAmount,
+        exchangeRate: form.exchangeRate
+      }),
+    [state, form.rmbAccountId, form.rmbAmount, form.exchangeRate]
+  );
+  const receivableTwd = amountPreview?.twdAmount ?? "0";
+  const rmbAccount = rmbAccounts.find((account) => String(account.id) === form.rmbAccountId);
+
+  const submitSale = () => {
+    try {
+      createSale({
+        customerName,
+        rmbAccountId: Number(form.rmbAccountId),
+        rmbAmount: form.rmbAmount,
+        exchangeRate: form.exchangeRate
+      });
+      setForm((current) => ({ ...current, rmbAmount: "", exchangeRate: "" }));
+      resetCustomerSource();
+      setConfirmOpen(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "建立售出失敗");
+      setConfirmOpen(false);
+    }
+  };
+
+  return (
+    <div className="grid min-w-0 max-w-full gap-3 sm:gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-0">
+          <CardTitle>售出錄入</CardTitle>
+        </CardHeader>
+        <CardContent className="min-w-0 p-3 pt-0 sm:p-4">
+          <form
+            className="min-w-0 space-y-3 sm:space-y-4"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              const error = validateSaleForm({
+                customerName,
+                rmbAccountId: form.rmbAccountId,
+                rmbAmount: form.rmbAmount,
+                exchangeRate: form.exchangeRate,
+                profitError: amountPreview?.profitError ?? null
+              });
+              if (error) {
+                setFormError(error);
+                return;
+              }
+              setFormError("");
+              setConfirmOpen(true);
+            }}
+          >
+            <SaleCustomerFields
+              activeCustomers={activeCustomers}
+              presetId={customerPresetId}
+              customName={customerCustom}
+              hasPreset={hasPresetCustomer}
+              hasCustom={hasCustomCustomer}
+              onPresetIdChange={setCustomerPresetId}
+              onCustomNameChange={setCustomerCustom}
+              onManageClick={() => setCustomerManagerOpen(true)}
+              onClearError={() => {
+                if (formError) setFormError("");
+              }}
+            />
+            <label className="block min-w-0 space-y-1 text-sm font-medium">
+              <span>扣款 RMB 帳戶</span>
+              <Select
+                className={fieldSelectClass}
+                value={form.rmbAccountId}
+                onChange={(event) => {
+                  setForm({ ...form, rmbAccountId: event.target.value });
+                  if (formError) setFormError("");
+                }}
+                required
+              >
+                <option value="">請選擇帳戶</option>
+                {rmbAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {accountOptionLabel(account.holderName, account.name, account.balance)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <div className="grid min-w-0 grid-cols-2 items-start gap-2 sm:gap-3 max-[440px]:grid-cols-1">
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <div className={saleFieldLabelRowClass}>
+                  <span className={rmb.text}>RMB 金額</span>
+                </div>
+                <Input
+                  className={fieldInputClass}
+                  inputMode="decimal"
+                  value={form.rmbAmount}
+                  onChange={(event) => {
+                    setForm({ ...form, rmbAmount: event.target.value });
+                    if (formError) setFormError("");
+                  }}
+                  required
+                />
+              </label>
+              <SaleExchangeRateField
+                sales={state.sales}
+                value={form.exchangeRate}
+                inputClassName={fieldInputClass}
+                onChange={(exchangeRate) => setForm({ ...form, exchangeRate })}
+                onClearError={() => {
+                  if (formError) setFormError("");
+                }}
+              />
+            </div>
+            <SaleAmountSummary
+              receivableTwd={receivableTwd}
+              profitTwd={amountPreview?.profitTwd ?? null}
+              profitHint={amountPreview?.profitError ?? undefined}
+            />
+            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+            <Button className="h-10 w-full" type="submit">
+              <HandCoins className="h-4 w-4" />
+              建立售出
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-0">
+          <CardTitle>售出紀錄</CardTitle>
+        </CardHeader>
+        <CardContent className="min-w-0 p-3 pt-0 sm:p-4">
+          <Table>
+            <THead>
+              <TR>
+                <TH>日期</TH>
+                <TH>客戶</TH>
+                <TH className="text-right">RMB</TH>
+                <TH className="hidden text-right sm:table-cell">匯率</TH>
+                <TH className="text-right">應收</TH>
+                <TH className="hidden text-right md:table-cell">利潤</TH>
+                <TH>狀態</TH>
+                <TH className="hidden lg:table-cell">負責</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {state.sales.map((item) => (
+                <TR key={item.id}>
+                  <TD className="text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("zh-TW")}</TD>
+                  <TD>{item.customerName}</TD>
+                  <TD className={rmb.moneyCell}>{fmtMoney(item.rmbAmount, "RMB")}</TD>
+                  <TD className="hidden text-right sm:table-cell">{fmtRate(item.exchangeRate)}</TD>
+                  <TD className={receivable.moneyCell}>{fmtMoney(item.twdAmount)}</TD>
+                  <TD className={cn("hidden text-right md:table-cell", profit.moneyCell)}>{fmtMoney(item.profitTwd)}</TD>
+                  <TD>{settlementLabel(item.settlementStatus)}</TD>
+                  <TD className="hidden lg:table-cell">{item.operatorName}</TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <CustomerManagerModal open={customerManagerOpen} onClose={() => setCustomerManagerOpen(false)} />
+
+      <SaleConfirmModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={submitSale}
+        customerName={customerName}
+        accountLabel={rmbAccount ? `${rmbAccount.holderName} / ${rmbAccount.name}` : "—"}
+        rmbAmount={form.rmbAmount}
+        exchangeRate={form.exchangeRate}
+        receivableTwd={receivableTwd}
+        profitTwd={amountPreview?.profitTwd ?? null}
+      />
+    </div>
+  );
+}

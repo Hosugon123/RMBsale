@@ -1,0 +1,34 @@
+{
+  "holders": [
+    { "id": 1, "name": "小許", "isActive": true }
+  ],
+  "accounts": [
+    {
+      "id": 1,
+      "holderId": 1,
+      "holderName": "小許",
+      "name": "台幣現金",
+      "currency": "TWD",
+      "balance": "0.00",
+      "profitBalance": "0.00",
+      "isActive": true
+    },
+    {
+      "id": 2,
+      "holderId": 1,
+      "holderName": "小許",
+      "name": "人民幣庫存",
+      "currency": "RMB",
+      "balance": "0.00",
+      "profitBalance": "0.00",
+      "isActive": true
+    }
+  ],
+  "customers": [],
+  "channels": [],
+  "purchases": [],
+  "sales": [],
+  "saleAllocations": [],
+  "rmbLots": [],
+  "ledger": []
+}

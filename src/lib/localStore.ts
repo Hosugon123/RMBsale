@@ -1,0 +1,1226 @@
+import Decimal from "decimal.js";
+import { ALL_PERMISSIONS, deriveRole, LEVEL_PRESETS } from "./permissions";
+import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
+import { d, nextId } from "./utils";
+
+const KEY = "rmbsale.demo.state.v3";
+const now = () => new Date().toISOString();
+const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
+const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
+
+export function getSessionUser(state: AppState): AppUser {
+  return state.users.find((user) => user.id === state.sessionUserId) ?? state.users[0];
+}
+
+function currentOperator(state: AppState) {
+  const user = getSessionUser(state);
+  return user.displayName.trim() || user.username.trim() || "未知";
+}
+
+function createAdminUser(): AppUser {
+  return {
+    id: 1,
+    username: "admin",
+    displayName: "系統管理員",
+    password: "admin",
+    role: "admin",
+    permissions: [...ALL_PERMISSIONS],
+    isActive: true
+  };
+}
+
+function migrateUsers(legacy: { user?: User; users?: AppUser[]; sessionUserId?: number }): Pick<AppState, "users" | "sessionUserId"> {
+  if (legacy.users?.length) {
+    return {
+      users: legacy.users.map((user) => ({
+        ...user,
+        displayName: user.displayName ?? user.username,
+        password: user.password ?? "",
+        permissions: user.permissions?.length ? user.permissions : [...ALL_PERMISSIONS],
+        isActive: user.isActive ?? true,
+        role: user.role ?? deriveRole(user.permissions ?? [])
+      })),
+      sessionUserId: legacy.sessionUserId ?? legacy.users[0]?.id ?? 1
+    };
+  }
+  const admin = createAdminUser();
+  if (legacy.user) {
+    admin.username = legacy.user.username;
+    admin.role = legacy.user.role;
+    admin.permissions =
+      legacy.user.role === "admin" ? [...ALL_PERMISSIONS] : [...LEVEL_PRESETS.operator.permissions];
+  }
+  return { users: [admin], sessionUserId: admin.id };
+}
+
+function normalizeState(state: AppState): AppState {
+  const fallback = currentOperator(state);
+  state.ledger.forEach((entry) => {
+    if (!entry.operatorName) entry.operatorName = fallback;
+  });
+  state.purchases.forEach((purchase) => {
+    if (!purchase.operatorName) purchase.operatorName = fallback;
+  });
+  state.sales.forEach((sale) => {
+    if (!sale.operatorName) sale.operatorName = fallback;
+  });
+  ensureProfitLedgerEntries(state);
+  ensureSettlementReceivableEntries(state);
+  ensurePayableLedgerEntries(state);
+  state.purchases.forEach((purchase) => {
+    if (purchase.paidTwd == null || purchase.paidTwd === undefined) {
+      purchase.paidTwd = purchase.paymentStatus === "paid" ? purchase.twdCost : "0.00";
+    }
+    if (d(purchase.paidTwd).gte(purchase.twdCost)) {
+      purchase.paidTwd = purchase.twdCost;
+      purchase.paymentStatus = "paid";
+    } else if (d(purchase.paidTwd).gt(0)) {
+      purchase.paymentStatus = "partial";
+    } else {
+      purchase.paymentStatus = "unpaid";
+    }
+  });
+  return state;
+}
+
+export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd">) {
+  return money(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
+}
+
+function ensureProfitLedgerEntries(state: AppState) {
+  let added = false;
+  for (const sale of state.sales) {
+    if (d(sale.profitTwd).lte(0)) continue;
+    const exists = state.ledger.some(
+      (entry) => entry.entryType === "利潤" && entry.relatedTable === "sales" && entry.relatedId === sale.id
+    );
+    if (exists) continue;
+    state.ledger.push({
+      id: nextId(state.ledger),
+      createdAt: sale.createdAt,
+      entryType: "利潤",
+      direction: "in",
+      currency: "TWD",
+      amount: sale.profitTwd,
+      description: `${sale.customerName} 售出利潤`,
+      operatorName: sale.operatorName,
+      relatedTable: "sales",
+      relatedId: sale.id
+    });
+    added = true;
+  }
+  if (added) saveState(state);
+}
+
+function ensureSettlementReceivableEntries(state: AppState) {
+  let added = false;
+  for (const entry of state.ledger) {
+    if (entry.entryType !== "收帳" || !entry.accountId || entry.customerId) continue;
+    const hasCustomerSide = state.ledger.some(
+      (item) =>
+        item.entryType === "收帳" &&
+        item.customerId &&
+        item.relatedTable === entry.relatedTable &&
+        item.relatedId === entry.relatedId
+    );
+    if (hasCustomerSide) continue;
+    const prefix = "收帳：";
+    if (!entry.description.startsWith(prefix)) continue;
+    const name = entry.description.slice(prefix.length).split("（")[0].trim();
+    const customer = state.customers.find((item) => item.name === name);
+    if (!customer) continue;
+    state.ledger.push({
+      id: nextId(state.ledger),
+      createdAt: entry.createdAt,
+      entryType: "收帳",
+      customerId: customer.id,
+      direction: "out",
+      currency: "TWD",
+      amount: entry.amount,
+      description: entry.description,
+      operatorName: entry.operatorName,
+      relatedTable: entry.relatedTable,
+      relatedId: entry.relatedId
+    });
+    added = true;
+  }
+  if (added) saveState(state);
+}
+
+function purchaseLedgerRelatedTables(entry: Pick<LedgerEntry, "relatedTable" | "relatedId">, purchaseId: number) {
+  return (
+    entry.relatedId === purchaseId &&
+    (entry.relatedTable === "purchases" ||
+      entry.relatedTable === "買入" ||
+      entry.relatedTable === "買入付款" ||
+      entry.relatedTable === "應付付款")
+  );
+}
+
+function ensurePayableLedgerEntries(state: AppState) {
+  let added = false;
+  for (const purchase of state.purchases) {
+    const hasIncrease = state.ledger.some(
+      (entry) =>
+        entry.entryType === "應付" &&
+        entry.direction === "in" &&
+        purchaseLedgerRelatedTables(entry, purchase.id)
+    );
+    if (!hasIncrease) {
+      state.ledger.push({
+        id: nextId(state.ledger),
+        createdAt: purchase.createdAt,
+        entryType: "應付",
+        channelId: purchase.channelId,
+        direction: "in",
+        currency: "TWD",
+        amount: purchase.twdCost,
+        description: `${purchase.channelName} 應付增加`,
+        operatorName: purchase.operatorName,
+        relatedTable: "purchases",
+        relatedId: purchase.id
+      });
+      added = true;
+    }
+
+    const recordedOut = state.ledger
+      .filter(
+        (entry) =>
+          !entry.accountId &&
+          entry.channelId === purchase.channelId &&
+          entry.direction === "out" &&
+          (entry.entryType === "應付付款" || entry.entryType === "買入付款") &&
+          purchaseLedgerRelatedTables(entry, purchase.id)
+      )
+      .reduce((sum, entry) => sum.add(entry.amount), d(0));
+    const needOut = d(purchase.paidTwd);
+    if (needOut.gt(recordedOut)) {
+      const gap = money(needOut.sub(recordedOut));
+      state.ledger.push({
+        id: nextId(state.ledger),
+        createdAt: purchase.createdAt,
+        entryType: "應付付款",
+        channelId: purchase.channelId,
+        direction: "out",
+        currency: "TWD",
+        amount: gap,
+        description: `支付買入款：${purchase.channelName}`,
+        operatorName: purchase.operatorName,
+        relatedTable: "purchases",
+        relatedId: purchase.id
+      });
+      added = true;
+    }
+  }
+  if (added) saveState(state);
+}
+
+export function createSeedState(): AppState {
+  const admin = createAdminUser();
+  return {
+    sessionUserId: admin.id,
+    users: [admin],
+    holders: [
+      { id: 1, name: "小許", isActive: true },
+      { id: 2, name: "團隊帳戶", isActive: true }
+    ],
+    accounts: [
+      { id: 1, holderId: 1, holderName: "小許", name: "台幣現金", currency: "TWD", balance: "120000.00", profitBalance: "0.00", isActive: true },
+      { id: 2, holderId: 1, holderName: "小許", name: "人民幣庫存", currency: "RMB", balance: "38000.00", profitBalance: "0.00", isActive: true },
+      { id: 3, holderId: 2, holderName: "團隊帳戶", name: "台幣銀行", currency: "TWD", balance: "260000.00", profitBalance: "0.00", isActive: true },
+      { id: 4, holderId: 2, holderName: "團隊帳戶", name: "支付寶 RMB", currency: "RMB", balance: "58500.00", profitBalance: "0.00", isActive: true }
+    ],
+    customers: [
+      { id: 1, name: "阿明", receivableTwd: "15800.05", isActive: true },
+      { id: 2, name: "老王", receivableTwd: "0.00", isActive: true }
+    ],
+    channels: [
+      { id: 1, name: "交易所 A", isActive: true },
+      { id: 2, name: "熟客換匯", isActive: true }
+    ],
+    purchases: [
+      { id: 1, channelId: 1, channelName: "交易所 A", paymentAccountId: 3, depositAccountId: 4, rmbAmount: "62000.00", exchangeRate: "4.420000", twdCost: "274040.00", paidTwd: "274040.00", paymentStatus: "paid", operatorName: "admin", createdAt: now() },
+      { id: 2, channelId: 2, channelName: "熟客換匯", paymentAccountId: 1, depositAccountId: 2, rmbAmount: "38000.00", exchangeRate: "4.390000", twdCost: "166820.00", paidTwd: "166820.00", paymentStatus: "paid", operatorName: "admin", createdAt: now() }
+    ],
+    sales: [
+      { id: 1, customerId: 1, customerName: "阿明", rmbAccountId: 4, rmbAmount: "3500.00", exchangeRate: "4.514300", twdAmount: "15800.05", costTwd: "15470.00", profitTwd: "330.05", settlementStatus: "unsettled", operatorName: "admin", createdAt: now() }
+    ],
+    saleAllocations: [
+      { id: 1, saleId: 1, lotId: 1, purchaseId: 1, channelName: "交易所 A", allocatedRmb: "3500.00", unitCostTwd: "4.420000", costTwd: "15470.00", createdAt: now() }
+    ],
+    rmbLots: [
+      { id: 1, purchaseId: 1, accountId: 4, channelName: "交易所 A", originalRmb: "62000.00", remainingRmb: "58500.00", unitCostTwd: "4.420000", exchangeRate: "4.420000", createdAt: now() },
+      { id: 2, purchaseId: 2, accountId: 2, channelName: "熟客換匯", originalRmb: "38000.00", remainingRmb: "38000.00", unitCostTwd: "4.390000", exchangeRate: "4.390000", createdAt: now() }
+    ],
+    ledger: [
+      { id: 1, createdAt: now(), entryType: "售出", accountId: 4, customerId: 1, direction: "out", currency: "RMB", amount: "3500.00", description: "售出 RMB 給阿明", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
+      { id: 2, createdAt: now(), entryType: "應收", customerId: 1, direction: "in", currency: "TWD", amount: "15800.05", description: "阿明應收增加", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
+      { id: 3, createdAt: now(), entryType: "利潤", customerId: 1, direction: "in", currency: "TWD", amount: "330.05", description: "阿明 售出利潤", operatorName: "admin", relatedTable: "sales", relatedId: 1 }
+    ]
+  };
+}
+
+export function loadState(): AppState {
+  const raw = window.localStorage.getItem(KEY);
+  if (!raw) {
+    const seed = createSeedState();
+    saveState(seed);
+    return seed;
+  }
+  const parsed = JSON.parse(raw) as AppState & { user?: User };
+  const migrated = migrateUsers(parsed);
+  const state = { ...parsed, ...migrated } as AppState;
+  delete (state as { user?: User }).user;
+  if (!state.saleAllocations) {
+    state.saleAllocations = inferSaleAllocations(state);
+  }
+  return normalizeState(state);
+}
+
+export function createUser(
+  state: AppState,
+  input: {
+    username: string;
+    password: string;
+    displayName: string;
+    permissions: PermissionKey[];
+  }
+) {
+  const username = input.username.trim();
+  const displayName = input.displayName.trim();
+  const password = input.password;
+  if (!username) throw new Error("請輸入帳號");
+  if (!displayName) throw new Error("請輸入名稱");
+  if (password.length < 4) throw new Error("密碼至少 4 碼");
+  if (!input.permissions.length) throw new Error("請至少勾選一項權限");
+  if (state.users.some((user) => user.username.toLowerCase() === username.toLowerCase())) {
+    throw new Error("帳號已存在");
+  }
+
+  const user: AppUser = {
+    id: nextId(state.users),
+    username,
+    displayName,
+    password,
+    permissions: [...input.permissions],
+    role: deriveRole(input.permissions),
+    isActive: true
+  };
+  state.users.push(user);
+  return user;
+}
+
+export function setUserActive(state: AppState, userId: number, isActive: boolean) {
+  if (userId === state.sessionUserId && !isActive) throw new Error("無法停用自己的帳號");
+  const user = state.users.find((item) => item.id === userId);
+  if (!user) throw new Error("找不到使用者");
+  user.isActive = isActive;
+}
+
+export function updateUser(
+  state: AppState,
+  userId: number,
+  input: {
+    username: string;
+    password?: string;
+    displayName: string;
+    permissions: PermissionKey[];
+  }
+) {
+  const user = state.users.find((item) => item.id === userId);
+  if (!user) throw new Error("找不到使用者");
+
+  const username = input.username.trim();
+  const displayName = input.displayName.trim();
+  const password = input.password?.trim() ?? "";
+
+  if (!username) throw new Error("請輸入帳號");
+  if (!displayName) throw new Error("請輸入名稱");
+  if (password && password.length < 4) throw new Error("密碼至少 4 碼");
+  if (!input.permissions.length) throw new Error("請至少勾選一項權限");
+  if (state.users.some((item) => item.id !== userId && item.username.toLowerCase() === username.toLowerCase())) {
+    throw new Error("帳號已存在");
+  }
+  if (userId === state.sessionUserId && !input.permissions.includes("admin")) {
+    throw new Error("無法移除自己的管理後台權限");
+  }
+
+  user.username = username;
+  user.displayName = displayName;
+  if (password) user.password = password;
+  user.permissions = [...input.permissions];
+  user.role = deriveRole(input.permissions);
+  return user;
+}
+
+export function saveState(state: AppState) {
+  window.localStorage.setItem(KEY, JSON.stringify(state));
+}
+
+export function resetState() {
+  const seed = createSeedState();
+  saveState(seed);
+  return seed;
+}
+
+/** 清除所有帳務資料，保留使用者與登入狀態。 */
+export function clearBusinessData(state: AppState): AppState {
+  const cleared: AppState = {
+    sessionUserId: state.sessionUserId,
+    users: state.users,
+    holders: [],
+    accounts: [],
+    customers: [],
+    channels: [],
+    purchases: [],
+    sales: [],
+    saleAllocations: [],
+    rmbLots: [],
+    ledger: []
+  };
+  saveState(cleared);
+  return cleared;
+}
+
+export function replaceBusinessData(state: AppState, next: AppState): AppState {
+  const merged: AppState = {
+    sessionUserId: state.sessionUserId,
+    users: state.users,
+    holders: next.holders,
+    accounts: next.accounts,
+    customers: next.customers,
+    channels: next.channels,
+    purchases: next.purchases,
+    sales: next.sales,
+    saleAllocations: next.saleAllocations ?? [],
+    rmbLots: next.rmbLots,
+    ledger: next.ledger
+  };
+  return normalizeState(merged);
+}
+
+export function totals(state: AppState) {
+  const profitEarned = state.sales.reduce((sum, sale) => sum.add(sale.profitTwd), d(0));
+  const profitWithdrawals = state.ledger
+    .filter((entry) => entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD")
+    .reduce((sum, entry) => sum.add(entry.amount), d(0));
+
+  return {
+    twd: state.accounts.filter((a) => a.currency === "TWD").reduce((sum, a) => sum.add(a.balance), d(0)).toFixed(2),
+    rmb: state.accounts.filter((a) => a.currency === "RMB").reduce((sum, a) => sum.add(a.balance), d(0)).toFixed(2),
+    receivable: state.customers.reduce((sum, c) => sum.add(c.receivableTwd), d(0)).toFixed(2),
+    inventory: state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0)).toFixed(2),
+    profitEarned: profitEarned.toFixed(2),
+    profit: profitEarned.sub(profitWithdrawals).toFixed(2)
+  };
+}
+
+export type LedgerBalanceContext = {
+  subjectLabel: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  balanceCurrency: Currency;
+};
+
+export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial<LedgerBalanceContext>> {
+  const accountBalances = new Map(state.accounts.map((account) => [account.id, d(account.balance)]));
+  const customerReceivables = new Map(state.customers.map((customer) => [customer.id, d(customer.receivableTwd)]));
+  const accountById = new Map(state.accounts.map((account) => [account.id, account]));
+  const customerById = new Map(state.customers.map((customer) => [customer.id, customer]));
+  const channelById = new Map(state.channels.map((channel) => [channel.id, channel]));
+  const channelPayables = new Map(
+    state.channels.map((channel) => [
+      channel.id,
+      state.purchases
+        .filter((purchase) => purchase.channelId === channel.id)
+        .reduce((sum, purchase) => sum.add(purchasePayableTwd(purchase)), d(0))
+    ])
+  );
+  const contextById = new Map<number, LedgerBalanceContext>();
+  let profitPool = d(totals(state).profit);
+
+  const sorted = [...state.ledger].sort((a, b) => {
+    const byTime = b.createdAt.localeCompare(a.createdAt);
+    return byTime !== 0 ? byTime : b.id - a.id;
+  });
+
+  for (const entry of sorted) {
+    const delta =
+      entry.direction === "in" ? d(entry.amount) : entry.direction === "out" ? d(entry.amount).neg() : d(0);
+
+    if (entry.accountId) {
+      const account = accountById.get(entry.accountId);
+      if (!account) continue;
+      const after = accountBalances.get(entry.accountId)!;
+      const before = after.sub(delta);
+      contextById.set(entry.id, {
+        subjectLabel: `${account.holderName} / ${account.name}`,
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: account.currency
+      });
+      accountBalances.set(entry.accountId, before);
+      continue;
+    }
+
+    if (entry.customerId && (entry.entryType === "應收" || entry.entryType === "收帳")) {
+      const customer = customerById.get(entry.customerId);
+      if (!customer) continue;
+      const after = customerReceivables.get(entry.customerId)!;
+      const before = after.sub(delta);
+      contextById.set(entry.id, {
+        subjectLabel: `${customer.name} 應收`,
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      customerReceivables.set(entry.customerId, before);
+      continue;
+    }
+
+    if (entry.channelId && (entry.entryType === "應付" || entry.entryType === "應付付款")) {
+      const channel = channelById.get(entry.channelId);
+      if (!channel) continue;
+      const after = channelPayables.get(entry.channelId)!;
+      const before = after.sub(delta);
+      contextById.set(entry.id, {
+        subjectLabel: `${channel.name} 應付`,
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      channelPayables.set(entry.channelId, before);
+      continue;
+    }
+
+    if (entry.entryType === "利潤" && entry.direction === "in") {
+      const after = profitPool;
+      const before = after.sub(entry.amount);
+      contextById.set(entry.id, {
+        subjectLabel: "累計利潤",
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      profitPool = before;
+      continue;
+    }
+
+    if (entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD") {
+      const after = profitPool;
+      const before = after.add(entry.amount);
+      contextById.set(entry.id, {
+        subjectLabel: "累計利潤",
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      profitPool = before;
+    }
+  }
+
+  return state.ledger.map((entry) => ({
+    ...entry,
+    ...contextById.get(entry.id)
+  }));
+}
+
+export function sortedLedgerWithBalances(state: AppState) {
+  return [...ledgerWithBalances(state)].sort((a, b) => {
+    const byTime = b.createdAt.localeCompare(a.createdAt);
+    return byTime !== 0 ? byTime : b.id - a.id;
+  });
+}
+
+export function isProfitLedgerEntry(
+  entry: Pick<LedgerEntry, "entryType" | "direction" | "relatedTable" | "currency" | "description">
+) {
+  return (
+    entry.entryType === "利潤" ||
+    entry.entryType === "分潤" ||
+    (entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD") ||
+    entry.description.includes("利潤")
+  );
+}
+
+export function sortedProfitLedgerWithBalances(state: AppState) {
+  return sortedLedgerWithBalances(state).filter(isProfitLedgerEntry);
+}
+
+/** 完整帳務流水（含帳戶、應收、應付、買入、收帳等），僅排除利潤專區列。 */
+export function sortedCashLedgerWithBalances(state: AppState) {
+  return sortedLedgerWithBalances(state).filter((entry) => !isProfitLedgerEntry(entry));
+}
+
+export function isReceivableLedgerEntry(
+  entry: Pick<LedgerEntry, "customerId" | "entryType" | "relatedTable" | "relatedId" | "accountId">
+) {
+  if (entry.entryType === "利潤" || entry.entryType === "售出") return false;
+  if (entry.customerId !== undefined && (entry.entryType === "應收" || entry.entryType === "收帳")) {
+    return true;
+  }
+  if (
+    entry.entryType === "收帳" &&
+    entry.accountId !== undefined &&
+    (entry.relatedTable === "settlements" || entry.relatedTable === "收帳")
+  ) {
+    return true;
+  }
+  return entry.entryType === "應收";
+}
+
+export function sortedReceivableLedgerWithBalances(state: AppState) {
+  return sortedLedgerWithBalances(state).filter(isReceivableLedgerEntry);
+}
+
+export function isPayableLedgerEntry(
+  entry: Pick<LedgerEntry, "entryType" | "relatedTable" | "channelId">
+) {
+  if (entry.channelId !== undefined && (entry.entryType === "應付" || entry.entryType === "應付付款")) {
+    return true;
+  }
+  return (
+    entry.entryType === "應付" ||
+    entry.relatedTable === "purchases" ||
+    entry.relatedTable === "買入" ||
+    entry.relatedTable === "買入付款" ||
+    entry.relatedTable === "應付付款" ||
+    entry.entryType === "買入付款" ||
+    entry.entryType === "應付付款"
+  );
+}
+
+export function sortedPayableLedgerWithBalances(state: AppState) {
+  return sortedLedgerWithBalances(state).filter(isPayableLedgerEntry);
+}
+
+/** 同一筆業務操作的多筆流水共用此 key（例如售出、收帳、買入、內轉）。 */
+export function ledgerOperationGroupKey(
+  entry: Pick<LedgerEntry, "relatedTable" | "relatedId">
+): string | null {
+  if (entry.relatedTable == null || entry.relatedId == null) return null;
+  return `${entry.relatedTable}:${entry.relatedId}`;
+}
+
+export function profitLedger(state: AppState) {
+  return state.ledger
+    .filter(
+      (entry) =>
+        (entry.entryType === "利潤" && entry.direction === "in") ||
+        (entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD")
+    )
+    .map((entry) => ({
+      id: `ledger-${entry.id}`,
+      createdAt: entry.createdAt,
+      direction: entry.direction,
+      amount: entry.amount,
+      description: entry.description,
+      operatorName: entry.operatorName
+    }))
+    .sort((a, b) => {
+      const byTime = b.createdAt.localeCompare(a.createdAt);
+      if (byTime !== 0) return byTime;
+      if (a.direction !== b.direction) return a.direction === "out" ? -1 : 1;
+      return String(a.id).localeCompare(String(b.id));
+    });
+}
+
+export type CashflowRow = {
+  id: string | number;
+  createdAt: string;
+  entryType: string;
+  currency: Currency;
+  direction: "in" | "out" | "none";
+  amount: string;
+  description: string;
+  operatorName: string;
+};
+
+export function recentCashflowEntries(state: AppState): CashflowRow[] {
+  return state.ledger
+    .map((entry) => ({
+      id: entry.id,
+      createdAt: entry.createdAt,
+      entryType: entry.entryType,
+      currency: entry.currency,
+      direction: entry.direction,
+      amount: entry.amount,
+      description: entry.description,
+      operatorName: entry.operatorName
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function addPurchase(state: AppState, input: {
+  channelName: string;
+  paymentAccountId?: number;
+  depositAccountId: number;
+  rmbAmount: string;
+  exchangeRate: string;
+  paymentStatus: "paid" | "unpaid";
+}) {
+  const channel = getOrCreateByName(state.channels, input.channelName);
+  const rmbAmount = money(input.rmbAmount);
+  const twdCost = money(d(input.rmbAmount).mul(input.exchangeRate));
+  const purchase = {
+    id: nextId(state.purchases),
+    channelId: channel.id,
+    channelName: channel.name,
+    paymentAccountId: input.paymentAccountId,
+    depositAccountId: input.depositAccountId,
+    rmbAmount,
+    exchangeRate: rate(input.exchangeRate),
+    twdCost,
+    paidTwd: input.paymentStatus === "paid" ? twdCost : "0.00",
+    paymentStatus: input.paymentStatus,
+    operatorName: currentOperator(state),
+    createdAt: now()
+  };
+  state.purchases.unshift(purchase);
+  state.rmbLots.push({
+    id: nextId(state.rmbLots),
+    purchaseId: purchase.id,
+    accountId: input.depositAccountId,
+    channelName: channel.name,
+    originalRmb: rmbAmount,
+    remainingRmb: rmbAmount,
+    unitCostTwd: rate(d(twdCost).div(rmbAmount)),
+    exchangeRate: rate(input.exchangeRate),
+    createdAt: purchase.createdAt
+  });
+  addLedger(state, {
+    entryType: "應付",
+    channelId: channel.id,
+    direction: "in",
+    currency: "TWD",
+    amount: twdCost,
+    description: `${channel.name} 應付增加`,
+    relatedTable: "purchases",
+    relatedId: purchase.id
+  });
+  mutateAccount(
+    state,
+    input.depositAccountId,
+    "RMB",
+    rmbAmount,
+    "in",
+    "purchases",
+    purchase.id,
+    `買入 ${rmbAmount} RMB`,
+    "買入"
+  );
+  if (input.paymentStatus === "paid" && input.paymentAccountId) {
+    addLedger(state, {
+      entryType: "應付付款",
+      channelId: channel.id,
+      direction: "out",
+      currency: "TWD",
+      amount: twdCost,
+      description: `支付買入款：${channel.name}`,
+      relatedTable: "purchases",
+      relatedId: purchase.id
+    });
+    mutateAccount(
+      state,
+      input.paymentAccountId,
+      "TWD",
+      d(twdCost).neg().toFixed(2),
+      "out",
+      "purchases",
+      purchase.id,
+      `支付買入成本 ${twdCost} TWD`,
+      "買入付款"
+    );
+  }
+  saveState(state);
+  return state;
+}
+
+export function addSale(state: AppState, input: { customerName: string; rmbAccountId: number; rmbAmount: string; exchangeRate: string }) {
+  const customer = getOrCreateByName(state.customers, input.customerName, { receivableTwd: "0.00" });
+  const twdAmount = money(d(input.rmbAmount).mul(input.exchangeRate));
+  const saleId = nextId(state.sales);
+  const allocation = allocateLocalFifo(state, input.rmbAccountId, input.rmbAmount);
+  const profitTwd = money(d(twdAmount).sub(allocation.costTwd));
+  const sale = {
+    id: saleId,
+    customerId: customer.id,
+    customerName: customer.name,
+    rmbAccountId: input.rmbAccountId,
+    rmbAmount: money(input.rmbAmount),
+    exchangeRate: rate(input.exchangeRate),
+    twdAmount,
+    costTwd: money(allocation.costTwd),
+    profitTwd,
+    settlementStatus: "unsettled" as const,
+    operatorName: currentOperator(state),
+    createdAt: now()
+  };
+  state.sales.unshift(sale);
+  allocation.items.forEach((item) => {
+    state.saleAllocations.push({
+      id: nextId(state.saleAllocations),
+      saleId,
+      ...item,
+      createdAt: sale.createdAt
+    });
+  });
+  customer.receivableTwd = money(d(customer.receivableTwd).add(twdAmount));
+  mutateAccount(state, input.rmbAccountId, "RMB", d(input.rmbAmount).neg().toFixed(2), "out", "售出", sale.id, `售出 RMB 給${customer.name}`);
+  addLedger(state, { entryType: "應收", customerId: customer.id, direction: "in", currency: "TWD", amount: twdAmount, description: `${customer.name} 應收增加`, relatedTable: "sales", relatedId: sale.id });
+  if (d(profitTwd).gt(0)) {
+    addLedger(state, {
+      entryType: "利潤",
+      customerId: customer.id,
+      direction: "in",
+      currency: "TWD",
+      amount: profitTwd,
+      description: `${customer.name} 售出利潤`,
+      relatedTable: "sales",
+      relatedId: sale.id
+    });
+  }
+  saveState(state);
+  return state;
+}
+
+export function addSettlement(state: AppState, input: { customerId: number; accountId: number; amountTwd: string; note?: string }) {
+  const customer = state.customers.find((item) => item.id === input.customerId);
+  if (!customer) throw new Error("找不到客戶");
+  if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
+  if (d(customer.receivableTwd).lt(input.amountTwd)) throw new Error("收款金額超過應收餘額");
+
+  const amountTwd = money(input.amountTwd);
+  const settlementId = nextId(state.ledger);
+  const note = input.note?.trim();
+  const description = note ? `收帳：${customer.name}（${note}）` : `收帳：${customer.name}`;
+
+  customer.receivableTwd = money(Decimal.max(0, d(customer.receivableTwd).sub(amountTwd)));
+  addLedger(state, {
+    entryType: "收帳",
+    customerId: customer.id,
+    direction: "out",
+    currency: "TWD",
+    amount: amountTwd,
+    description,
+    relatedTable: "settlements",
+    relatedId: settlementId
+  });
+  mutateAccount(state, input.accountId, "TWD", amountTwd, "in", "settlements", settlementId, description, "收帳");
+  state.sales.filter((sale) => sale.customerId === customer.id).forEach((sale) => {
+    sale.settlementStatus = d(customer.receivableTwd).eq(0) ? "settled" : "partial";
+  });
+  saveState(state);
+  return state;
+}
+
+export function payPurchase(state: AppState, input: { purchaseId: number; accountId: number; amountTwd: string }) {
+  const purchase = state.purchases.find((item) => item.id === input.purchaseId);
+  if (!purchase) throw new Error("找不到買入紀錄");
+  const remaining = d(purchase.twdCost).sub(purchase.paidTwd);
+  if (remaining.lte(0)) throw new Error("此買入已付清");
+  if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
+  if (remaining.lt(input.amountTwd)) throw new Error("付款金額超過應付餘額");
+
+  const amountTwd = money(input.amountTwd);
+  purchase.paidTwd = money(d(purchase.paidTwd).add(amountTwd));
+  purchase.paymentAccountId = input.accountId;
+  if (d(purchase.paidTwd).gte(purchase.twdCost)) {
+    purchase.paidTwd = purchase.twdCost;
+    purchase.paymentStatus = "paid";
+  } else {
+    purchase.paymentStatus = "partial";
+  }
+  addLedger(state, {
+    entryType: "應付付款",
+    channelId: purchase.channelId,
+    direction: "out",
+    currency: "TWD",
+    amount: amountTwd,
+    description: `支付買入款：${purchase.channelName}`,
+    relatedTable: "purchases",
+    relatedId: purchase.id
+  });
+  mutateAccount(
+    state,
+    input.accountId,
+    "TWD",
+    d(amountTwd).neg().toFixed(2),
+    "out",
+    "purchases",
+    purchase.id,
+    `支付買入款：${purchase.channelName}`,
+    "應付付款"
+  );
+  saveState(state);
+  return state;
+}
+
+export function adjustAccount(state: AppState, input: { accountId: number; direction: "in" | "out"; amount: string; note?: string; withdrawType?: "capital" | "profit" }) {
+  const account = state.accounts.find((item) => item.id === input.accountId);
+  if (!account) throw new Error("找不到帳戶");
+  if (d(input.amount).lte(0)) throw new Error("金額必須大於 0");
+  if (input.direction === "out" && d(account.balance).lt(input.amount)) throw new Error("帳戶餘額不足");
+  if (input.direction === "out" && input.withdrawType === "profit") {
+    if (account.currency !== "TWD") throw new Error("分潤只能從台幣帳戶提取");
+    if (d(totals(state).profit).lt(input.amount)) throw new Error("可提取利潤不足");
+  }
+
+  const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
+  const relatedTable = input.direction === "out" && input.withdrawType === "profit" ? "profit" : entryType;
+  const amount = input.direction === "in" ? input.amount : d(input.amount).neg().toFixed(2);
+  const note = input.note?.trim();
+  const description = `${account.holderName} / ${account.name} ${entryType}${note ? `：${note}` : ""}`;
+  mutateAccount(state, account.id, account.currency, amount, input.direction, relatedTable, nextId(state.ledger), description, entryType);
+  saveState(state);
+  return state;
+}
+
+export function addChannel(state: AppState, input: { name: string }) {
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入渠道名稱");
+  const existing = state.channels.find((channel) => channel.name === name);
+  if (existing) {
+    if (existing.isActive) throw new Error("此渠道已存在");
+    existing.isActive = true;
+    saveState(state);
+    return state;
+  }
+  state.channels.push({
+    id: nextId(state.channels),
+    name,
+    isActive: true
+  });
+  saveState(state);
+  return state;
+}
+
+export function renameChannel(state: AppState, input: { channelId: number; name: string }) {
+  const channel = state.channels.find((item) => item.id === input.channelId && item.isActive);
+  if (!channel) throw new Error("找不到渠道");
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入渠道名稱");
+  if (state.channels.some((item) => item.id !== channel.id && item.name === name && item.isActive)) {
+    throw new Error("此渠道名稱已被使用");
+  }
+  channel.name = name;
+  saveState(state);
+  return state;
+}
+
+export function setChannelActive(state: AppState, input: { channelId: number; isActive: boolean }) {
+  const channel = state.channels.find((item) => item.id === input.channelId);
+  if (!channel) throw new Error("找不到渠道");
+  channel.isActive = input.isActive;
+  saveState(state);
+  return state;
+}
+
+/** 從常用渠道清單移除；不刪除渠道主檔，亦不影響既有買入與帳務。 */
+export function deleteChannel(state: AppState, input: { channelId: number }) {
+  const channel = state.channels.find((item) => item.id === input.channelId);
+  if (!channel) throw new Error("找不到渠道");
+  channel.isActive = false;
+  saveState(state);
+  return state;
+}
+
+export function addCustomer(state: AppState, input: { name: string }) {
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入客戶名稱");
+  const existing = state.customers.find((customer) => customer.name === name);
+  if (existing) {
+    if (existing.isActive) throw new Error("此客戶已存在");
+    existing.isActive = true;
+    saveState(state);
+    return state;
+  }
+  state.customers.push({
+    id: nextId(state.customers),
+    name,
+    receivableTwd: "0.00",
+    isActive: true
+  });
+  saveState(state);
+  return state;
+}
+
+export function renameCustomer(state: AppState, input: { customerId: number; name: string }) {
+  const customer = state.customers.find((item) => item.id === input.customerId && item.isActive);
+  if (!customer) throw new Error("找不到客戶");
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入客戶名稱");
+  if (state.customers.some((item) => item.id !== customer.id && item.name === name && item.isActive)) {
+    throw new Error("此客戶名稱已被使用");
+  }
+  customer.name = name;
+  state.sales.forEach((sale) => {
+    if (sale.customerId === customer.id) sale.customerName = name;
+  });
+  saveState(state);
+  return state;
+}
+
+/** 從常用客戶清單移除；不刪除客戶主檔，亦不影響既有售出、應收與帳務。 */
+export function deleteCustomer(state: AppState, input: { customerId: number }) {
+  const customer = state.customers.find((item) => item.id === input.customerId);
+  if (!customer) throw new Error("找不到客戶");
+  customer.isActive = false;
+  saveState(state);
+  return state;
+}
+
+export function addHolder(state: AppState, input: { name: string }) {
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入持有人名稱");
+  if (state.holders.some((holder) => holder.name === name && holder.isActive)) {
+    throw new Error("此持有人已存在");
+  }
+
+  state.holders.push({
+    id: nextId(state.holders),
+    name,
+    isActive: true
+  });
+  saveState(state);
+  return state;
+}
+
+export function renameHolder(state: AppState, input: { holderId: number; name: string }) {
+  const holder = state.holders.find((item) => item.id === input.holderId && item.isActive);
+  if (!holder) throw new Error("找不到持有者");
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入持有人名稱");
+  if (state.holders.some((item) => item.id !== holder.id && item.name === name && item.isActive)) {
+    throw new Error("此持有人已存在");
+  }
+  holder.name = name;
+  state.accounts
+    .filter((account) => account.holderId === holder.id)
+    .forEach((account) => {
+      account.holderName = name;
+    });
+  saveState(state);
+  return state;
+}
+
+export function renameAccount(state: AppState, input: { accountId: number; name: string }) {
+  const account = state.accounts.find((item) => item.id === input.accountId && item.isActive);
+  if (!account) throw new Error("找不到帳戶");
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入帳戶名稱");
+  if (
+    state.accounts.some(
+      (item) =>
+        item.id !== account.id &&
+        item.holderId === account.holderId &&
+        item.name === name &&
+        item.currency === account.currency &&
+        item.isActive
+    )
+  ) {
+    throw new Error("此持有人已有相同名稱與幣別的帳戶");
+  }
+  account.name = name;
+  saveState(state);
+  return state;
+}
+
+function assertAccountDeletable(state: AppState, account: AppState["accounts"][number]) {
+  if (!d(account.balance).eq(0) || !d(account.profitBalance).eq(0)) {
+    throw new Error("帳戶仍有餘額，無法刪除");
+  }
+  const hasInventory = state.rmbLots.some((lot) => lot.accountId === account.id && d(lot.remainingRmb).gt(0));
+  if (hasInventory) {
+    throw new Error("帳戶仍有人民幣庫存，無法刪除");
+  }
+}
+
+export function deleteAccount(state: AppState, input: { accountId: number }) {
+  const account = state.accounts.find((item) => item.id === input.accountId && item.isActive);
+  if (!account) throw new Error("找不到帳戶");
+  assertAccountDeletable(state, account);
+  account.isActive = false;
+  saveState(state);
+  return state;
+}
+
+export function deleteHolder(state: AppState, input: { holderId: number }) {
+  const holder = state.holders.find((item) => item.id === input.holderId && item.isActive);
+  if (!holder) throw new Error("找不到持有者");
+  const accounts = state.accounts.filter((account) => account.holderId === holder.id && account.isActive);
+  accounts.forEach((account) => assertAccountDeletable(state, account));
+  accounts.forEach((account) => {
+    account.isActive = false;
+  });
+  holder.isActive = false;
+  saveState(state);
+  return state;
+}
+
+export function addAccount(state: AppState, input: { holderId: number; name: string; currency: Currency }) {
+  const holder = state.holders.find((item) => item.id === input.holderId);
+  if (!holder) throw new Error("找不到持有者");
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入帳戶名稱");
+  const duplicated = state.accounts.some(
+    (account) => account.holderId === holder.id && account.name === name && account.currency === input.currency && account.isActive
+  );
+  if (duplicated) throw new Error("此持有人已有相同名稱與幣別的帳戶");
+
+  state.accounts.push({
+    id: nextId(state.accounts),
+    holderId: holder.id,
+    holderName: holder.name,
+    name,
+    currency: input.currency,
+    balance: "0.00",
+    profitBalance: "0.00",
+    isActive: true
+  });
+  saveState(state);
+  return state;
+}
+
+export function addTransfer(state: AppState, input: { fromAccountId: number; toAccountId: number; amount: string; note?: string }) {
+  const from = state.accounts.find((a) => a.id === input.fromAccountId);
+  const to = state.accounts.find((a) => a.id === input.toAccountId);
+  if (!from || !to) throw new Error("找不到帳戶");
+  if (from.currency !== to.currency) throw new Error("帳戶內轉必須使用相同幣別");
+  const transferId = nextId(state.ledger);
+  mutateAccount(state, from.id, from.currency, d(input.amount).neg().toFixed(2), "out", "內轉", transferId, `轉出至 ${to.holderName} / ${to.name}`);
+  mutateAccount(state, to.id, to.currency, input.amount, "in", "內轉", transferId, `由 ${from.holderName} / ${from.name} 轉入`);
+  saveState(state);
+  return state;
+}
+
+function getOrCreateByName<T extends { id: number; name: string; isActive: boolean }>(items: T[], name: string, extra?: Partial<T>) {
+  const normalized = name.trim();
+  const existing = items.find((item) => item.name === normalized);
+  if (existing) {
+    if (!existing.isActive) existing.isActive = true;
+    return existing;
+  }
+  const item = { id: nextId(items), name: normalized, isActive: true, ...(extra ?? {}) } as T;
+  items.push(item);
+  return item;
+}
+
+function computeFifoCost(state: AppState, accountId: number, requestedRmb: string) {
+  let remaining = d(requestedRmb);
+  let costTwd = d(0);
+  const lots = state.rmbLots
+    .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const lot of lots) {
+    if (remaining.lte(0)) break;
+    const allocated = Decimal.min(remaining, lot.remainingRmb);
+    costTwd = costTwd.add(allocated.mul(lot.unitCostTwd));
+    remaining = remaining.sub(allocated);
+  }
+  if (remaining.gt(0)) throw new Error(`RMB 庫存不足，缺少 ${remaining.toFixed(2)}`);
+  return money(costTwd);
+}
+
+export function previewSaleProfit(
+  state: AppState,
+  input: { rmbAccountId: number; rmbAmount: string; exchangeRate: string }
+) {
+  const rmbAmount = input.rmbAmount.trim();
+  const exchangeRate = input.exchangeRate.trim();
+  if (!input.rmbAccountId || !rmbAmount || !exchangeRate) return null;
+  if (!d(rmbAmount).gt(0) || !d(exchangeRate).gt(0)) return null;
+
+  const twdAmount = money(d(rmbAmount).mul(exchangeRate));
+  try {
+    const costTwd = computeFifoCost(state, input.rmbAccountId, rmbAmount);
+    return { twdAmount, profitTwd: money(d(twdAmount).sub(costTwd)), profitError: null as string | null };
+  } catch (err) {
+    return {
+      twdAmount,
+      profitTwd: null,
+      profitError: err instanceof Error ? err.message : "無法計算利潤"
+    };
+  }
+}
+
+function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: string) {
+  let remaining = d(requestedRmb);
+  let costTwd = d(0);
+  const items: Array<{ lotId: number; purchaseId: number; channelName: string; allocatedRmb: string; unitCostTwd: string; costTwd: string }> = [];
+  const lots = state.rmbLots
+    .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const lot of lots) {
+    if (remaining.lte(0)) break;
+    const allocated = Decimal.min(remaining, lot.remainingRmb);
+    const allocatedCostTwd = allocated.mul(lot.unitCostTwd);
+    lot.remainingRmb = money(d(lot.remainingRmb).sub(allocated));
+    costTwd = costTwd.add(allocatedCostTwd);
+    items.push({
+      lotId: lot.id,
+      purchaseId: lot.purchaseId,
+      channelName: lot.channelName,
+      allocatedRmb: money(allocated),
+      unitCostTwd: rate(lot.unitCostTwd),
+      costTwd: money(allocatedCostTwd)
+    });
+    remaining = remaining.sub(allocated);
+  }
+  if (remaining.gt(0)) throw new Error(`RMB 庫存不足，缺少 ${remaining.toFixed(2)}`);
+  return { costTwd: money(costTwd), items };
+}
+
+function inferSaleAllocations(state: AppState) {
+  const soldByLot = state.rmbLots
+    .map((lot) => ({
+      lot,
+      availableSoldRmb: d(lot.originalRmb).sub(lot.remainingRmb)
+    }))
+    .filter((item) => item.availableSoldRmb.gt(0))
+    .sort((a, b) => a.lot.createdAt.localeCompare(b.lot.createdAt));
+  const allocations: AppState["saleAllocations"] = [];
+  const sales = [...state.sales].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  for (const sale of sales) {
+    let remaining = d(sale.rmbAmount);
+    for (const item of soldByLot) {
+      if (remaining.lte(0)) break;
+      if (item.lot.accountId !== sale.rmbAccountId || item.availableSoldRmb.lte(0)) continue;
+      const allocated = Decimal.min(remaining, item.availableSoldRmb);
+      const costTwd = allocated.mul(item.lot.unitCostTwd);
+      allocations.push({
+        id: nextId(allocations),
+        saleId: sale.id,
+        lotId: item.lot.id,
+        purchaseId: item.lot.purchaseId,
+        channelName: item.lot.channelName,
+        allocatedRmb: money(allocated),
+        unitCostTwd: rate(item.lot.unitCostTwd),
+        costTwd: money(costTwd),
+        createdAt: sale.createdAt
+      });
+      item.availableSoldRmb = item.availableSoldRmb.sub(allocated);
+      remaining = remaining.sub(allocated);
+    }
+  }
+
+  return allocations;
+}
+
+function mutateAccount(state: AppState, accountId: number, currency: Currency, amount: string, direction: "in" | "out", relatedTable: string, relatedId: number, description: string, entryType = relatedTable) {
+  const account = state.accounts.find((item) => item.id === accountId);
+  if (!account) throw new Error("找不到帳戶");
+  if (account.currency !== currency) throw new Error("帳戶幣別不符");
+  account.balance = money(d(account.balance).add(amount));
+  addLedger(state, { entryType, accountId, direction, currency, amount: d(amount).abs().toFixed(2), relatedTable, relatedId, description });
+}
+
+function addLedger(state: AppState, input: Omit<LedgerEntry, "id" | "createdAt" | "operatorName">) {
+  state.ledger.unshift({
+    id: nextId(state.ledger),
+    createdAt: now(),
+    ...input,
+    operatorName: currentOperator(state)
+  });
+}
