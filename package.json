@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "build": "tsc -p tsconfig.app.json --noEmit && tsc -p api/tsconfig.json --noEmit && vite build",
     "stable": "node scripts/serve-dist.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run --environment jsdom",

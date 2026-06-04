@@ -21,7 +21,7 @@
       "@server/*": ["api/_lib/*"]
     }
   },
-  "include": ["src", "api"],
+  "include": ["src"],
   "exclude": [
     "src/App.tsx",
     "src/pages/BuyIn.tsx",
