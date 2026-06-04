@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { asc, eq } from "drizzle-orm";
-import { getDb } from "../_lib/db";
-import { fail, ok, readJson, requireUser } from "../_lib/http";
-import { customers } from "../_lib/schema";
+import { getDb } from "../_lib/db.js";
+import { fail, ok, readJson, requireUser } from "../_lib/http.js";
+import { customers } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {

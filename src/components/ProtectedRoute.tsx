@@ -6,7 +6,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-background p-4 text-sm text-foreground">
         驗證登入狀態…
       </div>
     );

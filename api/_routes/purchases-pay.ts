@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { payPurchasePayment } from "../_lib/transactions";
-import { fail, getClientMeta, ok, readJson, requireUser } from "../_lib/http";
+import { payPurchasePayment } from "../_lib/transactions.js";
+import { fail, getClientMeta, ok, readJson, requireUser } from "../_lib/http.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return fail(res, 405, "Method not allowed");

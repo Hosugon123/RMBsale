@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import jwt from "jsonwebtoken";
-import type { UserRole } from "./schema";
+import type { UserRole } from "./schema.js";
 
 export type AuthUser = {
   id: number;

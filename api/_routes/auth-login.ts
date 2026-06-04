@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { getDb } from "../_lib/db";
-import { fail, ok, readJson, setSessionCookie, signSession } from "../_lib/http";
-import { users } from "../_lib/schema";
+import { getDb } from "../_lib/db.js";
+import { fail, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
+import { users } from "../_lib/schema.js";
 
 type LoginBody = {
   username: string;

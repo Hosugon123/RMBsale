@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fail, ok, requireAdmin } from "../_lib/http";
+import { fail, ok, requireAdmin } from "../_lib/http.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return fail(res, 405, "Method not allowed");
