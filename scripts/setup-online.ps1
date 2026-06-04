@@ -5,8 +5,8 @@
 
 param(
   [string]$NeonApiKey = $env:NEON_API_KEY,
-  [string]$AdminUser = "admin",
-  [string]$AdminPassword = "",
+  [string]$AdminUser = "ds001",
+  [string]$AdminPassword = "1234",
   [string]$JwtSecret = ""
 )
 

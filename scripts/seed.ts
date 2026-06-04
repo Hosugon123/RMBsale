@@ -6,12 +6,8 @@ import { accounts, channels, customers, holders, users } from "../api/_lib/schem
 
 const db = getDb();
 
-const username = process.env.ADMIN_USERNAME;
-const password = process.env.ADMIN_PASSWORD;
-
-if (!username || !password) {
-  throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD are required for seed.");
-}
+const username = process.env.ADMIN_USERNAME ?? "ds001";
+const password = process.env.ADMIN_PASSWORD ?? "1234";
 
 const passwordHash = await bcrypt.hash(password, 12);
 let [admin] = await db.select().from(users).where(eq(users.username, username));

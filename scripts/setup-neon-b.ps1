@@ -58,10 +58,8 @@ $env:DATABASE_URL = $dbUrl
 
 Write-Step "執行 migration 與 seed"
 npm.cmd run db:migrate
-if (-not $env:ADMIN_USERNAME) { $env:ADMIN_USERNAME = "admin" }
-if (-not $env:ADMIN_PASSWORD) {
-  $env:ADMIN_PASSWORD = -join ((48..57 + 65..90 + 97..122) | Get-Random -Count 16 | ForEach-Object { [char]$_ })
-}
+if (-not $env:ADMIN_USERNAME) { $env:ADMIN_USERNAME = "ds001" }
+if (-not $env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD = "1234" }
 npm.cmd run db:seed
 
 Write-Host "`n路線 B 完成。Neon 專案：$ProjectName" -ForegroundColor Green

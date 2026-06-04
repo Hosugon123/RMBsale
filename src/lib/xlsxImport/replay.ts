@@ -40,7 +40,7 @@ export type ReplayLogEntry = {
 export function createImportBaseState(): AppState {
   const seed = createSeedState();
   const cleared = clearBusinessData(seed);
-  const admin = cleared.users.find((u) => u.username === "admin");
+  const admin = cleared.users.find((u) => u.role === "admin");
   if (admin) admin.displayName = IMPORT_OPERATOR;
   return cleared;
 }

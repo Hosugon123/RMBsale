@@ -28,9 +28,9 @@ function currentOperator(state: AppState) {
 function createAdminUser(): AppUser {
   return {
     id: 1,
-    username: "admin",
+    username: "ds001",
     displayName: "系統管理員",
-    password: "admin",
+    password: "1234",
     role: "admin",
     permissions: [...ALL_PERMISSIONS],
     isActive: true

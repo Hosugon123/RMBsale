@@ -8,15 +8,14 @@ const root = resolve(import.meta.dirname, "..");
 const vercel = process.platform === "win32" ? "npx.cmd" : "npx";
 const base = ["--yes", "vercel@latest"];
 
-const adminPassword =
-  process.env.ADMIN_PASSWORD ??
-  randomBytes(12).toString("base64url").slice(0, 16);
+const adminUsername = process.env.ADMIN_USERNAME ?? "ds001";
+const adminPassword = process.env.ADMIN_PASSWORD ?? "1234";
 const jwtSecret =
   process.env.JWT_SECRET ?? randomBytes(48).toString("base64");
 
 const vars: Array<{ name: string; value: string; sensitive: boolean }> = [
   { name: "JWT_SECRET", value: jwtSecret, sensitive: true },
-  { name: "ADMIN_USERNAME", value: "admin", sensitive: false },
+  { name: "ADMIN_USERNAME", value: adminUsername, sensitive: false },
   { name: "ADMIN_PASSWORD", value: adminPassword, sensitive: true },
   { name: "OPERATOR_USERNAME", value: "operator", sensitive: false },
   { name: "OPERATOR_PASSWORD", value: "operator123", sensitive: true }
@@ -57,7 +56,7 @@ for (const { name, value, sensitive } of vars) {
   }
 }
 
-process.env.ADMIN_USERNAME = "admin";
+process.env.ADMIN_USERNAME = adminUsername;
 process.env.ADMIN_PASSWORD = adminPassword;
 process.env.OPERATOR_USERNAME = "operator";
 process.env.OPERATOR_PASSWORD = "operator123";
@@ -67,7 +66,7 @@ if (seed.status !== 0) process.exit(seed.status ?? 1);
 
 const creds = `登入資訊（請妥善保存，勿公開）
 
-管理員：admin / ${adminPassword}
+管理員：${adminUsername} / ${adminPassword}
 操作員：operator / operator123
 `;
 writeFileSync(resolve(import.meta.dirname, ".setup-result.txt"), creds, "utf8");

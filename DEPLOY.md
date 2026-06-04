@@ -14,8 +14,8 @@
 |------|------|
 | `DATABASE_URL` | Neon 連線字串（通常由 Storage 自動帶入） |
 | `JWT_SECRET` | 長隨機字串（登入 session） |
-| `ADMIN_USERNAME` | 管理員帳號，例如 `admin` |
-| `ADMIN_PASSWORD` | 管理員密碼（請用強密碼） |
+| `ADMIN_USERNAME` | 管理員帳號，預設 `ds001` |
+| `ADMIN_PASSWORD` | 管理員密碼，預設 `1234`（正式環境建議改強密碼） |
 | `OPERATOR_USERNAME` | 可選，預設 `operator` |
 | `OPERATOR_PASSWORD` | 可選，預設 `operator123` |
 
