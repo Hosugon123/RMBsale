@@ -30,7 +30,15 @@ import {
   saveState,
   totals
 } from "../lib/localStore";
-import { applyBusinessImport, parseBusinessImportJson, type BusinessDataImport } from "../lib/dataImport";
+import { applyBusinessImport, type BusinessDataImport } from "../lib/dataImport";
+import {
+  formatImportNotice,
+  isXlsxImportApplied,
+  loadXlsxImportPayload,
+  XLSX_APPLIED_KEY,
+  XLSX_AUTO_IMPORT_VERSION,
+  XLSX_IMPORT_NOTICE_KEY
+} from "../lib/xlsxAutoImport";
 import type { AppState, AppUser, PermissionKey } from "../lib/types";
 
 type AppStore = {
@@ -83,13 +91,45 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const commit = React.useCallback((producer: (draft: AppState) => unknown) => {
     const draft = structuredClone(stateRef.current) as AppState;
+    let next: AppState;
     try {
-      producer(draft);
+      const result = producer(draft);
+      next = result && typeof result === "object" && "users" in (result as AppState) ? (result as AppState) : draft;
     } catch (err) {
       throw err;
     }
-    applyState(draft);
+    applyState(next);
   }, [applyState]);
+
+  const applyImportedState = React.useCallback(
+    (payload: BusinessDataImport) => {
+      const draft = structuredClone(stateRef.current) as AppState;
+      clearBusinessData(draft);
+      const imported = applyBusinessImport(draft.sessionUserId, draft.users, payload);
+      applyState(replaceBusinessData(draft, imported));
+    },
+    [applyState]
+  );
+
+  React.useEffect(() => {
+    if (import.meta.env.MODE === "test") return;
+    if (isXlsxImportApplied()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const payload = await loadXlsxImportPayload();
+        if (!payload || cancelled) return;
+        applyImportedState(payload);
+        localStorage.setItem(XLSX_APPLIED_KEY, XLSX_AUTO_IMPORT_VERSION);
+        sessionStorage.setItem(XLSX_IMPORT_NOTICE_KEY, formatImportNotice(payload));
+      } catch (err) {
+        console.error("試算表自動匯入失敗", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyImportedState]);
 
   const sessionUser = React.useMemo(() => getSessionUser(state), [state]);
 
@@ -100,11 +140,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     refresh: () => applyState(loadState()),
     resetDemo: () => applyState(resetState()),
     clearData: () => commit((draft) => clearBusinessData(draft)),
-    importBusinessData: (payload) =>
-      commit((draft) => {
-        const imported = applyBusinessImport(draft.sessionUserId, draft.users, payload);
-        return replaceBusinessData(draft, imported);
-      }),
+    importBusinessData: (payload) => applyImportedState(payload),
     createPurchase: (input) => commit((draft) => addPurchase(draft, input)),
     createSale: (input) => commit((draft) => addSale(draft, input)),
     createSettlement: (input) => commit((draft) => addSettlement(draft, input)),

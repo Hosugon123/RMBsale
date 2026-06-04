@@ -14,11 +14,13 @@ import {
   sortedProfitLedgerWithBalances,
   sortedReceivableLedgerWithBalances
 } from "../lib/localStore";
+import { XLSX_IMPORT_NOTICE_KEY } from "../lib/xlsxAutoImport";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
 
 export function DashboardPage() {
   const { state, summary } = useAppStore();
   const navigate = useNavigate();
+  const [importNotice, setImportNotice] = React.useState(() => sessionStorage.getItem(XLSX_IMPORT_NOTICE_KEY));
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<number | null>(null);
   const [showProfitLedger, setShowProfitLedger] = React.useState(false);
   const [showTwdLedger, setShowTwdLedger] = React.useState(false);
@@ -33,6 +35,22 @@ export function DashboardPage() {
   const receivableLedgerRows = React.useMemo(() => sortedReceivableLedgerWithBalances(state), [state]);
   return (
     <div className="min-w-0 max-w-full space-y-5">
+      {importNotice ? (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground">
+          <p>{importNotice}</p>
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="關閉"
+            onClick={() => {
+              sessionStorage.removeItem(XLSX_IMPORT_NOTICE_KEY);
+              setImportNotice(null);
+            }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>帳務總覽</CardTitle>

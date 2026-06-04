@@ -5,6 +5,14 @@ import { d, nextId } from "./utils";
 
 const KEY = "rmbsale.demo.state.v3";
 const now = () => new Date().toISOString();
+let transactionTimestamp: string | null = null;
+
+/** 試算表匯入等批次重播時，指定交易時間戳（ISO）；結束後請傳 null。 */
+export function setTransactionTimestamp(iso: string | null) {
+  transactionTimestamp = iso;
+}
+
+const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
 
@@ -353,8 +361,15 @@ export function updateUser(
   return user;
 }
 
+function getPersistentStorage(): Storage | null {
+  if (typeof window !== "undefined" && window.localStorage) return window.localStorage;
+  const globalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+  return globalStorage ?? null;
+}
+
 export function saveState(state: AppState) {
-  window.localStorage.setItem(KEY, JSON.stringify(state));
+  const storage = getPersistentStorage();
+  if (storage) storage.setItem(KEY, JSON.stringify(state));
 }
 
 export function resetState() {
@@ -674,7 +689,7 @@ export function addPurchase(state: AppState, input: {
     paidTwd: input.paymentStatus === "paid" ? twdCost : "0.00",
     paymentStatus: input.paymentStatus,
     operatorName: currentOperator(state),
-    createdAt: now()
+    createdAt: txNow()
   };
   state.purchases.unshift(purchase);
   state.rmbLots.push({
@@ -754,7 +769,7 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
     profitTwd,
     settlementStatus: "unsettled" as const,
     operatorName: currentOperator(state),
-    createdAt: now()
+    createdAt: txNow()
   };
   state.sales.unshift(sale);
   allocation.items.forEach((item) => {
@@ -1219,7 +1234,7 @@ function mutateAccount(state: AppState, accountId: number, currency: Currency, a
 function addLedger(state: AppState, input: Omit<LedgerEntry, "id" | "createdAt" | "operatorName">) {
   state.ledger.unshift({
     id: nextId(state.ledger),
-    createdAt: now(),
+    createdAt: txNow(),
     ...input,
     operatorName: currentOperator(state)
   });

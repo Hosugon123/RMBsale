@@ -21,5 +21,18 @@
       "@server/*": ["api/_lib/*"]
     }
   },
-  "include": ["src", "api", "scripts"]
+  "include": ["src", "api"],
+  "exclude": [
+    "src/App.tsx",
+    "src/pages/BuyIn.tsx",
+    "src/pages/CashManagement.tsx",
+    "src/pages/SalesEntry.tsx",
+    "src/pages/UserManagement.tsx",
+    "src/pages/IndependentBalance.tsx",
+    "src/pages/Dashboard.tsx",
+    "src/pages/FifoInventory.tsx",
+    "src/components/Layout.tsx",
+    "src/components/ProtectedRoute.tsx",
+    "src/pages/Login.tsx"
+  ]
 }

@@ -10,3 +10,8 @@ dev-server*.log
 coverage/
 .DS_Store
 Thumbs.db
+data/probe-*.json
+data/import-from-xlsx.json
+data/import-validation-report.json
+public/import-from-xlsx.json
+probe-out.txt
