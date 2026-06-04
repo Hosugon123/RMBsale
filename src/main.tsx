@@ -8,6 +8,7 @@ import { SaleModalHost } from "./components/SaleModalHost";
 import { SettlementModalHost } from "./components/SettlementModalHost";
 import { TransferModalHost } from "./components/TransferModalHost";
 import { AppStoreProvider } from "./features/AppStore";
+import { ThemeProvider } from "./features/ThemeProvider";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PurchasePage } from "./pages/PurchasePage";
 import { SalePage } from "./pages/SalePage";
@@ -23,7 +24,8 @@ const queryClient = new QueryClient();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AppStoreProvider>
+      <ThemeProvider>
+        <AppStoreProvider>
         <BrowserRouter>
           <TransferModalHost />
           <SettlementModalHost />
@@ -49,7 +51,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             </Route>
           </Routes>
         </BrowserRouter>
-      </AppStoreProvider>
+        </AppStoreProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

@@ -19,6 +19,9 @@ export default {
         "muted-foreground": "hsl(var(--muted-foreground))",
         destructive: "hsl(var(--destructive))",
         "destructive-foreground": "hsl(var(--destructive-foreground))",
+        sidebar: "hsl(var(--sidebar))",
+        "sidebar-foreground": "hsl(var(--sidebar-foreground))",
+        "sidebar-muted": "hsl(var(--sidebar-muted))",
         /** 台幣藍 — 台幣金額、TWD 摘要區塊，見 src/lib/currencyStyles.ts */
         twd: "#2563eb",
         /** 人民幣綠 */

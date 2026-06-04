@@ -1,0 +1,16 @@
+{
+  "git.openRepositoryInParentFolders": "never",
+  "git.autoRepositoryDetection": true,
+  "git.ignoreLimitWarning": true,
+  "files.watcherExclude": {
+    "**/.vite/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.git/objects/**": true
+  },
+  "search.exclude": {
+    "**/.vite": true,
+    "**/node_modules": true,
+    "**/dist": true
+  }
+}
