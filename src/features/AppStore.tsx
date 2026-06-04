@@ -49,8 +49,8 @@ export type AppStore = {
   summary: ReturnType<typeof totals>;
   refresh: () => void;
   resetDemo: () => void;
-  clearData: () => void;
-  importBusinessData: (payload: BusinessDataImport) => void;
+  clearData: () => void | Promise<void>;
+  importBusinessData: (payload: BusinessDataImport) => void | Promise<void>;
   createPurchase: Parameters<typeof addPurchase>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createSale: Parameters<typeof addSale>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createSettlement: Parameters<typeof addSettlement>[1] extends infer P ? (input: P) => void | Promise<void> : never;
@@ -60,22 +60,27 @@ export type AppStore = {
   createAccount: Parameters<typeof addAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createHolder: Parameters<typeof addHolder>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createChannel: Parameters<typeof addChannel>[1] extends infer P ? (input: P) => void | Promise<void> : never;
-  renameChannel: Parameters<typeof renameChannel>[1] extends infer P ? (input: P) => void : never;
-  deleteChannel: (channelId: number) => void;
-  setChannelActive: (channelId: number, isActive: boolean) => void;
+  renameChannel: Parameters<typeof renameChannel>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  deleteChannel: (channelId: number) => void | Promise<void>;
+  setChannelActive: (channelId: number, isActive: boolean) => void | Promise<void>;
   createCustomer: Parameters<typeof addCustomer>[1] extends infer P ? (input: P) => void | Promise<void> : never;
-  renameCustomer: Parameters<typeof renameCustomer>[1] extends infer P ? (input: P) => void : never;
-  deleteCustomer: (customerId: number) => void;
-  renameHolder: Parameters<typeof renameHolder>[1] extends infer P ? (input: P) => void : never;
-  renameAccount: Parameters<typeof renameAccount>[1] extends infer P ? (input: P) => void : never;
-  deleteHolder: Parameters<typeof deleteHolder>[1] extends infer P ? (input: P) => void : never;
-  deleteAccount: Parameters<typeof deleteAccount>[1] extends infer P ? (input: P) => void : never;
-  createUser: (input: { username: string; password: string; displayName: string; permissions: PermissionKey[] }) => void;
+  renameCustomer: Parameters<typeof renameCustomer>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  deleteCustomer: (customerId: number) => void | Promise<void>;
+  renameHolder: Parameters<typeof renameHolder>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  renameAccount: Parameters<typeof renameAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  deleteHolder: Parameters<typeof deleteHolder>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  deleteAccount: Parameters<typeof deleteAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createUser: (input: {
+    username: string;
+    password: string;
+    displayName: string;
+    permissions: PermissionKey[];
+  }) => void | Promise<void>;
   updateUser: (
     userId: number,
     input: { username: string; password?: string; displayName: string; permissions: PermissionKey[] }
-  ) => void;
-  setUserActive: (userId: number, isActive: boolean) => void;
+  ) => void | Promise<void>;
+  setUserActive: (userId: number, isActive: boolean) => void | Promise<void>;
 };
 
 export const AppStoreContext = React.createContext<AppStore | null>(null);

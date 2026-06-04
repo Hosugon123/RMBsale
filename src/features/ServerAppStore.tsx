@@ -2,16 +2,13 @@ import * as React from "react";
 import { useAuth } from "../context/AuthContext";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
+import type { BusinessDataImport } from "../lib/dataImport";
 import type { AppState } from "../lib/types";
 import type { AppStore } from "./AppStore";
 import { AppStoreContext } from "./AppStore";
 
-const unsupported = () => {
-  throw new Error("線上版暫不支援此操作，請使用買入、售出、收帳、轉帳或入出金。");
-};
-
 export function ServerAppStoreProvider({ children }: { children: React.ReactNode }) {
-  const { user: authUser, loading: authLoading } = useAuth();
+  const { user: authUser, loading: authLoading, refresh: refreshAuth } = useAuth();
   const [state, setState] = React.useState<AppState | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -50,6 +47,11 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     );
   }
 
+  const afterMutation = async (options?: { refreshSession?: boolean }) => {
+    await refresh();
+    if (options?.refreshSession) await refreshAuth();
+  };
+
   const value: AppStore = {
     state,
     sessionUser,
@@ -57,64 +59,109 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     refresh: () => {
       void refresh();
     },
-    resetDemo: unsupported,
-    clearData: unsupported,
-    importBusinessData: unsupported,
-    createPurchase: async (input) => {
-      await serverApi.createPurchase(input);
+    resetDemo: () => {
+      throw new Error("線上環境不提供重置示範資料，請使用「清除帳務資料」。");
+    },
+    clearData: async () => {
+      await serverApi.clearBusiness();
       await refresh();
+    },
+    importBusinessData: async (payload: BusinessDataImport) => {
+      await serverApi.importBusiness(payload);
+      await refresh();
+    },
+    createPurchase: async (input) => {
+      await serverApi.createPurchase(input as Record<string, unknown>);
+      await afterMutation();
     },
     createSale: async (input) => {
-      await serverApi.createSale(input);
-      await refresh();
+      await serverApi.createSale(input as Record<string, unknown>);
+      await afterMutation();
     },
     createSettlement: async (input) => {
-      await serverApi.createSettlement(input);
-      await refresh();
+      await serverApi.createSettlement(input as Record<string, unknown>);
+      await afterMutation();
     },
     payPurchase: async (input) => {
-      await serverApi.payPurchase(input);
-      await refresh();
+      await serverApi.payPurchase(input as Record<string, unknown>);
+      await afterMutation();
     },
     adjustAccount: async (input) => {
-      await serverApi.adjustAccount(input);
-      await refresh();
+      await serverApi.adjustAccount(input as Record<string, unknown>);
+      await afterMutation();
     },
     createTransfer: async (input) => {
-      await serverApi.createTransfer(input);
-      await refresh();
+      await serverApi.createTransfer(input as Record<string, unknown>);
+      await afterMutation();
     },
     createAccount: async (input) => {
       await serverApi.createAccount(input);
-      await refresh();
+      await afterMutation();
     },
     createHolder: async (input) => {
       await serverApi.createHolder(input.name);
-      await refresh();
+      await afterMutation();
     },
-    createChannel: (input) => {
+    createChannel: async (input) => {
       const name = input.name.trim();
       if (!name) throw new Error("請輸入渠道名稱");
-      unsupported();
+      await serverApi.createChannel(name);
+      await afterMutation();
     },
-    renameChannel: () => unsupported(),
-    deleteChannel: () => unsupported(),
-    setChannelActive: () => unsupported(),
+    renameChannel: async (input) => {
+      await serverApi.renameChannel(input);
+      await afterMutation();
+    },
+    deleteChannel: async (channelId) => {
+      await serverApi.deleteChannel(channelId);
+      await afterMutation();
+    },
+    setChannelActive: async (channelId, isActive) => {
+      await serverApi.setChannelActive(channelId, isActive);
+      await afterMutation();
+    },
     createCustomer: async (input) => {
       const name = input.name.trim();
       if (!name) throw new Error("請輸入客戶名稱");
       await serverApi.createCustomer(name);
-      await refresh();
+      await afterMutation();
     },
-    renameCustomer: () => unsupported(),
-    deleteCustomer: () => unsupported(),
-    renameHolder: () => unsupported(),
-    renameAccount: () => unsupported(),
-    deleteHolder: () => unsupported(),
-    deleteAccount: () => unsupported(),
-    createUser: () => unsupported(),
-    updateUser: () => unsupported(),
-    setUserActive: () => unsupported()
+    renameCustomer: async (input) => {
+      await serverApi.renameCustomer(input);
+      await afterMutation();
+    },
+    deleteCustomer: async (customerId) => {
+      await serverApi.deleteCustomer(customerId);
+      await afterMutation();
+    },
+    renameHolder: async (input) => {
+      await serverApi.renameHolder(input);
+      await afterMutation();
+    },
+    renameAccount: async (input) => {
+      await serverApi.renameAccount(input);
+      await afterMutation();
+    },
+    deleteHolder: async (input) => {
+      await serverApi.deleteHolder(input.holderId);
+      await afterMutation();
+    },
+    deleteAccount: async (input) => {
+      await serverApi.deleteAccount(input.accountId);
+      await afterMutation();
+    },
+    createUser: async (input) => {
+      await serverApi.createUser(input);
+      await afterMutation();
+    },
+    updateUser: async (userId, input) => {
+      await serverApi.updateUser(userId, input);
+      await afterMutation({ refreshSession: userId === sessionUser.id });
+    },
+    setUserActive: async (userId, isActive) => {
+      await serverApi.setUserActive(userId, isActive);
+      await afterMutation({ refreshSession: userId === sessionUser.id });
+    }
   };
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;

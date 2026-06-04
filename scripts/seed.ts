@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../api/_lib/db";
 import { accounts, channels, customers, holders, users } from "../api/_lib/schema";
+import { ALL_PERMISSIONS, presetForRole, serializePermissions } from "../api/_lib/userPermissions";
 
 const db = getDb();
 
@@ -12,28 +13,58 @@ const password = process.env.ADMIN_PASSWORD ?? "1234";
 const passwordHash = await bcrypt.hash(password, 12);
 let [admin] = await db.select().from(users).where(eq(users.username, username));
 if (!admin) {
-  [admin] = await db
-    .insert(users)
-    .values({
-      username,
-      passwordHash,
-      role: "admin"
-    })
-    .returning();
+  const [legacyAdmin] = await db.select().from(users).where(eq(users.username, "admin"));
+  if (legacyAdmin) {
+    [admin] = await db
+      .update(users)
+      .set({
+        username,
+        passwordHash,
+        role: "admin",
+        isActive: true,
+        displayName: "系統管理員",
+        permissionsJson: serializePermissions([...ALL_PERMISSIONS])
+      })
+      .where(eq(users.id, legacyAdmin.id))
+      .returning();
+    console.log(`已將舊帳號 admin 改為 ${username}`);
+  } else {
+    [admin] = await db
+      .insert(users)
+      .values({
+        username,
+        passwordHash,
+        role: "admin",
+        displayName: "系統管理員",
+        permissionsJson: serializePermissions([...ALL_PERMISSIONS])
+      })
+      .returning();
+  }
 } else {
-  await db.update(users).set({ passwordHash }).where(eq(users.id, admin.id));
+  await db
+    .update(users)
+    .set({
+      passwordHash,
+      isActive: true,
+      displayName: admin.displayName ?? "系統管理員",
+      permissionsJson: admin.permissionsJson ?? serializePermissions([...ALL_PERMISSIONS])
+    })
+    .where(eq(users.id, admin.id));
 }
 
 const operatorName = process.env.OPERATOR_USERNAME ?? "operator";
 const operatorPassword = process.env.OPERATOR_PASSWORD ?? "operator123";
 let [operator] = await db.select().from(users).where(eq(users.username, operatorName));
 if (!operator) {
+  const operatorPermissions = presetForRole("operator");
   [operator] = await db
     .insert(users)
     .values({
       username: operatorName,
       passwordHash: await bcrypt.hash(operatorPassword, 12),
-      role: "operator"
+      role: "operator",
+      displayName: "操作員",
+      permissionsJson: serializePermissions(operatorPermissions)
     })
     .returning();
 }

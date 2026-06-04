@@ -7,7 +7,7 @@ import { auditLogs } from "../_lib/schema.js";
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return fail(res, 405, "Method not allowed");
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     const db = getDb();
     return ok(res, { auditLogs: await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200) });
   } catch (error) {

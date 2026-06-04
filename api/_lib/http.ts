@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import type { UserRole } from "./schema.js";
+import { getDb } from "./db.js";
+import { users, type UserRole } from "./schema.js";
+import { parsePermissionsJson } from "./userPermissions.js";
 
 export type AuthUser = {
   id: number;
@@ -49,10 +52,19 @@ export function requireUser(req: VercelRequest): AuthUser {
   return jwt.verify(token, getJwtSecret()) as AuthUser;
 }
 
-export function requireAdmin(req: VercelRequest) {
-  const user = requireUser(req);
-  if (user.role !== "admin") throw new Error("Admin permission is required");
-  return user;
+export async function loadAuthUser(req: VercelRequest) {
+  const session = requireUser(req);
+  const db = getDb();
+  const [row] = await db.select().from(users).where(eq(users.id, session.id));
+  if (!row?.isActive) throw new Error("Unauthorized");
+  return row;
+}
+
+export async function requireAdmin(req: VercelRequest) {
+  const row = await loadAuthUser(req);
+  const permissions = parsePermissionsJson(row.permissionsJson, row.role);
+  if (!permissions.includes("admin")) throw new Error("Admin permission is required");
+  return row;
 }
 
 export function getClientMeta(req: VercelRequest) {

@@ -1,24 +1,5 @@
-import type { AppState } from "./types";
-import { LEVEL_PRESETS } from "./permissions";
-
-type SessionUser = {
-  id: number;
-  username: string;
-  role: "admin" | "operator";
-};
-
-function toSessionAppUser(user: SessionUser) {
-  const preset = user.role === "admin" ? LEVEL_PRESETS.admin : LEVEL_PRESETS.operator;
-  return {
-    id: user.id,
-    username: user.username,
-    role: user.role,
-    displayName: user.username,
-    password: "",
-    permissions: [...preset.permissions],
-    isActive: true
-  };
-}
+import type { AppState, AppUser, PermissionKey } from "./types";
+import type { BusinessDataImport } from "./dataImport";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api/${path}`, {
@@ -38,18 +19,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const serverApi = {
   login: async (username: string, password: string) => {
-    const data = await request<{ user: SessionUser }>("auth/login", {
+    const data = await request<{ user: AppUser }>("auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password })
     });
-    return toSessionAppUser(data.user);
+    return data.user;
   },
 
   logout: () => request("auth/logout", { method: "POST" }),
 
   me: async () => {
-    const data = await request<{ user: SessionUser | null }>("auth/me");
-    return data.user ? toSessionAppUser(data.user) : null;
+    const data = await request<{ user: AppUser | null }>("auth/me");
+    return data.user;
   },
 
   bootstrap: () => request<{ state: AppState }>("bootstrap"),
@@ -79,7 +60,63 @@ export const serverApi = {
     request("accounts", { method: "POST", body: JSON.stringify(body) }),
 
   createCustomer: (name: string) =>
-    request("customers", { method: "POST", body: JSON.stringify({ name }) })
+    request("customers", { method: "POST", body: JSON.stringify({ name }) }),
+
+  createChannel: (name: string) =>
+    request("admin/channels", { method: "POST", body: JSON.stringify({ name }) }),
+
+  renameChannel: (body: { channelId: number; name: string }) =>
+    request("admin/channels", { method: "PATCH", body: JSON.stringify({ id: body.channelId, name: body.name }) }),
+
+  deleteChannel: (channelId: number) =>
+    request("admin/channels", { method: "PATCH", body: JSON.stringify({ id: channelId, isActive: false }) }),
+
+  setChannelActive: (channelId: number, isActive: boolean) =>
+    request("admin/channels", { method: "PATCH", body: JSON.stringify({ id: channelId, isActive }) }),
+
+  renameCustomer: (body: { customerId: number; name: string }) =>
+    request("customers", { method: "PATCH", body: JSON.stringify({ id: body.customerId, name: body.name }) }),
+
+  deleteCustomer: (customerId: number) =>
+    request("customers", { method: "PATCH", body: JSON.stringify({ id: customerId, isActive: false }) }),
+
+  renameHolder: (body: { holderId: number; name: string }) =>
+    request("admin/holders", { method: "PATCH", body: JSON.stringify({ id: body.holderId, name: body.name }) }),
+
+  renameAccount: (body: { accountId: number; name: string }) =>
+    request("admin/accounts", { method: "PATCH", body: JSON.stringify({ id: body.accountId, name: body.name }) }),
+
+  deleteHolder: (holderId: number) =>
+    request("admin/holders", { method: "PATCH", body: JSON.stringify({ id: holderId, isActive: false }) }),
+
+  deleteAccount: (accountId: number) =>
+    request("admin/accounts", { method: "PATCH", body: JSON.stringify({ id: accountId, isActive: false }) }),
+
+  createUser: (input: { username: string; password: string; displayName: string; permissions: PermissionKey[] }) =>
+    request("admin/users", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  updateUser: (
+    userId: number,
+    input: { username: string; password?: string; displayName: string; permissions: PermissionKey[] }
+  ) =>
+    request("admin/users", {
+      method: "PATCH",
+      body: JSON.stringify({ id: userId, ...input })
+    }),
+
+  setUserActive: (userId: number, isActive: boolean) =>
+    request("admin/users", {
+      method: "PATCH",
+      body: JSON.stringify({ id: userId, isActive })
+    }),
+
+  clearBusiness: () => request("admin/clear-business", { method: "POST" }),
+
+  importBusiness: (payload: BusinessDataImport) =>
+    request("admin/import", { method: "POST", body: JSON.stringify(payload) })
 };
 
 /** 與正式站相同：API + Neon + 登入。僅在 vitest 或 VITE_USE_DEMO 時用 localStorage。 */

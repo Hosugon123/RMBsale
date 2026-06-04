@@ -1,5 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "./db";
+import { toAppUser } from "./userPermissions.js";
 import {
   accounts,
   channels,
@@ -60,29 +61,18 @@ export async function loadBootstrapState(sessionUserId: number) {
       db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)).limit(500)
     ]);
 
-  const operatorMap = new Map(userRows.map((row) => [row.id, row.username]));
+  const operatorMap = new Map(
+    userRows.map((row) => [row.id, row.displayName?.trim() || row.username])
+  );
   const customerMap = new Map(customerRows.map((row) => [row.id, row.name]));
   const channelMap = new Map(channelRows.map((row) => [row.id, row.name]));
   const purchaseChannelMap = new Map(
     purchaseRows.map((row) => [row.id, row.channelId ? channelMap.get(row.channelId) ?? "未命名渠道" : "未命名渠道"])
   );
 
-  const presetPermissions = (role: string) =>
-    role === "admin"
-      ? (["dashboard", "purchase", "sale", "receivables", "accounts", "transfer", "ledger", "inventory", "admin"] as const)
-      : (["dashboard", "purchase", "sale", "receivables", "accounts", "transfer", "ledger", "inventory"] as const);
-
   return {
     sessionUserId,
-    users: userRows.map((row) => ({
-      id: row.id,
-      username: row.username,
-      role: row.role,
-      displayName: row.username,
-      password: "",
-      permissions: [...presetPermissions(row.role)],
-      isActive: row.isActive
-    })),
+    users: userRows.map((row) => toAppUser(row)),
     holders: holderRows.map((row) => ({
       id: row.id,
       name: row.name,

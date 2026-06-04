@@ -14,6 +14,8 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
+  permissionsJson: text("permissions_json"),
   role: text("role", { enum: ["admin", "operator"] }).notNull().default("operator"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()

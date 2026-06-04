@@ -24,17 +24,17 @@ export function ChannelListManager() {
     [state.channels]
   );
 
-  const run = (action: () => void, onSuccess?: () => void) => {
+  const run = async (action: () => void | Promise<void>, onSuccess?: () => void) => {
     setError("");
     try {
-      action();
+      await Promise.resolve(action());
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "操作失敗");
     }
   };
 
-  const submitRename = () => {
+  const submitRename = async () => {
     if (renameId === null) return;
     const name = renameValue.trim();
     if (!name) {
@@ -43,7 +43,7 @@ export function ChannelListManager() {
     }
     setRenameError("");
     try {
-      renameChannel({ channelId: renameId, name });
+      await Promise.resolve(renameChannel({ channelId: renameId, name }));
       setRenameId(null);
       setRenameValue("");
     } catch (err) {

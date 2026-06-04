@@ -87,7 +87,26 @@ Vercel 會自動 build 與部署。正式網址上 **必須登入** 才能使用
 2. 使用 `operator` / `operator123`（或你設定的帳密）登入。
 3. 任一人做的買入、售出、收帳、轉帳、入出金，其他人重新整理即可看到（或操作後自動刷新列表）。
 
-管理員使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。
+管理員使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（預設 **ds001** / **1234**）。
+
+### 重設管理員帳密（線上登入失敗時）
+
+1. 在 Vercel → Settings → Environment Variables 設定（Production）：
+   - `ADMIN_USERNAME` = `ds001`
+   - `ADMIN_PASSWORD` = `1234`
+2. 本機建立 `.env.local`（含與線上相同的 `DATABASE_URL`、`JWT_SECRET`），執行：
+
+```powershell
+npm.cmd run db:reset-admin
+```
+
+會將資料庫內舊帳號 `admin` 更名為 `ds001` 並重設密碼，或新建 `ds001`。
+
+亦可一鍵寫入 Vercel 變數並 seed（需已 `npx vercel login` 且專案已 link）：
+
+```powershell
+.\scripts\run-finish-env.cmd
+```
 
 ## 6. 本機與正式站相同（除錯用）
 

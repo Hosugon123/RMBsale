@@ -15,6 +15,9 @@ import { handler as authMe } from "./auth-me.js";
 import { handler as adminUsers } from "./admin-users.js";
 import { handler as adminChannels } from "./admin-channels.js";
 import { handler as adminHolders } from "./admin-holders.js";
+import { handler as adminAccounts } from "./admin-accounts.js";
+import { handler as adminClearBusiness } from "./admin-clear-business.js";
+import { handler as adminImport } from "./admin-import.js";
 import { handler as adminAuditLogs } from "./admin-audit-logs.js";
 import { handler as inventoryFifo } from "./inventory-fifo.js";
 import { handler as reportsExportCsv } from "./reports-export-csv.js";
@@ -48,6 +51,9 @@ export const routes: Record<string, RouteHandler> = {
   "admin/users": adminUsers,
   "admin/channels": adminChannels,
   "admin/holders": adminHolders,
+  "admin/accounts": adminAccounts,
+  "admin/clear-business": adminClearBusiness,
+  "admin/import": adminImport,
   "admin/audit-logs": adminAuditLogs,
   "inventory/fifo": inventoryFifo,
   "reports/export.csv": reportsExportCsv,

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
 import { fail, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
+import { deriveRole, toAppUser } from "../_lib/userPermissions.js";
 
 type LoginBody = {
   username: string;
@@ -15,16 +16,17 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = await readJson<LoginBody>(req);
+    const loginName = body.username?.trim() ?? "";
     const db = getDb();
-    const [user] = await db.select().from(users).where(eq(users.username, body.username));
+    const [user] = await db.select().from(users).where(eq(users.username, loginName));
 
     if (!user || !user.isActive) return fail(res, 401, "帳號或密碼錯誤");
     const valid = await bcrypt.compare(body.password, user.passwordHash);
     if (!valid) return fail(res, 401, "帳號或密碼錯誤");
 
-    const sessionUser = { id: user.id, username: user.username, role: user.role };
-    setSessionCookie(res, signSession(sessionUser));
-    return ok(res, { user: sessionUser });
+    const appUser = toAppUser(user);
+    setSessionCookie(res, signSession({ id: appUser.id, username: appUser.username, role: deriveRole(appUser.permissions) }));
+    return ok(res, { user: appUser });
   } catch (error) {
     return fail(res, 500, error instanceof Error ? error.message : "Login failed");
   }

@@ -323,14 +323,14 @@ export function AccountsPage() {
     setRenameError("");
   };
 
-  const submitRename = (event: React.FormEvent) => {
+  const submitRename = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!renameTarget) return;
     try {
       if (renameTarget.kind === "holder") {
-        renameHolder({ holderId: renameTarget.id, name: renameValue });
+        await Promise.resolve(renameHolder({ holderId: renameTarget.id, name: renameValue }));
       } else {
-        renameAccount({ accountId: renameTarget.id, name: renameValue });
+        await Promise.resolve(renameAccount({ accountId: renameTarget.id, name: renameValue }));
       }
       closeRenameModal();
     } catch (error) {
@@ -348,13 +348,13 @@ export function AccountsPage() {
     setDeleteError("");
   };
 
-  const submitDelete = () => {
+  const submitDelete = async () => {
     if (!deleteTarget) return;
     try {
       if (deleteTarget.kind === "holder") {
-        deleteHolder({ holderId: deleteTarget.id });
+        await Promise.resolve(deleteHolder({ holderId: deleteTarget.id }));
       } else {
-        deleteAccount({ accountId: deleteTarget.id });
+        await Promise.resolve(deleteAccount({ accountId: deleteTarget.id }));
       }
       closeDeleteModal();
     } catch (error) {

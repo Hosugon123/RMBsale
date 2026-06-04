@@ -9,6 +9,7 @@ import { ChannelListManager } from "../components/ChannelListManager";
 import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { useAppStore } from "../features/AppStore";
+import { useServerDataMode } from "../lib/serverApi";
 import {
   detectLevel,
   LEVEL_PRESETS,
@@ -91,6 +92,7 @@ function UserPermissionEditor({
 }
 
 export function AdminPage() {
+  const serverMode = useServerDataMode();
   const { state, sessionUser, resetDemo, clearData, importBusinessData, createUser, updateUser, setUserActive } =
     useAppStore();
   const importInputRef = React.useRef<HTMLInputElement>(null);
@@ -160,33 +162,37 @@ export function AdminPage() {
     setFormError("");
   };
 
-  const submitCreate = (event: React.FormEvent) => {
+  const submitCreate = async (event: React.FormEvent) => {
     event.preventDefault();
     setFormError("");
     try {
-      createUser({
-        username: createForm.username,
-        password: createForm.password,
-        displayName: createForm.displayName,
-        permissions: createPermissions
-      });
+      await Promise.resolve(
+        createUser({
+          username: createForm.username,
+          password: createForm.password,
+          displayName: createForm.displayName,
+          permissions: createPermissions
+        })
+      );
       closeCreate();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "建立使用者失敗");
     }
   };
 
-  const submitEdit = (event: React.FormEvent) => {
+  const submitEdit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (editUserId === null) return;
     setFormError("");
     try {
-      updateUser(editUserId, {
-        username: editForm.username,
-        password: editForm.password || undefined,
-        displayName: editForm.displayName,
-        permissions: editPermissions
-      });
+      await Promise.resolve(
+        updateUser(editUserId, {
+          username: editForm.username,
+          password: editForm.password || undefined,
+          displayName: editForm.displayName,
+          permissions: editPermissions
+        })
+      );
       closeEdit();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "更新使用者失敗");
@@ -195,10 +201,14 @@ export function AdminPage() {
 
   const editingUser = editUserId === null ? undefined : state.users.find((user) => user.id === editUserId);
 
-  const confirmClearData = () => {
-    clearData();
-    setClearConfirmOpen(false);
-    setImportMessage("已清除所有帳務資料，可開始匯入試算表資料。");
+  const confirmClearData = async () => {
+    try {
+      await Promise.resolve(clearData());
+      setClearConfirmOpen(false);
+      setImportMessage("已清除所有帳務資料，可開始匯入試算表資料。");
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : "清除資料失敗");
+    }
   };
 
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +226,7 @@ export function AdminPage() {
       ) {
         return;
       }
-      importBusinessData(payload);
+      await Promise.resolve(importBusinessData(payload));
       const summary = summarizeBusinessImport(payload);
       setImportMessage(
         `匯入完成：帳戶 ${summary.accounts}、客戶 ${summary.customers}、買入 ${summary.purchases}、售出 ${summary.sales}、流水 ${summary.ledger} 筆。`
@@ -236,10 +246,12 @@ export function AdminPage() {
               <Trash2 className="h-4 w-4 shrink-0" />
               清除數據
             </Button>
-            <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={resetDemo}>
-              <RefreshCw className="h-4 w-4 shrink-0" />
-              重置 demo
-            </Button>
+            {!serverMode ? (
+              <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={resetDemo}>
+                <RefreshCw className="h-4 w-4 shrink-0" />
+                重置 demo
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className={cn(adminCardContent, "space-y-4 text-sm text-muted-foreground")}>
@@ -347,12 +359,14 @@ export function AdminPage() {
                       size="sm"
                       className="h-9"
                       onClick={() => {
-                        try {
-                          setUserActive(user.id, !user.isActive);
-                          setFormError("");
-                        } catch (error) {
-                          setFormError(error instanceof Error ? error.message : "更新狀態失敗");
-                        }
+                        void (async () => {
+                          try {
+                            await Promise.resolve(setUserActive(user.id, !user.isActive));
+                            setFormError("");
+                          } catch (error) {
+                            setFormError(error instanceof Error ? error.message : "更新狀態失敗");
+                          }
+                        })();
                       }}
                     >
                       {user.isActive ? "停用" : "啟用"}
@@ -396,11 +410,13 @@ export function AdminPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              try {
-                                setUserActive(user.id, !user.isActive);
-                              } catch (error) {
-                                setFormError(error instanceof Error ? error.message : "更新狀態失敗");
-                              }
+                              void (async () => {
+                                try {
+                                  await Promise.resolve(setUserActive(user.id, !user.isActive));
+                                } catch (error) {
+                                  setFormError(error instanceof Error ? error.message : "更新狀態失敗");
+                                }
+                              })();
                             }}
                           >
                             {user.isActive ? "停用" : "啟用"}

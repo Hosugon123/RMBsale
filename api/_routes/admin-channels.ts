@@ -6,7 +6,7 @@ import { channels } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     const db = getDb();
     if (req.method === "GET") return ok(res, { channels: await db.select().from(channels).orderBy(asc(channels.name)) });
     if (req.method === "POST") {
