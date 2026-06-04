@@ -32,7 +32,6 @@
     "src/pages/Dashboard.tsx",
     "src/pages/FifoInventory.tsx",
     "src/components/Layout.tsx",
-    "src/components/ProtectedRoute.tsx",
     "src/pages/Login.tsx"
   ]
 }

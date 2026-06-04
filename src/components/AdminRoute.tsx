@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "../features/AppStore";
 import { hasPermission } from "../lib/permissions";
@@ -7,7 +8,7 @@ export function isAdmin(user: AppUser) {
   return hasPermission(user, "admin");
 }
 
-export function AdminRoute({ children }: { children: React.ReactNode }) {
+export function AdminRoute({ children }: { children: ReactNode }) {
   const { sessionUser } = useAppStore();
 
   if (!isAdmin(sessionUser)) {

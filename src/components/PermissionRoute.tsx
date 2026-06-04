@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAppStore } from "../features/AppStore";
 import { canAccessPath } from "../lib/permissions";
 
-export function PermissionRoute({ children }: { children: React.ReactNode }) {
+export function PermissionRoute({ children }: { children: ReactNode }) {
   const { sessionUser } = useAppStore();
   const location = useLocation();
 
