@@ -36,14 +36,20 @@ export function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">RMBsale 登入</CardTitle>
-          <p className="text-center text-sm text-muted-foreground">公司共用帳務系統，登入後所有人看到同一份資料</p>
         </CardHeader>
         <CardContent>
           {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
           <form className="grid gap-3" onSubmit={onSubmit}>
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">帳號</span>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="ds001"
+                autoComplete="username"
+                required
+                autoFocus
+              />
             </label>
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">密碼</span>

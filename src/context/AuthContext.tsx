@@ -43,13 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = async (username: string, password: string) => {
+    const name = username.trim();
+    const pass = password;
     if (serverMode) {
-      setUser(await serverApi.login(username, password));
+      setUser(await serverApi.login(name, pass));
       return;
     }
     const state = loadState();
     const matched = state.users.find(
-      (item) => item.username === username && item.password === password && item.isActive
+      (item) => item.username === name && item.password === pass && item.isActive
     );
     if (!matched) throw new Error("帳號或密碼錯誤");
     state.sessionUserId = matched.id;

@@ -41,16 +41,22 @@ function createAdminUser(): AppUser {
 
 function migrateUsers(legacy: { user?: User; users?: AppUser[]; sessionUserId?: number }): Pick<AppState, "users" | "sessionUserId"> {
   if (legacy.users?.length) {
+    const users = legacy.users.map((user) => ({
+      ...user,
+      displayName: user.displayName ?? user.username,
+      password: user.password ?? "",
+      permissions: user.permissions?.length ? user.permissions : [...ALL_PERMISSIONS],
+      isActive: user.isActive ?? true,
+      role: user.role ?? deriveRole(user.permissions ?? [])
+    }));
+    const legacyAdmin = users.find((u) => u.username === "admin" && u.role === "admin");
+    if (legacyAdmin) {
+      legacyAdmin.username = "ds001";
+      legacyAdmin.password = "1234";
+    }
     return {
-      users: legacy.users.map((user) => ({
-        ...user,
-        displayName: user.displayName ?? user.username,
-        password: user.password ?? "",
-        permissions: user.permissions?.length ? user.permissions : [...ALL_PERMISSIONS],
-        isActive: user.isActive ?? true,
-        role: user.role ?? deriveRole(user.permissions ?? [])
-      })),
-      sessionUserId: legacy.sessionUserId ?? legacy.users[0]?.id ?? 1
+      users,
+      sessionUserId: legacy.sessionUserId ?? users[0]?.id ?? 1
     };
   }
   const admin = createAdminUser();
@@ -278,13 +284,16 @@ export function loadState(): AppState {
     return seed;
   }
   const parsed = JSON.parse(raw) as AppState & { user?: User };
+  const hadLegacyAdmin = parsed.users?.some((u) => u.username === "admin" && u.role === "admin");
   const migrated = migrateUsers(parsed);
   const state = { ...parsed, ...migrated } as AppState;
   delete (state as { user?: User }).user;
   if (!state.saleAllocations) {
     state.saleAllocations = inferSaleAllocations(state);
   }
-  return normalizeState(state);
+  const normalized = normalizeState(state);
+  if (hadLegacyAdmin) saveState(normalized);
+  return normalized;
 }
 
 export function createUser(
