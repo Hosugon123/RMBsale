@@ -19,4 +19,5 @@ public/import-from-xlsx.json
 probe-out.txt
 .vercel
 .env*
+!.env.demo
 scripts/.setup-result.txt
