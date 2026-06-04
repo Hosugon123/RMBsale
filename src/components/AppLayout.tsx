@@ -11,7 +11,6 @@ import { PermissionRoute } from "./PermissionRoute";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 import { useAppStore } from "../features/AppStore";
-import { useServerDataMode } from "../lib/serverApi";
 import { detectLevel, hasPermission, levelLabel, permissionForPath } from "../lib/permissions";
 
 const baseNav = [
@@ -30,7 +29,6 @@ export function AppLayout() {
   const [open, setOpen] = React.useState(false);
   const { sessionUser } = useAppStore();
   const { logout } = useAuth();
-  const serverMode = useServerDataMode();
   const location = useLocation();
 
   const nav = React.useMemo(
@@ -54,6 +52,13 @@ export function AppLayout() {
 
   const goToAccountTransfer = () => {
     openAccountTransferModal();
+  };
+
+  const handleLogout = () => {
+    setOpen(false);
+    void logout().then(() => {
+      window.location.assign("/login");
+    });
   };
 
   return (
@@ -135,6 +140,18 @@ export function AppLayout() {
               {adminNavItem.label}
             </NavLink>
           ) : null}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium",
+              "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+              "dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            )}
+          >
+            <LogOut className="h-4 w-4" />
+            登出
+          </button>
           <div>
             <Badge tone="muted" className="mb-2">
               {sessionLevel}
@@ -189,18 +206,16 @@ export function AppLayout() {
               <span>轉帳</span>
             </Button>
             ) : null}
-            {serverMode ? (
             <Button
               className="h-8 shrink-0 gap-1 px-2 text-xs sm:text-sm"
               variant="ghost"
               size="sm"
               title="登出"
-              onClick={() => void logout().then(() => window.location.assign("/login"))}
+              onClick={handleLogout}
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">登出</span>
             </Button>
-            ) : null}
           </div>
         </header>
         <main className="min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-6">

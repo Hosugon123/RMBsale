@@ -361,7 +361,7 @@ describe("local demo store", () => {
       isActive: true,
       permissions: ["dashboard", "sale", "ledger"]
     });
-    expect(getSessionUser(state).username).toBe("ds001");
+    expect(getSessionUser(state)?.username).toBe("ds001");
   });
 
   it("updates existing user profile and keeps password when omitted", () => {

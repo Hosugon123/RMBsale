@@ -142,7 +142,11 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [applyImportedState]);
 
-  const sessionUser = React.useMemo(() => getSessionUser(state), [state]);
+  const sessionUser = React.useMemo(() => {
+    const user = getSessionUser(state);
+    if (!user) throw new Error("未登入");
+    return user;
+  }, [state]);
 
   const value = React.useMemo<AppStore>(() => ({
     state,

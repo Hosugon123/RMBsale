@@ -12,7 +12,6 @@ import { TransferModalHost } from "./components/TransferModalHost";
 import { AuthProvider } from "./context/AuthContext";
 import { AppStoreProvider } from "./features/AppStore";
 import { ThemeProvider } from "./features/ThemeProvider";
-import { useServerDataMode } from "./lib/serverApi";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PurchasePage } from "./pages/PurchasePage";
 import { SalePage } from "./pages/SalePage";
@@ -29,8 +28,6 @@ initTheme();
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const serverMode = useServerDataMode();
-
   const appShell = (
     <AppStoreProvider>
       <TransferModalHost />
@@ -59,17 +56,10 @@ function AppRoutes() {
     </AppStoreProvider>
   );
 
-  if (!serverMode) {
-    return appShell;
-  }
-
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/*"
-        element={<ProtectedRoute>{appShell}</ProtectedRoute>}
-      />
+      <Route path="/*" element={<ProtectedRoute>{appShell}</ProtectedRoute>} />
     </Routes>
   );
 }

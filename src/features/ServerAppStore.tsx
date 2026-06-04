@@ -42,6 +42,13 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
   }
 
   const sessionUser = getSessionUser(state);
+  if (!sessionUser) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+        請先登入
+      </div>
+    );
+  }
 
   const value: AppStore = {
     state,

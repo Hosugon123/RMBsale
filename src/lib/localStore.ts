@@ -16,12 +16,14 @@ const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
 
-export function getSessionUser(state: AppState): AppUser {
-  return state.users.find((user) => user.id === state.sessionUserId) ?? state.users[0];
+export function getSessionUser(state: AppState): AppUser | null {
+  if (!state.sessionUserId) return null;
+  return state.users.find((user) => user.id === state.sessionUserId) ?? null;
 }
 
 function currentOperator(state: AppState) {
   const user = getSessionUser(state);
+  if (!user) return "未知";
   return user.displayName.trim() || user.username.trim() || "未知";
 }
 

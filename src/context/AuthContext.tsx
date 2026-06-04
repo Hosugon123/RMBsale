@@ -58,7 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    if (serverMode) await serverApi.logout();
+    if (serverMode) {
+      await serverApi.logout();
+    } else {
+      const state = loadState();
+      state.sessionUserId = 0;
+      saveState(state);
+    }
     setUser(null);
   };
 
