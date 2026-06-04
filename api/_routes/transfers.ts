@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createTransfer } from "./_lib/transactions";
-import { fail, getClientMeta, ok, readJson, requireUser } from "./_lib/http";
+import { createTransfer } from "../_lib/transactions";
+import { fail, getClientMeta, ok, readJson, requireUser } from "../_lib/http";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return fail(res, 405, "Method not allowed");
   try {
     const user = requireUser(req);

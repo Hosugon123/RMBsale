@@ -4,7 +4,7 @@ import { getDb } from "../_lib/db";
 import { fail, ok, requireUser } from "../_lib/http";
 import { rmbLots } from "../_lib/schema";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return fail(res, 405, "Method not allowed");
   try {
     requireUser(req);

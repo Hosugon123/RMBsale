@@ -10,7 +10,7 @@ type LoginBody = {
   password: string;
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return fail(res, 405, "Method not allowed");
 
   try {
@@ -18,9 +18,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.username, body.username));
 
-    if (!user || !user.isActive) return fail(res, 401, "帳號或密碼錯誤");
+    if (!user || !user.isActive) return fail(res, 401, "???????");
     const valid = await bcrypt.compare(body.password, user.passwordHash);
-    if (!valid) return fail(res, 401, "帳號或密碼錯誤");
+    if (!valid) return fail(res, 401, "???????");
 
     const sessionUser = { id: user.id, username: user.username, role: user.role };
     setSessionCookie(res, signSession(sessionUser));

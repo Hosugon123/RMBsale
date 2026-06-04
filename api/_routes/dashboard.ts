@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { desc, eq, sql } from "drizzle-orm";
-import { getDb } from "./_lib/db";
-import { fail, ok, requireUser } from "./_lib/http";
-import { accounts, customers, ledgerEntries, rmbLots, sales } from "./_lib/schema";
+import { getDb } from "../_lib/db";
+import { fail, ok, requireUser } from "../_lib/http";
+import { accounts, customers, ledgerEntries, rmbLots, sales } from "../_lib/schema";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return fail(res, 405, "Method not allowed");
   try {
     requireUser(req);

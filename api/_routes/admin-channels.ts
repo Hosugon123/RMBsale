@@ -4,7 +4,7 @@ import { getDb } from "../_lib/db";
 import { fail, ok, readJson, requireAdmin } from "../_lib/http";
 import { channels } from "../_lib/schema";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     requireAdmin(req);
     const db = getDb();
