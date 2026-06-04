@@ -334,7 +334,6 @@ export function ReceivablesPage() {
           <CardHeader className={cn(cardHeaderClass, "flex-row flex-wrap items-start justify-between gap-3")}>
             <div className="min-w-0 flex-1">
               <CardTitle className="text-base sm:text-lg">應收帳款</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">客戶欠款總覽與應收、收帳流水</p>
               <p className={cn("mt-2 text-lg font-semibold tabular-nums sm:text-xl", receivable.money)}>
                 待收合計 {fmtMoney(totalReceivable)}
               </p>
@@ -395,7 +394,6 @@ export function ReceivablesPage() {
           <CardHeader className={cn(cardHeaderClass, "flex-row flex-wrap items-start justify-between gap-3")}>
             <div className="min-w-0 flex-1">
               <CardTitle className="text-base sm:text-lg">應付帳款</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">付款登記與待付買入總覽</p>
               <p className={cn("mt-2 text-lg font-semibold tabular-nums sm:text-xl", twd.money)}>
                 待付合計 {fmtMoney(totalPayable)}
               </p>

@@ -61,17 +61,28 @@ type GearMenuItem = {
   title?: string;
 };
 
+/** 帳戶卡片標題列：較 h-8 基準放大 10% */
+const ACCOUNT_ROW = {
+  height: "h-[2.2rem]",
+  name: "text-[0.9625rem]",
+  badge: "h-[1.65rem] text-[12.1px] px-[6.6px]",
+  button: "h-[2.2rem]",
+  buttonIcon: "h-[15.4px] w-[15.4px]",
+  menuText: "text-[13.2px]"
+} as const;
+
 type GearActionsMenuProps = {
   title: string;
   size?: "sm" | "md";
   items: GearMenuItem[];
+  buttonClassName?: string;
 };
 
-function GearActionsMenu({ title, size = "md", items }: GearActionsMenuProps) {
+function GearActionsMenu({ title, size = "md", items, buttonClassName }: GearActionsMenuProps) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
-  const buttonClass = size === "sm" ? "h-7 w-7" : "h-8 w-8";
-  const settingsIconClass = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonClass = cn(size === "sm" ? "h-8 w-8" : "h-8 w-8", buttonClassName);
+  const settingsIconClass = buttonClassName ? ACCOUNT_ROW.buttonIcon : "h-4 w-4";
 
   React.useEffect(() => {
     if (!open) return;
@@ -135,9 +146,10 @@ function GearActionsMenu({ title, size = "md", items }: GearActionsMenuProps) {
 type CashActionsMenuProps = {
   onDeposit: () => void;
   onWithdraw: () => void;
+  buttonClassName?: string;
 };
 
-function CashActionsMenu({ onDeposit, onWithdraw }: CashActionsMenuProps) {
+function CashActionsMenu({ onDeposit, onWithdraw, buttonClassName }: CashActionsMenuProps) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
 
@@ -163,12 +175,12 @@ function CashActionsMenu({ onDeposit, onWithdraw }: CashActionsMenuProps) {
         type="button"
         variant="outline"
         size="sm"
-        className="h-8 px-2 text-xs"
+        className={cn("h-8 px-2 text-xs", buttonClassName)}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((value) => !value)}
       >
-        <ArrowLeftRight className="h-3.5 w-3.5" />
+        <ArrowLeftRight className={cn("h-3.5 w-3.5", buttonClassName && ACCOUNT_ROW.buttonIcon)} />
         出入金
       </Button>
       {open ? (
@@ -423,19 +435,26 @@ export function AccountsPage() {
             <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
               {group.accounts.map((account) => (
                 <div key={account.id} className="rounded-lg border bg-muted/20 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p className="font-medium leading-snug">{account.name}</p>
-                      <Badge tone={account.currency === "RMB" ? "rmb" : "twd"}>{account.currency}</Badge>
+                  <div className={cn("flex items-center justify-between gap-2", ACCOUNT_ROW.height)}>
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                      <p className={cn("truncate font-medium leading-none", ACCOUNT_ROW.name)}>{account.name}</p>
+                      <Badge
+                        className={cn("inline-flex shrink-0 items-center py-0 leading-none", ACCOUNT_ROW.badge)}
+                        tone={account.currency === "RMB" ? "rmb" : "twd"}
+                      >
+                        {account.currency}
+                      </Badge>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <CashActionsMenu
+                        buttonClassName={cn(ACCOUNT_ROW.button, "px-2.5", ACCOUNT_ROW.menuText)}
                         onDeposit={() => openCashModal(account.id, "in")}
                         onWithdraw={() => openCashModal(account.id, "out")}
                       />
                       <GearActionsMenu
                         title="帳戶設定"
                         size="sm"
+                        buttonClassName={cn(ACCOUNT_ROW.button, "w-[2.2rem]")}
                         items={[
                           {
                             label: "更名",

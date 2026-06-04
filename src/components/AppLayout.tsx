@@ -137,7 +137,6 @@ export function AppLayout() {
             </Badge>
             <p className="text-sm font-medium">{sessionUser.displayName}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">@{sessionUser.username}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">本機 demo 模式</p>
           </div>
         </div>
       </aside>
@@ -159,7 +158,7 @@ export function AppLayout() {
               onClick={openSaleModal}
             >
               <HandCoins className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-              <span className="max-[420px]:hidden">售出</span>
+              <span>售出</span>
             </Button>
             ) : null}
             {hasPermission(sessionUser, "receivables") ? (
@@ -171,7 +170,7 @@ export function AppLayout() {
               onClick={openSettlementModal}
             >
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-              <span className="max-[420px]:hidden">收帳</span>
+              <span>收帳</span>
             </Button>
             ) : null}
             {hasPermission(sessionUser, "transfer") ? (
@@ -183,7 +182,7 @@ export function AppLayout() {
               onClick={goToAccountTransfer}
             >
               <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-              <span className="max-[420px]:hidden">轉帳</span>
+              <span>轉帳</span>
             </Button>
             ) : null}
             <Button className="hidden shrink-0 sm:inline-flex" variant="ghost" size="icon" title="登出 demo">

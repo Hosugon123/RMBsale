@@ -24,7 +24,9 @@ export function SaleAmountSummary({ receivableTwd, profitTwd, profitHint }: Sale
         >
           {profitTwd !== null ? fmtMoney(profitTwd) : "—"}
         </p>
-        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground sm:text-xs">{profitHint ?? "FIFO 自動計算"}</p>
+        {profitHint ? (
+          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground sm:text-xs">{profitHint}</p>
+        ) : null}
       </div>
     </div>
   );
