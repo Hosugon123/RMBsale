@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vercel dev",
+    "dev:vite": "vite --host 127.0.0.1",
+    "dev:demo": "vite --host 127.0.0.1 --mode demo",
     "build": "tsc -p tsconfig.app.json --noEmit && tsc -p api/tsconfig.json --noEmit && vite build",
     "stable": "node scripts/serve-dist.mjs",
     "preview": "vite preview --host 127.0.0.1",
@@ -14,7 +16,6 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
-    "dev:online": "vercel dev",
     "import:xlsx": "tsx scripts/xlsx-to-import.ts"
   },
   "dependencies": {

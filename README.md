@@ -2,11 +2,28 @@
 
 RMBsale 是以 Vite + React + TypeScript 建立的人民幣代付與換匯金流記帳系統。第一版保留舊系統的核心流程，但改為前後端分離、Drizzle schema、Vercel Functions 與 Neon Postgres。
 
-## 開發
+## 開發（與正式站相同）
+
+1. 複製 `.env.example` 為 `.env.local`，填入 Neon 的 `DATABASE_URL` 與 `JWT_SECRET` 等。
+2. 初始化資料庫（首次）：
+
+```bash
+npm.cmd run db:setup
+```
+
+3. 啟動（需已安裝 Vercel CLI：`npm i -g vercel` 或 `npx vercel login`）：
 
 ```bash
 npm.cmd install
 npm.cmd run dev
+```
+
+`npm run dev` 會執行 `vercel dev`：前端 + `/api` 與正式站相同（登入、Neon、共用帳務）。預設帳號見 `.env.example`（`ds001` / `1234`）。
+
+僅要本機 localStorage 示範、不連資料庫時：
+
+```bash
+npm.cmd run dev:demo
 ```
 
 PowerShell 若擋 `npm.ps1`，請使用 `npm.cmd`。
@@ -29,8 +46,6 @@ npm.cmd run db:generate
 npm.cmd run db:migrate
 npm.cmd run db:seed
 ```
-
-本機未設定 `DATABASE_URL` 時，前端會使用 localStorage demo 資料，方便先驗證版面與流程。
 
 **公司共用線上版**：請依 [DEPLOY.md](./DEPLOY.md) 在 Vercel 建立 Neon、執行 `npm run db:setup`，部署後所有人登入同一資料庫查帳對帳。
 

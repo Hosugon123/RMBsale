@@ -89,21 +89,16 @@ Vercel 會自動 build 與部署。正式網址上 **必須登入** 才能使用
 
 管理員使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。
 
-## 6. 本機連線正式資料庫（除錯用）
+## 6. 本機與正式站相同（除錯用）
 
-`.env` 填入 Vercel 的 `DATABASE_URL` 與 `JWT_SECRET` 等，並加上：
-
-```env
-VITE_USE_API=true
-```
-
-用 Vercel CLI 同時跑前後端：
+複製 `.env.example` 為 `.env.local`，填入 Vercel / Neon 的 `DATABASE_URL` 與 `JWT_SECRET` 等，然後：
 
 ```powershell
-npx vercel dev
+npm.cmd run db:setup
+npm.cmd run dev
 ```
 
-瀏覽器開啟 CLI 顯示的網址（非單獨 `npm run dev`，否則 `/api` 不會連到資料庫）。
+`npm run dev` 即 `vercel dev`（前端 + `/api` + 登入流程與正式站一致）。僅要 localStorage 示範時用 `npm run dev:demo`。
 
 ## 7. 線上版目前支援的操作
 

@@ -82,6 +82,9 @@ export const serverApi = {
     request("customers", { method: "POST", body: JSON.stringify({ name }) })
 };
 
+/** 與正式站相同：API + Neon + 登入。僅在 vitest 或 VITE_USE_DEMO 時用 localStorage。 */
 export function useServerDataMode() {
-  return import.meta.env.PROD || import.meta.env.VITE_USE_API === "true";
+  if (import.meta.env.MODE === "test") return false;
+  if (import.meta.env.VITE_USE_DEMO === "true") return false;
+  return true;
 }
