@@ -18,9 +18,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.username, body.username));
 
-    if (!user || !user.isActive) return fail(res, 401, "???????");
+    if (!user || !user.isActive) return fail(res, 401, "帳號或密碼錯誤");
     const valid = await bcrypt.compare(body.password, user.passwordHash);
-    if (!valid) return fail(res, 401, "???????");
+    if (!valid) return fail(res, 401, "帳號或密碼錯誤");
 
     const sessionUser = { id: user.id, username: user.username, role: user.role };
     setSessionCookie(res, signSession(sessionUser));

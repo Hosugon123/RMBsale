@@ -4,6 +4,7 @@ import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
 import { useSaleCustomerSource } from "../hooks/useSaleCustomerSource";
 import { previewSaleProfit } from "../lib/localStore";
+import { runMutation } from "../lib/runMutation";
 import { rmb } from "../lib/currencyStyles";
 import { fmtMoney } from "../lib/utils";
 import { CustomerManagerModal } from "./CustomerManagerModal";
@@ -95,14 +96,15 @@ export function SaleModalHost() {
     setError("");
   };
 
-  const submitSale = () => {
+  const submitSale = async () => {
     try {
+      await runMutation(() =>
       createSale({
         customerName,
         rmbAccountId: Number(form.rmbAccountId),
         rmbAmount: form.rmbAmount,
         exchangeRate: form.exchangeRate
-      });
+      }));
       setForm((current) => ({ ...current, rmbAmount: "", exchangeRate: "" }));
       resetCustomerSource();
       setConfirmOpen(false);

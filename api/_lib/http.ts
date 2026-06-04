@@ -26,13 +26,15 @@ export function signSession(user: AuthUser) {
 }
 
 export function setSessionCookie(res: VercelResponse, token: string) {
+  const secure = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
   res.setHeader("Set-Cookie", [
-    `rmbsale_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}; Secure`
+    `rmbsale_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}${secure ? "; Secure" : ""}`
   ]);
 }
 
 export function clearSessionCookie(res: VercelResponse) {
-  res.setHeader("Set-Cookie", "rmbsale_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure");
+  const secure = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  res.setHeader("Set-Cookie", `rmbsale_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`);
 }
 
 export function requireUser(req: VercelRequest): AuthUser {

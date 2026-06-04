@@ -32,6 +32,8 @@ npm.cmd run db:seed
 
 本機未設定 `DATABASE_URL` 時，前端會使用 localStorage demo 資料，方便先驗證版面與流程。
 
+**公司共用線上版**：請依 [DEPLOY.md](./DEPLOY.md) 在 Vercel 建立 Neon、執行 `npm run db:setup`，部署後所有人登入同一資料庫查帳對帳。
+
 ## 核心原則
 
 - 金額計算使用 `decimal.js`。

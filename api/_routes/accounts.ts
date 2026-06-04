@@ -1,14 +1,20 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "../_lib/db";
-import { fail, ok, requireUser } from "../_lib/http";
+import { fail, ok, readJson, requireUser } from "../_lib/http";
+import { createAccountRecord } from "../_lib/transactions";
 import { accounts, holders } from "../_lib/schema";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "GET") return fail(res, 405, "Method not allowed");
   try {
     requireUser(req);
     const db = getDb();
+    if (req.method === "POST") {
+      const body = await readJson<{ holderId: number; name: string; currency: "TWD" | "RMB" }>(req);
+      const account = await createAccountRecord(body);
+      return ok(res, { account }, 201);
+    }
+    if (req.method !== "GET") return fail(res, 405, "Method not allowed");
     const rows = await db.select({
       id: accounts.id,
       name: accounts.name,

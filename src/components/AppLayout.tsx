@@ -9,7 +9,9 @@ import { openSettlementModal } from "./SettlementModalHost";
 import { openAccountTransferModal } from "./TransferModalHost";
 import { PermissionRoute } from "./PermissionRoute";
 import { ThemeToggle } from "./ThemeToggle";
+import { useAuth } from "../context/AuthContext";
 import { useAppStore } from "../features/AppStore";
+import { useServerDataMode } from "../lib/serverApi";
 import { detectLevel, hasPermission, levelLabel, permissionForPath } from "../lib/permissions";
 
 const baseNav = [
@@ -27,6 +29,8 @@ const adminNavItem = { to: "/admin", label: "管理後台", icon: Settings };
 export function AppLayout() {
   const [open, setOpen] = React.useState(false);
   const { sessionUser } = useAppStore();
+  const { logout } = useAuth();
+  const serverMode = useServerDataMode();
   const location = useLocation();
 
   const nav = React.useMemo(
@@ -185,9 +189,18 @@ export function AppLayout() {
               <span>轉帳</span>
             </Button>
             ) : null}
-            <Button className="hidden shrink-0 sm:inline-flex" variant="ghost" size="icon" title="登出 demo">
+            {serverMode ? (
+            <Button
+              className="h-8 shrink-0 gap-1 px-2 text-xs sm:text-sm"
+              variant="ghost"
+              size="sm"
+              title="登出"
+              onClick={() => void logout().then(() => window.location.assign("/login"))}
+            >
               <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">登出</span>
             </Button>
+            ) : null}
           </div>
         </header>
         <main className="min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-6">

@@ -3,6 +3,7 @@ import { CheckCircle2, X } from "lucide-react";
 import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
 import { fmtMoney } from "../lib/utils";
+import { runMutation } from "../lib/runMutation";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -63,15 +64,16 @@ export function SettlementModalHost() {
     setError("");
   };
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedCustomer) return;
     try {
+      await runMutation(() =>
       createSettlement({
         customerId: Number(form.customerId),
         accountId: Number(form.accountId),
         amountTwd: form.amountTwd
-      });
+      }));
       setForm((current) => ({ ...current, amountTwd: "" }));
       close();
     } catch (err) {

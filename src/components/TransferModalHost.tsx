@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { ArrowLeftRight, X } from "lucide-react";
 import type { Account } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
+import { runMutation } from "../lib/runMutation";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -83,14 +84,15 @@ export function TransferModalHost() {
     setError("");
   };
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
+      await runMutation(() =>
       createTransfer({
         fromAccountId: Number(form.fromAccountId),
         toAccountId: Number(form.toAccountId),
         amount: form.amount
-      });
+      }));
       setForm((current) => ({ ...current, amount: "" }));
       close();
     } catch (err) {

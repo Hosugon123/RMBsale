@@ -16,3 +16,6 @@ data/import-from-xlsx.json
 data/import-validation-report.json
 public/import-from-xlsx.json
 probe-out.txt
+.vercel
+.env*
+scripts/.setup-result.txt

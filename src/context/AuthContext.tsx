@@ -4,12 +4,14 @@ import {
   useContext,
   useEffect,
   useState,
-  type ReactNode,
-} from 'react';
-import { api, clearStateVersion, setStateVersion, type AuthUser } from '../lib/api';
+  type ReactNode
+} from "react";
+import { serverApi, useServerDataMode } from "../lib/serverApi";
+import type { AppUser } from "../lib/types";
+import { loadState, getSessionUser, saveState } from "../lib/localStore";
 
 interface AuthContextValue {
-  user: AuthUser | null;
+  user: AppUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -19,33 +21,41 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const serverMode = useServerDataMode();
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    try {
-      const { user: u, version } = await api.me();
-      setUser(u);
-      setStateVersion(version);
-    } catch {
-      setUser(null);
+    if (serverMode) {
+      setUser(await serverApi.me());
+      return;
     }
-  }, []);
+    const state = loadState();
+    setUser(getSessionUser(state));
+  }, [serverMode]);
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
+    void refresh().finally(() => setLoading(false));
   }, [refresh]);
 
   const login = async (username: string, password: string) => {
-    const { user: u, version } = await api.login(username, password);
-    setUser(u);
-    setStateVersion(version);
+    if (serverMode) {
+      setUser(await serverApi.login(username, password));
+      return;
+    }
+    const state = loadState();
+    const matched = state.users.find(
+      (item) => item.username === username && item.password === password && item.isActive
+    );
+    if (!matched) throw new Error("帳號或密碼錯誤");
+    state.sessionUserId = matched.id;
+    saveState(state);
+    setUser(getSessionUser(state));
   };
 
   const logout = async () => {
-    await api.logout();
+    if (serverMode) await serverApi.logout();
     setUser(null);
-    clearStateVersion();
   };
 
   return (
@@ -57,6 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

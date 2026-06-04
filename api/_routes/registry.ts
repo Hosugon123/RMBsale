@@ -19,6 +19,9 @@ import { handler as adminAuditLogs } from "./admin-audit-logs";
 import { handler as inventoryFifo } from "./inventory-fifo";
 import { handler as reportsExportCsv } from "./reports-export-csv";
 import { handler as transactionReverse } from "./transaction-reverse";
+import { handler as bootstrap } from "./bootstrap";
+import { handler as holders } from "./holders";
+import { handler as purchasesPay } from "./purchases-pay";
 
 export type RouteHandler = (
   req: VercelRequest,
@@ -26,9 +29,12 @@ export type RouteHandler = (
 ) => Promise<unknown>;
 
 export const routes: Record<string, RouteHandler> = {
+  bootstrap,
   accounts,
   adjustments,
   dashboard,
+  holders,
+  "purchases/pay": purchasesPay,
   customers,
   ledger,
   purchases,

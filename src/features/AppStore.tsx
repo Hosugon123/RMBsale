@@ -40,8 +40,10 @@ import {
   XLSX_IMPORT_NOTICE_KEY
 } from "../lib/xlsxAutoImport";
 import type { AppState, AppUser, PermissionKey } from "../lib/types";
+import { ServerAppStoreProvider } from "./ServerAppStore";
+import { useServerDataMode } from "../lib/serverApi";
 
-type AppStore = {
+export type AppStore = {
   state: AppState;
   sessionUser: AppUser;
   summary: ReturnType<typeof totals>;
@@ -49,19 +51,19 @@ type AppStore = {
   resetDemo: () => void;
   clearData: () => void;
   importBusinessData: (payload: BusinessDataImport) => void;
-  createPurchase: Parameters<typeof addPurchase>[1] extends infer P ? (input: P) => void : never;
-  createSale: Parameters<typeof addSale>[1] extends infer P ? (input: P) => void : never;
-  createSettlement: Parameters<typeof addSettlement>[1] extends infer P ? (input: P) => void : never;
-  payPurchase: Parameters<typeof payPurchase>[1] extends infer P ? (input: P) => void : never;
-  adjustAccount: Parameters<typeof adjustAccount>[1] extends infer P ? (input: P) => void : never;
-  createTransfer: Parameters<typeof addTransfer>[1] extends infer P ? (input: P) => void : never;
-  createAccount: Parameters<typeof addAccount>[1] extends infer P ? (input: P) => void : never;
-  createHolder: Parameters<typeof addHolder>[1] extends infer P ? (input: P) => void : never;
-  createChannel: Parameters<typeof addChannel>[1] extends infer P ? (input: P) => void : never;
+  createPurchase: Parameters<typeof addPurchase>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createSale: Parameters<typeof addSale>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createSettlement: Parameters<typeof addSettlement>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  payPurchase: Parameters<typeof payPurchase>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  adjustAccount: Parameters<typeof adjustAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createTransfer: Parameters<typeof addTransfer>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createAccount: Parameters<typeof addAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createHolder: Parameters<typeof addHolder>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createChannel: Parameters<typeof addChannel>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   renameChannel: Parameters<typeof renameChannel>[1] extends infer P ? (input: P) => void : never;
   deleteChannel: (channelId: number) => void;
   setChannelActive: (channelId: number, isActive: boolean) => void;
-  createCustomer: Parameters<typeof addCustomer>[1] extends infer P ? (input: P) => void : never;
+  createCustomer: Parameters<typeof addCustomer>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   renameCustomer: Parameters<typeof renameCustomer>[1] extends infer P ? (input: P) => void : never;
   deleteCustomer: (customerId: number) => void;
   renameHolder: Parameters<typeof renameHolder>[1] extends infer P ? (input: P) => void : never;
@@ -76,9 +78,18 @@ type AppStore = {
   setUserActive: (userId: number, isActive: boolean) => void;
 };
 
-const Context = React.createContext<AppStore | null>(null);
+export const AppStoreContext = React.createContext<AppStore | null>(null);
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
+  const serverMode = useServerDataMode();
+  if (serverMode) {
+    return <ServerAppStoreProvider>{children}</ServerAppStoreProvider>;
+  }
+
+  return <LocalAppStoreProvider>{children}</LocalAppStoreProvider>;
+}
+
+function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<AppState>(() => loadState());
   const stateRef = React.useRef(state);
   stateRef.current = state;
@@ -173,11 +184,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setUserActive: (userId, isActive) => commit((draft) => setUserActive(draft, userId, isActive))
   }), [applyState, commit, sessionUser, state]);
 
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }
 
 export function useAppStore() {
-  const value = React.useContext(Context);
+  const value = React.useContext(AppStoreContext);
   if (!value) throw new Error("useAppStore must be used inside AppStoreProvider");
   return value;
 }

@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { validatePurchaseForm, type PaymentStatusChoice } from "../lib/formValidation";
+import { runMutation } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
 
@@ -73,8 +74,9 @@ export function PurchasePage() {
     setFormError("");
   };
 
-  const submitPurchase = () => {
+  const submitPurchase = async () => {
     try {
+      await runMutation(() =>
       createPurchase({
         channelName,
         paymentAccountId: form.paymentStatus === "paid" ? Number(form.paymentAccountId) : undefined,
@@ -82,7 +84,7 @@ export function PurchasePage() {
         rmbAmount: form.rmbAmount,
         exchangeRate: form.exchangeRate,
         paymentStatus: form.paymentStatus as "paid" | "unpaid"
-      });
+      }));
       resetForm();
       setConfirmOpen(false);
     } catch (err) {

@@ -6,6 +6,7 @@ import {
   auditLogs,
   channels,
   customers,
+  holders,
   ledgerEntries,
   purchases,
   rmbLots,
@@ -221,8 +222,19 @@ async function addAccountDelta(
   await tx.update(accounts).set({ balance: sql`${accounts.balance} + ${toDbMoney(amount)}` }).where(eq(accounts.id, accountId));
   const [after] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
 
+  const entryTypeLabel =
+    relatedTable === "purchase"
+      ? "買入"
+      : relatedTable === "sale"
+        ? "售出"
+        : relatedTable === "transfer"
+          ? "轉帳"
+          : relatedTable === "settlement"
+            ? "收帳"
+            : relatedTable;
+
   await tx.insert(ledgerEntries).values({
-    entryType: relatedTable,
+    entryType: entryTypeLabel,
     accountId,
     relatedTable,
     relatedId,
@@ -234,4 +246,103 @@ async function addAccountDelta(
     description,
     operatorId
   });
+}
+
+export async function createAccountAdjustment(
+  input: {
+    accountId: number;
+    direction: "in" | "out";
+    amount: string;
+    note?: string;
+    withdrawType?: "capital" | "profit";
+  },
+  actor: Actor
+) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [account] = await tx.select().from(accounts).where(eq(accounts.id, input.accountId));
+    if (!account) throw new Error("找不到帳戶");
+    if (Number(input.amount) <= 0) throw new Error("金額必須大於 0");
+    if (input.direction === "out" && Number(account.balance) < Number(input.amount)) {
+      throw new Error("帳戶餘額不足");
+    }
+    if (input.direction === "out" && input.withdrawType === "profit" && account.currency !== "TWD") {
+      throw new Error("分潤只能從台幣帳戶提取");
+    }
+
+    const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
+    const relatedTable = input.direction === "out" && input.withdrawType === "profit" ? "profit" : entryType;
+    const signedAmount = input.direction === "in" ? input.amount : `-${input.amount}`;
+    const note = input.note?.trim();
+    const description = `${account.name} ${entryType}${note ? `：${note}` : ""}`;
+
+    await addAccountDelta(
+      tx,
+      account.id,
+      account.currency as Currency,
+      signedAmount,
+      input.direction,
+      relatedTable,
+      0,
+      actor.id,
+      description
+    );
+
+    return { entryType, amount: input.amount };
+  });
+}
+
+export async function payPurchasePayment(
+  input: { purchaseId: number; accountId: number; amountTwd: string },
+  actor: Actor
+) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, input.purchaseId));
+    if (!purchase) throw new Error("找不到買入紀錄");
+    if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
+    if (Number(input.amountTwd) <= 0) throw new Error("金額必須大於 0");
+    if (Number(input.amountTwd) > Number(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
+
+    await tx
+      .update(purchases)
+      .set({
+        paymentStatus: Number(input.amountTwd) >= Number(purchase.twdCost) ? "paid" : "unpaid",
+        paymentAccountId: input.accountId
+      })
+      .where(eq(purchases.id, purchase.id));
+
+    await addAccountDelta(
+      tx,
+      input.accountId,
+      "TWD",
+      `-${input.amountTwd}`,
+      "out",
+      "purchase",
+      purchase.id,
+      actor.id,
+      `支付買入款 #${purchase.id}`
+    );
+
+    return purchase;
+  });
+}
+
+export async function createHolderRecord(input: { name: string }) {
+  const db = getDb();
+  const [holder] = await db.insert(holders).values({ name: input.name.trim() }).returning();
+  return holder;
+}
+
+export async function createAccountRecord(input: { holderId: number; name: string; currency: Currency }) {
+  const db = getDb();
+  const [account] = await db
+    .insert(accounts)
+    .values({
+      holderId: input.holderId,
+      name: input.name.trim(),
+      currency: input.currency
+    })
+    .returning();
+  return account;
 }

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CheckCircle2, X } from "lucide-react";
 import { useAppStore } from "../features/AppStore";
+import { runMutation } from "../lib/runMutation";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -301,13 +302,14 @@ export function ReceivablesPage() {
     setPayConfirmOpen(true);
   };
 
-  const confirmPayPurchase = () => {
+  const confirmPayPurchase = async () => {
     try {
+      await runMutation(() =>
       payPurchase({
         purchaseId: Number(payForm.purchaseId),
         accountId: Number(payForm.accountId),
         amountTwd: payForm.amountTwd
-      });
+      }));
       setPayConfirmOpen(false);
       setPayModalOpen(false);
       setPayForm((current) => ({ ...current, purchaseId: "", accountId: "", amountTwd: "" }));

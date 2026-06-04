@@ -14,6 +14,7 @@ import { useAppStore } from "../features/AppStore";
 import { sortedLedgerWithBalances } from "../lib/localStore";
 import { rmb, twd } from "../lib/currencyStyles";
 import { cn, d, fmtMoney } from "../lib/utils";
+import { runMutation } from "../lib/runMutation";
 
 type AccountCashForm = {
   amount: string;
@@ -271,10 +272,10 @@ export function AccountsPage() {
     setAddHolderError("");
   };
 
-  const submitAddHolder = (event: React.FormEvent) => {
+  const submitAddHolder = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      createHolder({ name: holderName });
+      await runMutation(() => createHolder({ name: holderName }));
       closeAddHolderModal();
     } catch (error) {
       setAddHolderError(error instanceof Error ? error.message : "新增失敗");
@@ -293,16 +294,17 @@ export function AccountsPage() {
     setAddAccountError("");
   };
 
-  const submitAddAccount = (event: React.FormEvent) => {
+  const submitAddAccount = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!addAccountModal) return;
 
     try {
+      await runMutation(() =>
       createAccount({
         holderId: addAccountModal.holderId,
         name: addAccountForm.name,
         currency: addAccountForm.currency
-      });
+      }));
       closeAddAccountModal();
     } catch (error) {
       setAddAccountError(error instanceof Error ? error.message : "新增失敗");
@@ -360,18 +362,19 @@ export function AccountsPage() {
     }
   };
 
-  const submitCashAdjustment = (event: React.FormEvent) => {
+  const submitCashAdjustment = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cashModal) return;
 
     try {
+      await runMutation(() =>
       adjustAccount({
         accountId: cashModal.accountId,
         direction: cashModal.direction,
         amount: modalForm.amount,
         note: modalForm.note,
         withdrawType: modalForm.withdrawType
-      });
+      }));
       closeCashModal();
     } catch (error) {
       setModalError(error instanceof Error ? error.message : "操作失敗");
