@@ -1,5 +1,11 @@
 import * as React from "react";
-import { applyTheme, getStoredTheme, toggleTheme, type Theme } from "../lib/theme";
+import {
+  applyTheme,
+  getStoredTheme,
+  THEME_STORAGE_KEY,
+  toggleTheme,
+  type Theme,
+} from "../lib/theme";
 
 type ThemeContextValue = {
   theme: Theme;
@@ -21,11 +27,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState((current) => toggleTheme(current));
   }, []);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  const value = React.useMemo(() => ({ theme, setTheme, toggleTheme: toggle }), [theme, setTheme, toggle]);
+  React.useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+      const stored = getStoredTheme();
+      setThemeState(stored);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const value = React.useMemo(
+    () => ({ theme, setTheme, toggleTheme: toggle }),
+    [theme, setTheme, toggle],
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

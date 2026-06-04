@@ -4,23 +4,6 @@
 
 :root {
   --radius: 0.5rem;
-  color-scheme: dark;
-  --background: 222 47% 7%;
-  --foreground: 213 31% 91%;
-  --card: 222 43% 10%;
-  --card-foreground: 213 31% 91%;
-  --sidebar: 222 47% 5%;
-  --sidebar-foreground: 213 31% 91%;
-  --sidebar-muted: 215 20% 65%;
-  --border: 217 33% 18%;
-  --input: 217 33% 20%;
-  --ring: 199 89% 48%;
-  --primary: 199 89% 48%;
-  --primary-foreground: 222 47% 7%;
-  --muted: 217 33% 15%;
-  --muted-foreground: 215 20% 65%;
-  --destructive: 0 63% 45%;
-  --destructive-foreground: 210 40% 98%;
 }
 
 .dark {

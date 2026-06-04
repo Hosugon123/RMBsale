@@ -1,5 +1,6 @@
 ﻿import React from "react";
 import ReactDOM from "react-dom/client";
+import { initTheme } from "./lib/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AdminRoute } from "./components/AdminRoute";
@@ -18,6 +19,8 @@ import { LedgerPage } from "./pages/LedgerPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { AdminPage } from "./pages/AdminPage";
 import "./styles/globals.css";
+
+initTheme();
 
 const queryClient = new QueryClient();
 

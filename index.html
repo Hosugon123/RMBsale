@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant" class="dark">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,11 +7,13 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("rmbsale.theme");
+          var t = (localStorage.getItem("rmbsale.theme") || "").trim();
           var theme = t === "light" ? "light" : "dark";
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(theme);
-          document.documentElement.style.colorScheme = theme;
+          var root = document.documentElement;
+          root.classList.remove("light", "dark");
+          root.classList.add(theme);
+          root.dataset.theme = theme;
+          root.style.colorScheme = theme;
         } catch (e) {}
       })();
     </script>
