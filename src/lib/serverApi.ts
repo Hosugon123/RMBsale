@@ -33,7 +33,8 @@ export const serverApi = {
     return data.user;
   },
 
-  bootstrap: () => request<{ state: AppState }>("bootstrap"),
+  bootstrap: (options?: { lite?: boolean }) =>
+    request<{ state: AppState }>(options?.lite ? "bootstrap?lite=1" : "bootstrap"),
 
   createPurchase: (body: Record<string, unknown>) =>
     request("purchases", { method: "POST", body: JSON.stringify(body) }),

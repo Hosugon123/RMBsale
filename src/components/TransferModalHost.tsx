@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { ArrowLeftRight, X } from "lucide-react";
 import type { Account } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
-import { runMutation } from "../lib/runMutation";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -48,6 +48,7 @@ export function openAccountTransferModal() {
 
 export function TransferModalHost() {
   const { state, createTransfer } = useAppStore();
+  const isMutating = useIsMutating();
   const location = useLocation();
   const [open, setOpen] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -152,9 +153,9 @@ export function TransferModalHost() {
               />
             </label>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button className="w-full" disabled={!form.toAccountId} type="submit">
+            <Button className="w-full" disabled={!form.toAccountId || isMutating} type="submit">
               <ArrowLeftRight className="h-4 w-4" />
-              確認轉帳
+              {isMutating ? "處理中…" : "確認轉帳"}
             </Button>
           </form>
         </CardContent>

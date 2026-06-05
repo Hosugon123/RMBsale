@@ -8,7 +8,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { validatePurchaseForm, type PaymentStatusChoice } from "../lib/formValidation";
-import { runMutation } from "../lib/runMutation";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
@@ -25,6 +25,7 @@ function accountOptionLabel(holderName: string, name: string, balance: string, c
 
 export function PurchasePage() {
   const { state, createPurchase } = useAppStore();
+  const isMutating = useIsMutating();
   const twdAccounts = state.accounts.filter((a) => a.currency === "TWD" && a.isActive);
   const rmbAccounts = state.accounts.filter((a) => a.currency === "RMB" && a.isActive);
   const activeChannels = state.channels.filter((channel) => channel.isActive);
@@ -364,11 +365,17 @@ export function PurchasePage() {
                 ) : null}
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setConfirmOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isMutating}
+                  onClick={() => setConfirmOpen(false)}
+                >
                   取消
                 </Button>
-                <Button type="button" className="flex-1" onClick={submitPurchase}>
-                  確認新增
+                <Button type="button" className="flex-1" disabled={isMutating} onClick={submitPurchase}>
+                  {isMutating ? "處理中…" : "確認新增"}
                 </Button>
               </div>
             </CardContent>

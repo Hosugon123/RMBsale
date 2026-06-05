@@ -34,9 +34,14 @@ function mapEntryType(entryType: string) {
   return ENTRY_LABELS[entryType] ?? entryType;
 }
 
-export async function loadBootstrapState(sessionUserId: number) {
-  await ensureUserProfileColumns();
-  await ensureAuditBackupSchema();
+export async function loadBootstrapState(
+  sessionUserId: number,
+  options?: { skipSchemaEnsure?: boolean }
+) {
+  if (!options?.skipSchemaEnsure) {
+    await ensureUserProfileColumns();
+    await ensureAuditBackupSchema();
+  }
   const db = getDb();
   const [userRows, holderRows, customerRows, channelRows, accountRows, purchaseRows, saleRows, lotRows, allocationRows, ledgerRows] =
     await Promise.all([
