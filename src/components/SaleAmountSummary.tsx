@@ -5,9 +5,10 @@ type SaleAmountSummaryProps = {
   receivableTwd: string;
   profitTwd: string | null;
   profitHint?: string;
+  profitWarning?: string;
 };
 
-export function SaleAmountSummary({ receivableTwd, profitTwd, profitHint }: SaleAmountSummaryProps) {
+export function SaleAmountSummary({ receivableTwd, profitTwd, profitHint, profitWarning }: SaleAmountSummaryProps) {
   return (
     <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
       <div className="rounded-md border border-red-400/20 bg-red-400/10 p-3 text-center">
@@ -24,7 +25,9 @@ export function SaleAmountSummary({ receivableTwd, profitTwd, profitHint }: Sale
         >
           {profitTwd !== null ? fmtMoney(profitTwd) : "—"}
         </p>
-        {profitHint ? (
+        {profitWarning ? (
+          <p className="mt-0.5 text-[10px] leading-snug text-amber-600 dark:text-amber-400 sm:text-xs">{profitWarning}</p>
+        ) : profitHint ? (
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground sm:text-xs">{profitHint}</p>
         ) : null}
       </div>

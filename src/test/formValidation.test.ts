@@ -39,9 +39,20 @@ describe("form validation guards", () => {
         rmbAccountId: "4",
         rmbAmount: "100",
         exchangeRate: "4.5",
-        profitError: "RMB 庫存不足，缺少 1.00"
+        profitError: "無法計算利潤"
       })
-    ).toBe("RMB 庫存不足，缺少 1.00");
+    ).toBe("無法計算利潤");
+
+    expect(
+      validateSaleForm({
+        customerName: "阿明",
+        rmbAccountId: "4",
+        rmbAmount: "100",
+        exchangeRate: "4.5",
+        profitError: null,
+        profitWarning: "庫存不足，將以帳戶負餘額記帳"
+      })
+    ).toBeNull();
   });
 
   it("blocks empty purchase submissions", () => {

@@ -119,9 +119,9 @@ export const serverApi = {
     request("admin/import", { method: "POST", body: JSON.stringify(payload) })
 };
 
-/** 與正式站相同：API + Neon + 登入。僅在 vitest 或 VITE_USE_DEMO 時用 localStorage。 */
+/** 正式站用 API；本機 `npm run dev`（demo 模式）用 localStorage。 */
 export function useServerDataMode() {
-  if (import.meta.env.MODE === "test") return false;
+  if (import.meta.env.MODE === "test" || import.meta.env.MODE === "demo") return false;
   if (import.meta.env.VITE_USE_DEMO === "true") return false;
   return true;
 }

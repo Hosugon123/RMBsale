@@ -886,7 +886,6 @@ export function adjustAccount(state: AppState, input: { accountId: number; direc
   const account = state.accounts.find((item) => item.id === input.accountId);
   if (!account) throw new Error("找不到帳戶");
   if (d(input.amount).lte(0)) throw new Error("金額必須大於 0");
-  if (input.direction === "out" && d(account.balance).lt(input.amount)) throw new Error("帳戶餘額不足");
   if (input.direction === "out" && input.withdrawType === "profit") {
     if (account.currency !== "TWD") throw new Error("分潤只能從台幣帳戶提取");
     if (d(totals(state).profit).lt(input.amount)) throw new Error("可提取利潤不足");
@@ -1132,7 +1131,7 @@ function getOrCreateByName<T extends { id: number; name: string; isActive: boole
   return item;
 }
 
-function computeFifoCost(state: AppState, accountId: number, requestedRmb: string) {
+function allocateFifoPreview(state: AppState, accountId: number, requestedRmb: string) {
   let remaining = d(requestedRmb);
   let costTwd = d(0);
   const lots = state.rmbLots
@@ -1144,8 +1143,7 @@ function computeFifoCost(state: AppState, accountId: number, requestedRmb: strin
     costTwd = costTwd.add(allocated.mul(lot.unitCostTwd));
     remaining = remaining.sub(allocated);
   }
-  if (remaining.gt(0)) throw new Error(`RMB 庫存不足，缺少 ${remaining.toFixed(2)}`);
-  return money(costTwd);
+  return { costTwd: money(costTwd), shortfallRmb: money(remaining) };
 }
 
 export function previewSaleProfit(
@@ -1158,16 +1156,17 @@ export function previewSaleProfit(
   if (!d(rmbAmount).gt(0) || !d(exchangeRate).gt(0)) return null;
 
   const twdAmount = money(d(rmbAmount).mul(exchangeRate));
-  try {
-    const costTwd = computeFifoCost(state, input.rmbAccountId, rmbAmount);
-    return { twdAmount, profitTwd: money(d(twdAmount).sub(costTwd)), profitError: null as string | null };
-  } catch (err) {
-    return {
-      twdAmount,
-      profitTwd: null,
-      profitError: err instanceof Error ? err.message : "無法計算利潤"
-    };
-  }
+  const { costTwd, shortfallRmb } = allocateFifoPreview(state, input.rmbAccountId, rmbAmount);
+  const profitWarning =
+    d(shortfallRmb).gt(0)
+      ? `庫存不足 ${shortfallRmb} RMB，將以帳戶負餘額記帳（待買入入帳自動對沖）`
+      : null;
+  return {
+    twdAmount,
+    profitTwd: money(d(twdAmount).sub(costTwd)),
+    profitWarning,
+    profitError: null as string | null
+  };
 }
 
 function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: string) {
@@ -1193,8 +1192,7 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
     });
     remaining = remaining.sub(allocated);
   }
-  if (remaining.gt(0)) throw new Error(`RMB 庫存不足，缺少 ${remaining.toFixed(2)}`);
-  return { costTwd: money(costTwd), items };
+  return { costTwd: money(costTwd), items, shortfallRmb: money(remaining) };
 }
 
 function inferSaleAllocations(state: AppState) {

@@ -34,7 +34,11 @@ export type FifoAllocation = {
   allocatedCostTwd: string;
 };
 
-export function allocateFifo(lots: FifoLotInput[], requestedRmb: Decimal.Value) {
+export function allocateFifo(
+  lots: FifoLotInput[],
+  requestedRmb: Decimal.Value,
+  options?: { allowShort?: boolean }
+) {
   let remaining = toCents(requestedRmb);
   const allocations: FifoAllocation[] = [];
   let totalCost = money(0);
@@ -56,13 +60,14 @@ export function allocateFifo(lots: FifoLotInput[], requestedRmb: Decimal.Value) 
     remaining = remaining.sub(allocated);
   }
 
-  if (remaining.gt(0)) {
+  if (remaining.gt(0) && !options?.allowShort) {
     throw new Error(`RMB inventory is insufficient. Missing ${remaining.toFixed(2)} RMB.`);
   }
 
   return {
     allocations,
-    totalCostTwd: toDbMoney(totalCost)
+    totalCostTwd: toDbMoney(totalCost),
+    shortfallRmb: remaining.gt(0) ? remaining.toFixed(2) : "0.00"
   };
 }
 

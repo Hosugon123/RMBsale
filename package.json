@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "dev:vite": "vite --host 127.0.0.1",
+    "dev": "vite --host 127.0.0.1 --mode demo",
     "dev:demo": "vite --host 127.0.0.1 --mode demo",
+    "dev:online": "npx vercel dev --listen 127.0.0.1:3000",
+    "start": "npm run dev:online",
     "build": "tsc -p tsconfig.app.json --noEmit && tsc -p api/tsconfig.json --noEmit && vite build",
     "stable": "node scripts/serve-dist.mjs",
     "preview": "vite preview --host 127.0.0.1",

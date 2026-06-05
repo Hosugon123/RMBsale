@@ -199,6 +199,7 @@ export function SaleModalHost() {
               <SaleAmountSummary
                 receivableTwd={receivableTwd}
                 profitTwd={amountPreview?.profitTwd ?? null}
+                profitWarning={amountPreview?.profitWarning ?? undefined}
                 profitHint={amountPreview?.profitError ?? undefined}
               />
               {error ? <p className="text-sm text-destructive">{error}</p> : null}

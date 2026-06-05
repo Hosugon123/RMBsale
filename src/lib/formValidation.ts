@@ -8,6 +8,8 @@ export function validateSaleForm(input: {
   rmbAmount: string;
   exchangeRate: string;
   profitError: string | null;
+  /** 庫存不足時允許超扣，僅提示不阻擋送出 */
+  profitWarning?: string | null;
 }) {
   if (!input.customerName) return "請選擇常用客戶或填寫其他客戶";
   if (!input.rmbAccountId) return "請選擇扣款 RMB 帳戶";

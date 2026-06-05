@@ -170,6 +170,7 @@ export function SalePage() {
             <SaleAmountSummary
               receivableTwd={receivableTwd}
               profitTwd={amountPreview?.profitTwd ?? null}
+              profitWarning={amountPreview?.profitWarning ?? undefined}
               profitHint={amountPreview?.profitError ?? undefined}
             />
             {formError ? <p className="text-sm text-destructive">{formError}</p> : null}

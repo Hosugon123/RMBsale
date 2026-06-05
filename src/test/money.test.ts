@@ -19,7 +19,15 @@ describe("money calculations", () => {
     expect(calcProfit("7000.00", "6650.00")).toBe("350.00");
   });
 
-  it("rejects insufficient FIFO inventory", () => {
+  it("rejects insufficient FIFO inventory by default", () => {
     expect(() => allocateFifo([{ id: 1, remainingRmb: "100.00", unitCostTwd: "4.4" }], "101.00")).toThrow(/insufficient/i);
+  });
+
+  it("allows short allocation when enabled", () => {
+    const result = allocateFifo([{ id: 1, remainingRmb: "100.00", unitCostTwd: "4.4" }], "150.00", {
+      allowShort: true
+    });
+    expect(result.shortfallRmb).toBe("50.00");
+    expect(result.totalCostTwd).toBe("440.00");
   });
 });

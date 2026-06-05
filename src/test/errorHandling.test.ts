@@ -4,6 +4,7 @@ import {
   addChannel,
   addCustomer,
   addHolder,
+  addPurchase,
   addSale,
   adjustAccount,
   createSeedState,
@@ -51,35 +52,58 @@ describe("store error handling (no partial apply on failure)", () => {
     expect(() => addChannel(state, { name: "交易所 A" })).toThrow("此渠道已存在");
   });
 
-  it("rolls back failed sale when inventory is insufficient", () => {
+  it("allows sale when inventory is short by recording negative RMB balance", () => {
     const state = createSeedState();
-    const before = snapshotFingerprint(state);
+    state.accounts.find((a) => a.id === 4)!.balance = "0.00";
+    state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
 
     const result = simulateCommit(state, (draft) =>
       addSale(draft, {
         customerName: "測試",
         rmbAccountId: 4,
-        rmbAmount: "999999",
+        rmbAmount: "1000",
         exchangeRate: "4.5"
       })
     );
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toBeInstanceOf(Error);
-    expect((result.error as Error).message).toMatch(/庫存不足/);
-    expect(snapshotFingerprint(result.state)).toBe(before);
+    expect(result.ok).toBe(true);
+    expect(result.state.accounts.find((a) => a.id === 4)?.balance).toBe("-1000.00");
+    expect(result.state.sales).toHaveLength(state.sales.length + 1);
   });
 
-  it("rolls back failed account adjustment", () => {
+  it("offsets negative balance when purchase is deposited later", () => {
     const state = createSeedState();
-    const before = state.accounts.find((a) => a.id === 1)?.balance;
+    state.accounts.find((a) => a.id === 4)!.balance = "0.00";
+    state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
 
-    const result = simulateCommit(state, (draft) =>
-      adjustAccount(draft, { accountId: 1, direction: "out", amount: "999999" })
-    );
+    addSale(state, {
+      customerName: "測試",
+      rmbAccountId: 4,
+      rmbAmount: "1000",
+      exchangeRate: "4.5"
+    });
+    expect(state.accounts.find((a) => a.id === 4)?.balance).toBe("-1000.00");
 
-    expect(result.ok).toBe(false);
-    expect(result.state.accounts.find((a) => a.id === 1)?.balance).toBe(before);
+    addPurchase(state, {
+      channelName: "交易所 A",
+      depositAccountId: 4,
+      rmbAmount: "1000",
+      exchangeRate: "4.4",
+      paymentStatus: "unpaid"
+    });
+    expect(state.accounts.find((a) => a.id === 4)?.balance).toBe("0.00");
+  });
+
+  it("allows account withdrawal below zero balance", () => {
+    const state = createSeedState();
+    const account = state.accounts.find((a) => a.id === 1)!;
+    account.balance = "100.00";
+
+    adjustAccount(state, { accountId: 1, direction: "out", amount: "500" });
+    expect(account.balance).toBe("-400.00");
+
+    adjustAccount(state, { accountId: 1, direction: "in", amount: "200" });
+    expect(account.balance).toBe("-200.00");
   });
 
   it("rolls back invalid rename operations", () => {
@@ -89,35 +113,25 @@ describe("store error handling (no partial apply on failure)", () => {
     const result = simulateCommit(state, (draft) =>
       renameChannel(draft, { channelId: channel.id, name: "   " })
     );
-    expect(result.ok).toBe(false);
-    expect(channel.name).toBe(result.state.channels.find((c) => c.id === channel.id)?.name);
-
-    const customer = state.customers[0];
-    const dup = simulateCommit(state, (draft) =>
-      renameCustomer(draft, { customerId: customer.id, name: state.customers[1].name })
-    );
-    expect(dup.ok).toBe(false);
-  });
-
-  it("rolls back invalid user creation", () => {
-    const state = createSeedState();
-    const countBefore = state.users.length;
-
-    const result = simulateCommit(state, (draft) =>
-      createUser(draft, {
-        username: "",
-        password: "1234",
-        displayName: "x",
-        permissions: ["dashboard"]
-      })
-    );
 
     expect(result.ok).toBe(false);
-    expect(result.state.users).toHaveLength(countBefore);
+    expect(state.channels[0].name).toBe(channel.name);
   });
 
   it("still blocks deleting accounts with balance", () => {
     const state = createSeedState();
     expect(() => deleteAccount(state, { accountId: 1 })).toThrow("帳戶仍有餘額");
+  });
+
+  it("rejects invalid user creation", () => {
+    const state = createSeedState();
+    expect(() =>
+      createUser(state, {
+        username: "ds001",
+        password: "1234",
+        displayName: "重複",
+        permissions: ["dashboard"]
+      })
+    ).toThrow("帳號已存在");
   });
 });

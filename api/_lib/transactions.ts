@@ -107,7 +107,7 @@ export async function createSale(input: {
       .where(and(eq(rmbLots.accountId, input.rmbAccountId), gt(rmbLots.remainingRmb, "0")))
       .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
-    const allocation = allocateFifo(lots, input.rmbAmount);
+    const allocation = allocateFifo(lots, input.rmbAmount, { allowShort: true });
     const profitTwd = calcProfit(twdAmount, allocation.totalCostTwd);
 
     const [sale] = await tx.insert(sales).values({
@@ -263,9 +263,6 @@ export async function createAccountAdjustment(
     const [account] = await tx.select().from(accounts).where(eq(accounts.id, input.accountId));
     if (!account) throw new Error("?????");
     if (Number(input.amount) <= 0) throw new Error("?????? 0");
-    if (input.direction === "out" && Number(account.balance) < Number(input.amount)) {
-      throw new Error("??????");
-    }
     if (input.direction === "out" && input.withdrawType === "profit" && account.currency !== "TWD") {
       throw new Error("???????????");
     }
