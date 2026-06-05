@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
 import { useAppStore } from "../features/AppStore";
 import { purchasePayableTwd, sortedLedgerWithBalances } from "../lib/localStore";
+import { isDepositPurchase, purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { rmb, twd } from "../lib/currencyStyles";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
 import type { Purchase } from "../lib/types";
@@ -16,10 +17,8 @@ type ChannelLedgerModalProps = {
   onClose: () => void;
 };
 
-function purchasePaymentStatusLabel(status: Purchase["paymentStatus"]) {
-  if (status === "paid") return "已付款";
-  if (status === "partial") return "部分付款";
-  return "待付款";
+function purchasePaymentStatusLabelForChannel(purchase: Purchase) {
+  return purchasePaymentStatusLabel(purchase);
 }
 
 export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalProps) {
@@ -51,11 +50,15 @@ export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalPro
     () => ({
       rmb: channelPurchases.reduce((sum, purchase) => sum + Number(purchase.rmbAmount), 0),
       twdCost: channelPurchases.reduce((sum, purchase) => sum + Number(purchase.twdCost), 0),
-      paidTwd: channelPurchases.reduce((sum, purchase) => sum + Number(purchase.paidTwd), 0),
+      paidTwd: channelPurchases.reduce(
+        (sum, purchase) => sum + (isDepositPurchase(purchase) ? 0 : Number(purchase.paidTwd)),
+        0
+      ),
       payableTwd: channelPurchases.reduce((sum, purchase) => sum + Number(purchasePayableTwd(purchase)), 0)
     }),
     [channelPurchases]
   );
+  const isDepositChannel = selectedChannel?.name === "入金";
 
   if (!selectedChannel) return null;
 
@@ -68,7 +71,9 @@ export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalPro
         <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
           <div className="min-w-0">
             <CardTitle className="text-base sm:text-lg">{selectedChannel.name} 個人帳務流水</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">彙整此廠商／渠道的買入與付款紀錄</p>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              {isDepositChannel ? "彙整人民幣入金與帳面成本紀錄（不列入買入付款）" : "彙整此廠商／渠道的買入與付款紀錄"}
+            </p>
           </div>
           <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
             <X className="h-5 w-5" />
@@ -77,23 +82,27 @@ export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalPro
         <CardContent className="max-h-[calc(88vh-5rem)] space-y-5 overflow-y-auto p-3 sm:p-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-md border bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">目前待付</p>
+              <p className="text-xs text-muted-foreground">{isDepositChannel ? "帳面成本合計" : "目前待付"}</p>
               <p className={cn("mt-1 text-base font-semibold sm:text-lg", twd.money)}>
-                {fmtMoney(channelSummary.payableTwd)}
+                {isDepositChannel ? fmtMoney(channelSummary.twdCost) : fmtMoney(channelSummary.payableTwd)}
               </p>
             </div>
             <div className="rounded-md border bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">買入 RMB 合計</p>
+              <p className="text-xs text-muted-foreground">{isDepositChannel ? "入金 RMB 合計" : "買入 RMB 合計"}</p>
               <p className={cn("mt-1 text-base sm:text-lg", rmb.money)}>{fmtMoney(channelSummary.rmb, "RMB")}</p>
             </div>
+            {!isDepositChannel ? (
             <div className="rounded-md border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">應付 TWD 合計</p>
               <p className={cn("mt-1 text-base font-semibold sm:text-lg", twd.money)}>{fmtMoney(channelSummary.twdCost)}</p>
             </div>
+            ) : null}
+            {!isDepositChannel ? (
             <div className="rounded-md border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">已付 TWD 合計</p>
               <p className={cn("mt-1 text-base sm:text-lg", twd.money)}>{fmtMoney(channelSummary.paidTwd)}</p>
             </div>
+            ) : null}
           </div>
 
           <section className="space-y-2">
@@ -124,8 +133,8 @@ export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalPro
                           {fmtMoney(purchasePayableTwd(purchase))}
                         </TD>
                         <TD>
-                          <Badge tone={purchase.paymentStatus === "paid" ? "rmb" : "danger"}>
-                            {purchasePaymentStatusLabel(purchase.paymentStatus)}
+                          <Badge tone={isDepositPurchase(purchase) ? "muted" : purchase.paymentStatus === "paid" ? "rmb" : "danger"}>
+                            {purchasePaymentStatusLabelForChannel(purchase)}
                           </Badge>
                         </TD>
                       </TR>

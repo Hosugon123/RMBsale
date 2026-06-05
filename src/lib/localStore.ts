@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { ALL_PERMISSIONS, deriveRole, LEVEL_PRESETS } from "./permissions";
+import { DEPOSIT_CHANNEL, isDepositPurchase } from "./purchaseUtils";
 import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
 import { d, nextId } from "./utils";
 
@@ -82,8 +83,10 @@ function normalizeState(state: AppState): AppState {
   });
   ensureProfitLedgerEntries(state);
   ensureSettlementReceivableEntries(state);
+  removeDepositPayableLedger(state);
   ensurePayableLedgerEntries(state);
   state.purchases.forEach((purchase) => {
+    if (isDepositPurchase(purchase)) return;
     if (purchase.paidTwd == null || purchase.paidTwd === undefined) {
       purchase.paidTwd = purchase.paymentStatus === "paid" ? purchase.twdCost : "0.00";
     }
@@ -99,7 +102,8 @@ function normalizeState(state: AppState): AppState {
   return state;
 }
 
-export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd">) {
+export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd" | "channelName">) {
+  if (isDepositPurchase(purchase)) return "0.00";
   return money(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
 }
 
@@ -173,9 +177,21 @@ function purchaseLedgerRelatedTables(entry: Pick<LedgerEntry, "relatedTable" | "
   );
 }
 
+function removeDepositPayableLedger(state: AppState) {
+  const depositPurchaseIds = new Set(state.purchases.filter(isDepositPurchase).map((purchase) => purchase.id));
+  if (depositPurchaseIds.size === 0) return;
+  const before = state.ledger.length;
+  state.ledger = state.ledger.filter((entry) => {
+    if (entry.relatedId == null || !depositPurchaseIds.has(entry.relatedId)) return true;
+    return entry.entryType !== "應付" && entry.entryType !== "應付付款";
+  });
+  if (state.ledger.length !== before) saveState(state);
+}
+
 function ensurePayableLedgerEntries(state: AppState) {
   let added = false;
   for (const purchase of state.purchases) {
+    if (isDepositPurchase(purchase)) continue;
     const hasIncrease = state.ledger.some(
       (entry) =>
         entry.entryType === "應付" &&
@@ -844,6 +860,7 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
 export function payPurchase(state: AppState, input: { purchaseId: number; accountId: number; amountTwd: string }) {
   const purchase = state.purchases.find((item) => item.id === input.purchaseId);
   if (!purchase) throw new Error("找不到買入紀錄");
+  if (isDepositPurchase(purchase)) throw new Error("人民幣入金不屬於買入付款，無需登記待付款或已付款");
   const remaining = d(purchase.twdCost).sub(purchase.paidTwd);
   if (remaining.lte(0)) throw new Error("此買入已付清");
   if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
@@ -882,8 +899,6 @@ export function payPurchase(state: AppState, input: { purchaseId: number; accoun
   saveState(state);
   return state;
 }
-
-const DEPOSIT_CHANNEL = "入金";
 
 function addRmbDepositLot(
   state: AppState,

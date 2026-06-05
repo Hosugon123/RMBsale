@@ -1,6 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "./db.js";
 import { ensureUserProfileColumns } from "./ensureUserColumns.js";
+import { ensureAuditBackupSchema } from "./ensureAuditBackupSchema.js";
 import { toAppUser } from "./userPermissions.js";
 import {
   accounts,
@@ -35,6 +36,7 @@ function mapEntryType(entryType: string) {
 
 export async function loadBootstrapState(sessionUserId: number) {
   await ensureUserProfileColumns();
+  await ensureAuditBackupSchema();
   const db = getDb();
   const [userRows, holderRows, customerRows, channelRows, accountRows, purchaseRows, saleRows, lotRows, allocationRows, ledgerRows] =
     await Promise.all([

@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, ne, notInArray, sql } from "drizzle-orm";
 import { getDb } from "./db.js";
 import { AuditAction, writeAudit, type AuditActor } from "./audit.js";
+import { DEPOSIT_CHANNEL } from "./purchaseUtils.js";
 import {
   accounts,
+  channels,
   customers,
   dailySnapshots,
   ledgerEntries,
@@ -18,6 +20,13 @@ function todayDateString() {
 
 export async function computeFinancialSnapshot(snapshotDate = todayDateString()) {
   const db = getDb();
+  const depositChannelRows = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.name, DEPOSIT_CHANNEL));
+  const depositChannelIds = depositChannelRows.map((row) => row.id);
+  const excludeDeposit =
+    depositChannelIds.length > 0 ? notInArray(purchases.channelId, depositChannelIds) : sql`true`;
 
   const [[twdRow], [rmbRow], [recvRow], [payableRow], [openSales], [openPurchases], [ledgerCount]] =
     await Promise.all([
@@ -33,7 +42,7 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
       db
         .select({ total: sql<string>`coalesce(sum(${purchases.twdCost}), 0)` })
         .from(purchases)
-        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"))),
+        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"), excludeDeposit)),
       db
         .select({ total: count() })
         .from(sales)
@@ -41,7 +50,7 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
       db
         .select({ total: count() })
         .from(purchases)
-        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"))),
+        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"), excludeDeposit)),
       db.select({ total: count() }).from(ledgerEntries)
     ]);
 

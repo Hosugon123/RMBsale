@@ -2,6 +2,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { allocateFifo, calcProfit, calcTwd, toDbMoney, toDbRate } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
+import { assertPurchasePayable } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
 import {
   accounts,
@@ -507,6 +508,7 @@ export async function payPurchasePayment(
   return db.transaction(async (tx) => {
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, input.purchaseId));
     if (!purchase) throw new Error("找不到買入紀錄");
+    await assertPurchasePayable(tx, purchase);
     assertPurchaseEditable(purchase);
     if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
     if (Number(input.amountTwd) <= 0) throw new Error("金額必須大於 0");

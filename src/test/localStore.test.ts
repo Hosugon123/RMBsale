@@ -425,6 +425,10 @@ describe("local demo store", () => {
     expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("48000.00");
     const depositLot = state.rmbLots.find((lot) => lot.channelName === "入金" && lot.accountId === 2);
     expect(depositLot).toMatchObject({ originalRmb: "10000.00", remainingRmb: "10000.00", unitCostTwd: "4.500000" });
+    const depositPurchase = state.purchases.find((purchase) => purchase.channelName === "入金" && purchase.depositAccountId === 2);
+    expect(depositPurchase).toBeTruthy();
+    expect(purchasePayableTwd(depositPurchase!)).toBe("0.00");
+    expect(state.ledger.some((entry) => entry.entryType === "應付" && entry.relatedId === depositPurchase!.id)).toBe(false);
 
     adjustAccount(state, { accountId: 2, direction: "out", amount: "5000", exchangeRate: "4.55" });
     expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("43000.00");

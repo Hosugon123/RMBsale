@@ -1,6 +1,7 @@
 import "./loadEnv.js";
 import express from "express";
 import path from "node:path";
+import { ensureAuditBackupSchema } from "../api/_lib/ensureAuditBackupSchema.js";
 import { createApiRouter } from "./apiRouter.js";
 import { assertDistExists, resolveAppRoot, resolveDistDir } from "./paths.js";
 
@@ -61,6 +62,15 @@ async function createApp() {
 validateProductionEnv();
 if (isProduction && !useViteDev) {
   assertDistExists(distDir);
+}
+if (process.env.DATABASE_URL) {
+  try {
+    await ensureAuditBackupSchema();
+    console.log("Database schema check complete.");
+  } catch (error) {
+    console.error("Database schema migration failed:", error);
+    if (isProduction) process.exit(1);
+  }
 }
 const app = await createApp();
 app.listen(PORT, "0.0.0.0", () => {

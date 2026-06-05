@@ -10,6 +10,7 @@ import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { validatePurchaseForm, type PaymentStatusChoice } from "../lib/formValidation";
 import { runMutation } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
+import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
 
 const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
@@ -310,9 +311,7 @@ export function PurchasePage() {
                   <TD className={rmb.moneyCell}>{fmtMoney(item.rmbAmount, "RMB")}</TD>
                   <TD className="hidden text-right sm:table-cell">{fmtRate(item.exchangeRate)}</TD>
                   <TD className={twd.moneyCell}>{fmtMoney(item.twdCost)}</TD>
-                  <TD>
-                    {item.paymentStatus === "paid" ? "已付款" : item.paymentStatus === "partial" ? "部分付款" : "待付款"}
-                  </TD>
+                  <TD>{purchasePaymentStatusLabel(item)}</TD>
                   <TD className="hidden md:table-cell">{item.operatorName}</TD>
                 </TR>
               ))}

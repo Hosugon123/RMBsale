@@ -19,6 +19,7 @@ import {
   sortedPayableLedgerWithBalances,
   sortedReceivableLedgerWithBalances
 } from "../lib/localStore";
+import { isDepositPurchase, isPurchasePayable, purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import Decimal from "decimal.js";
 import { cn, d, fmtMoney } from "../lib/utils";
 import type { Account, Customer, Purchase } from "../lib/types";
@@ -27,12 +28,6 @@ const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const cardHeaderClass = "p-3 pb-2 sm:p-4 sm:pb-0";
 const cardContentClass = "min-w-0 p-3 pt-0 sm:p-4";
-
-function purchasePaymentStatusLabel(status: Purchase["paymentStatus"]) {
-  if (status === "paid") return "已付款";
-  if (status === "partial") return "部分付款";
-  return "待付款";
-}
 
 function ReceivableCustomerCards({
   customers,
@@ -250,7 +245,7 @@ function PayablePurchaseCards({
                 </p>
               </div>
               <span className="shrink-0 rounded-md bg-muted/60 px-2 py-0.5 text-xs">
-                {purchasePaymentStatusLabel(purchase.paymentStatus)}
+                {purchasePaymentStatusLabel(purchase)}
               </span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -274,7 +269,8 @@ export function ReceivablesPage() {
   const { state, payPurchase } = useAppStore();
   const twdAccounts = state.accounts.filter((a) => a.currency === "TWD" && a.isActive);
   const receivables = state.customers.filter((c) => Number(c.receivableTwd) > 0);
-  const payables = state.purchases.filter((purchase) => purchase.paymentStatus !== "paid");
+  const payables = state.purchases.filter(isPurchasePayable);
+  const purchasePayables = state.purchases.filter((purchase) => !isDepositPurchase(purchase));
   const [payForm, setPayForm] = React.useState({
     purchaseId: String(payables[0]?.id ?? ""),
     accountId: "",
@@ -458,9 +454,9 @@ export function ReceivablesPage() {
             </Button>
           </CardHeader>
           <CardContent className={cn(cardContentClass, "space-y-4 sm:space-y-6")}>
-            <PayablePurchaseCards purchases={state.purchases} onSelectChannel={setLedgerChannelId} />
+            <PayablePurchaseCards purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
             <div className="hidden overflow-x-auto md:block">
-              <PayablesTable purchases={state.purchases} onSelectChannel={setLedgerChannelId} />
+              <PayablesTable purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
             </div>
             <div className="min-w-0 overflow-x-auto border-t border-border/60 pt-4">
               <p className="mb-3 text-xs font-medium text-muted-foreground sm:text-sm">應付／付款流水</p>
@@ -552,7 +548,7 @@ export function ReceivablesPage() {
           </CardHeader>
           <CardContent className={cn(cardContentClass, "space-y-4 sm:space-y-6")}>
             <div className="overflow-x-auto">
-              <PayablesTable purchases={state.purchases} onSelectChannel={setLedgerChannelId} />
+              <PayablesTable purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
             </div>
             <div className="min-w-0 overflow-x-auto border-t border-border/60 pt-4">
               <p className="mb-3 text-xs font-medium text-muted-foreground sm:text-sm">應付／付款流水</p>
@@ -602,7 +598,7 @@ function PayablesTable({
             <TD className={rmb.moneyCell}>{fmtMoney(purchase.rmbAmount, "RMB")}</TD>
             <TD className={twd.moneyCell}>{fmtMoney(purchase.twdCost)}</TD>
             <TD className={twd.moneyCell}>{fmtMoney(purchasePayableTwd(purchase))}</TD>
-            <TD>{purchasePaymentStatusLabel(purchase.paymentStatus)}</TD>
+            <TD>{purchasePaymentStatusLabel(purchase)}</TD>
           </TR>
         ))}
       </TBody>
