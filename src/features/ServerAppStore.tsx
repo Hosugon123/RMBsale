@@ -11,8 +11,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
   const { user: authUser, loading: authLoading, refresh: refreshAuth } = useAuth();
   const [state, setState] = React.useState<AppState | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState("");
 
   const refresh = React.useCallback(async () => {
+    setLoadError("");
     const { state: next } = await serverApi.bootstrap();
     setState(next);
   }, []);
@@ -26,14 +28,39 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     }
     setLoading(true);
     void refresh()
-      .catch((err) => console.error(err))
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "載入帳務資料失敗";
+        setLoadError(message);
+        setState(null);
+        console.error(err);
+      })
       .finally(() => setLoading(false));
   }, [authUser, authLoading, refresh]);
 
   if (authLoading || loading || !state || !authUser) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-        {authLoading || loading ? "載入共用帳務資料…" : "請先登入"}
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
+        {authLoading || loading ? (
+          "載入共用帳務資料…"
+        ) : loadError ? (
+          <>
+            <p className="text-destructive">{loadError}</p>
+            <button
+              type="button"
+              className="text-primary underline"
+              onClick={() => {
+                setLoading(true);
+                void refresh()
+                  .catch((err) => setLoadError(err instanceof Error ? err.message : "載入失敗"))
+                  .finally(() => setLoading(false));
+              }}
+            >
+              重試
+            </button>
+          </>
+        ) : (
+          "請先登入"
+        )}
       </div>
     );
   }

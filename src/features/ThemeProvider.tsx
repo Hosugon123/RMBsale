@@ -2,8 +2,8 @@ import * as React from "react";
 import {
   applyTheme,
   getStoredTheme,
+  readThemeFromDocument,
   THEME_STORAGE_KEY,
-  toggleTheme,
   type Theme,
 } from "../lib/theme";
 
@@ -15,16 +15,21 @@ type ThemeContextValue = {
 
 const ThemeContext = React.createContext<ThemeContextValue | null>(null);
 
+function resolveInitialTheme(): Theme {
+  const stored = getStoredTheme();
+  applyTheme(stored);
+  return readThemeFromDocument();
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = React.useState<Theme>(() => getStoredTheme());
+  const [theme, setThemeState] = React.useState<Theme>(resolveInitialTheme);
 
   const setTheme = React.useCallback((next: Theme) => {
-    applyTheme(next);
     setThemeState(next);
   }, []);
 
   const toggle = React.useCallback(() => {
-    setThemeState((current) => toggleTheme(current));
+    setThemeState((current) => (current === "dark" ? "light" : "dark"));
   }, []);
 
   React.useLayoutEffect(() => {
@@ -34,8 +39,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
-      const stored = getStoredTheme();
-      setThemeState(stored);
+      setThemeState(getStoredTheme());
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

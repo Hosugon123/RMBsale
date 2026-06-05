@@ -1,5 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
+import { ensureUserProfileColumns } from "./ensureUserColumns.js";
 import { toAppUser } from "./userPermissions.js";
 import {
   accounts,
@@ -12,7 +13,7 @@ import {
   saleAllocations,
   sales,
   users
-} from "./schema";
+} from "./schema.js";
 
 const ENTRY_LABELS: Record<string, string> = {
   purchase: "買入",
@@ -33,6 +34,7 @@ function mapEntryType(entryType: string) {
 }
 
 export async function loadBootstrapState(sessionUserId: number) {
+  await ensureUserProfileColumns();
   const db = getDb();
   const [userRows, holderRows, customerRows, channelRows, accountRows, purchaseRows, saleRows, lotRows, allocationRows, ledgerRows] =
     await Promise.all([

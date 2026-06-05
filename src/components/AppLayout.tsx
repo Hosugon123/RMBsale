@@ -170,6 +170,7 @@ export function AppLayout() {
             <p className="truncate text-sm font-semibold sm:text-base">{pageTitle}</p>
           </div>
           <div className="flex shrink-0 flex-row flex-nowrap items-center gap-0.5 sm:gap-2">
+            <ThemeToggle className="hidden h-8 w-8 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex" />
             {hasPermission(sessionUser, "sale") ? (
             <Button
               className="h-8 shrink-0 gap-1 whitespace-nowrap px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
