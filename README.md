@@ -2,23 +2,23 @@
 
 RMBsale 是以 Vite + React + TypeScript 建立的人民幣代付與換匯金流記帳系統。第一版保留舊系統的核心流程，但改為前後端分離、Drizzle schema、Vercel Functions 與 Neon Postgres。
 
-## 開發（與正式站相同）
+## 開發
 
-1. 複製 `.env.example` 為 `.env.local`，填入 Neon 的 `DATABASE_URL` 與 `JWT_SECRET` 等。
+1. 複製 `.env.example` 為 `.env.local`，填入 PostgreSQL 的 `DATABASE_URL` 與 `JWT_SECRET` 等。
 2. 初始化資料庫（首次）：
 
 ```bash
 npm.cmd run db:setup
 ```
 
-3. 啟動（需已安裝 Vercel CLI：`npm i -g vercel` 或 `npx vercel login`）：
+3. 啟動（Express 單一服務，與 Cloud Run 相同架構）：
 
 ```bash
 npm.cmd install
-npm.cmd run dev
+npm.cmd run dev:online
 ```
 
-`npm run dev` 會執行 `vercel dev`：前端 + `/api` 與正式站相同（登入、Neon、共用帳務）。預設帳號見 `.env.example`（`ds001` / `1234`）。
+`dev:online` 會在 **port 8080** 啟動 Express：同時提供 `/api` 與 Vite 前端熱更新。預設帳號見 `.env.example`（`ds001` / `1234`）。
 
 僅要本機 localStorage 示範、不連資料庫時：
 
@@ -26,11 +26,20 @@ npm.cmd run dev
 npm.cmd run dev:demo
 ```
 
+正式模式本機驗證（build 後靜態檔 + API）：
+
+```bash
+npm.cmd run build
+npm.cmd start
+```
+
+**Google Cloud Run 部署** 詳見 [CLOUD_RUN.md](./CLOUD_RUN.md)。
+
 PowerShell 若擋 `npm.ps1`，請使用 `npm.cmd`。
 
 ## 資料庫
 
-部署到 Vercel 時建議從 Vercel Marketplace 建立 Neon Postgres，並設定：
+部署到 Cloud Run（或任何 Node 主機）時，設定：
 
 ```bash
 DATABASE_URL
@@ -47,7 +56,7 @@ npm.cmd run db:migrate
 npm.cmd run db:seed
 ```
 
-**公司共用線上版**：請依 [DEPLOY.md](./DEPLOY.md) 在 Vercel 建立 Neon、執行 `npm run db:setup`，部署後所有人登入同一資料庫查帳對帳。
+**公司共用線上版**：請依 [CLOUD_RUN.md](./CLOUD_RUN.md) 部署至 Cloud Run、執行 `npm run db:setup`，部署後所有人登入同一 PostgreSQL 查帳對帳。
 
 ## 核心原則
 

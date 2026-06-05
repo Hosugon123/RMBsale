@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-server
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+!README.md
+.vscode
+.cursor
+coverage
+terminals
+agent-transcripts
+scripts/.setup-result.txt
+public/import-from-xlsx.json

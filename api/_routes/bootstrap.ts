@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { loadBootstrapState } from "../_lib/bootstrap.js";
 import { fail, ok, requireUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
 

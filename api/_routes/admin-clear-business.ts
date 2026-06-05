@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { clearBusinessTables } from "../_lib/clearBusiness.js";
 import { handleRouteError, methodNotAllowed, ok, requireAdmin } from "../_lib/http.js";
 

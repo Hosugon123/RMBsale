@@ -14,7 +14,7 @@ let cachedDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export function getDb() {
   if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not configured. Create a Neon database and set it in Vercel.");
+    throw new Error("DATABASE_URL is not configured. Set PostgreSQL connection string in environment variables.");
   }
 
   if (!cachedDb) {

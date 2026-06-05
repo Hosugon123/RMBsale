@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "./request.js";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { getDb } from "./db.js";
@@ -55,23 +55,23 @@ export function signSession(user: AuthUser) {
 }
 
 export function setSessionCookie(res: VercelResponse, token: string) {
-  const secure = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  const secure = process.env.NODE_ENV === "production";
   res.setHeader("Set-Cookie", [
     `rmbsale_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}${secure ? "; Secure" : ""}`
   ]);
 }
 
 export function clearSessionCookie(res: VercelResponse) {
-  const secure = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  const secure = process.env.NODE_ENV === "production";
   res.setHeader("Set-Cookie", `rmbsale_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`);
 }
 
 export function requireUser(req: VercelRequest): AuthUser {
-  const rawCookie = req.headers.cookie ?? "";
+  const rawCookie = String(req.headers.cookie ?? "");
   const token = rawCookie
     .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("rmbsale_session="))
+    .map((part: string) => part.trim())
+    .find((part: string) => part.startsWith("rmbsale_session="))
     ?.split("=")[1];
 
   if (!token) throw new Error("Unauthorized");
@@ -95,7 +95,7 @@ export async function requireAdmin(req: VercelRequest) {
 
 export function getClientMeta(req: VercelRequest) {
   return {
-    ipAddress: String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? ""),
+    ipAddress: String(req.headers["x-forwarded-for"] ?? req.socket?.remoteAddress ?? ""),
     userAgent: String(req.headers["user-agent"] ?? "")
   };
 }

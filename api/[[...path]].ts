@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "./_lib/request.js";
 import { fail, methodNotAllowed, notFound } from "./_lib/http.js";
 import { routes, transactionReverseHandler } from "./_routes/registry.js";
 

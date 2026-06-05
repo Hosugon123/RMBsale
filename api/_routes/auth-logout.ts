@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { clearSessionCookie, fail, ok, methodNotAllowed } from "../_lib/http.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {

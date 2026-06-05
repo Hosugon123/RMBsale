@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { handler as accounts } from "./accounts.js";
 import { handler as adjustments } from "./adjustments.js";
 import { handler as dashboard } from "./dashboard.js";

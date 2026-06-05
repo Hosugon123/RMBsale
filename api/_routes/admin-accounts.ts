@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { and, eq, ne } from "drizzle-orm";
 import { assertAccountDeletable } from "../_lib/accountGuards.js";
 import { getDb } from "../_lib/db.js";

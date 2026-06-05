@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { asc } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
 import { fail, ok, readJson, requireUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
