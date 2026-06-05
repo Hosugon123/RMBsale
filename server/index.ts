@@ -2,10 +2,10 @@ import "./loadEnv.js";
 import express from "express";
 import path from "node:path";
 import { createApiRouter } from "./apiRouter.js";
+import { assertDistExists, resolveAppRoot, resolveDistDir } from "./paths.js";
 
-/** 使用 cwd：編譯後在 dist-server/ 執行時，相對 __dirname 會指錯 dist 位置。 */
-const rootDir = process.cwd();
-const distDir = path.join(rootDir, "dist");
+const rootDir = resolveAppRoot();
+const distDir = resolveDistDir(rootDir);
 const PORT = Number(process.env.PORT) || 8080;
 const isProduction = process.env.NODE_ENV === "production";
 const useViteDev = process.env.VITE_DEV === "1" && !isProduction;
@@ -59,8 +59,13 @@ async function createApp() {
 }
 
 validateProductionEnv();
+if (isProduction && !useViteDev) {
+  assertDistExists(distDir);
+}
 const app = await createApp();
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`RMBsale server listening on http://0.0.0.0:${PORT}`);
+  console.log(`App root: ${rootDir}`);
+  console.log(`Static dist: ${distDir}`);
   if (useViteDev) console.log("Vite dev middleware enabled (VITE_DEV=1)");
 });

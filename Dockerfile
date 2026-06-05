@@ -11,6 +11,7 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV APP_ROOT=/app
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates \

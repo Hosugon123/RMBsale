@@ -21,7 +21,9 @@ function loadFile(path: string) {
   }
 }
 
-const root = process.cwd();
+import { resolveAppRoot } from "./paths.js";
+
+const root = resolveAppRoot();
 loadFile(resolve(root, ".env"));
 loadFile(resolve(root, ".env.production"));
 loadFile(resolve(root, ".env.local"));
