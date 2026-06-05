@@ -1,15 +1,25 @@
 import "./loadEnv.js";
 import express from "express";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createApiRouter } from "./apiRouter.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, "..");
+/** 使用 cwd：編譯後在 dist-server/ 執行時，相對 __dirname 會指錯 dist 位置。 */
+const rootDir = process.cwd();
 const distDir = path.join(rootDir, "dist");
 const PORT = Number(process.env.PORT) || 8080;
 const isProduction = process.env.NODE_ENV === "production";
 const useViteDev = process.env.VITE_DEV === "1" && !isProduction;
+
+function validateProductionEnv() {
+  if (!isProduction) return;
+  const missing: string[] = [];
+  if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
+  if (missing.length > 0) {
+    console.error(`Missing required environment variables: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
 
 async function createApp() {
   const app = express();
@@ -48,6 +58,7 @@ async function createApp() {
   return app;
 }
 
+validateProductionEnv();
 const app = await createApp();
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`RMBsale server listening on http://0.0.0.0:${PORT}`);

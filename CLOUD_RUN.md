@@ -1,63 +1,186 @@
-# Google Cloud Run 部署
+# Google Cloud Run 完整部署步驟
 
-本專案以 **Express + Vite 靜態檔** 單一容器運行，不再依賴 Vercel Serverless。
+架構：**單一 Express 容器** = `/api` 後端 + Vite 建置的靜態前端（`dist/`）。
 
-## 環境變數（Cloud Run）
+---
+
+## 一、前置準備
+
+### 1. Google Cloud 專案
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set run/region asia-east1
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+```
+
+### 2. Artifact Registry（映像倉庫，首次）
+
+```bash
+gcloud artifacts repositories create rmbsale \
+  --repository-format=docker \
+  --location=asia-east1 \
+  --description="RMBsale app images"
+```
+
+### 3. PostgreSQL 資料庫
+
+任選其一：
+
+- [Neon](https://neon.tech)（Serverless Postgres）
+- Google Cloud SQL for PostgreSQL
+- 其他託管 PostgreSQL
+
+取得連線字串，格式類似：
+
+```
+postgresql://user:password@host:5432/dbname?sslmode=require
+```
+
+記下為 `DATABASE_URL`。
+
+### 4. 機密變數（建議用 Secret Manager）
+
+```bash
+# JWT 簽章用長隨機字串
+echo -n "your-long-random-jwt-secret" | gcloud secrets create rmbsale-jwt-secret --data-file=-
+
+# 資料庫連線
+echo -n "postgresql://..." | gcloud secrets create rmbsale-database-url --data-file=-
+```
+
+---
+
+## 二、本機驗證（部署前）
+
+```powershell
+cd c:\桌面\RMBsale
+npm.cmd install
+
+# 環境變數
+copy .env.example .env.local
+# 編輯 .env.local：DATABASE_URL、JWT_SECRET
+
+# 初始化資料庫（首次）
+npm.cmd run db:setup
+
+# 建置
+npm.cmd run build
+
+# 模擬正式環境啟動（必須有 DATABASE_URL、JWT_SECRET）
+$env:NODE_ENV="production"
+$env:JWT_SECRET="your-secret"
+$env:DATABASE_URL="postgresql://..."
+$env:PORT="8080"
+npm.cmd start
+```
+
+瀏覽器確認：
+
+- http://127.0.0.1:8080/health → `{"ok":true}`
+- http://127.0.0.1:8080/ → 前端頁面
+- 登入後 API 正常
+
+開發模式（熱更新，單埠 8080）：
+
+```powershell
+npm.cmd run dev:online
+```
+
+---
+
+## 三、建置 Docker 映像
+
+```bash
+# 專案根目錄
+gcloud builds submit --tag asia-east1-docker.pkg.dev/YOUR_PROJECT_ID/rmbsale/app:latest
+```
+
+本機 Docker 測試（選用）：
+
+```bash
+docker build -t rmbsale:local .
+docker run --rm -p 8080:8080 \
+  -e NODE_ENV=production \
+  -e JWT_SECRET=your-secret \
+  -e DATABASE_URL=postgresql://... \
+  rmbsale:local
+```
+
+---
+
+## 四、部署至 Cloud Run
+
+```bash
+gcloud run deploy rmbsale \
+  --image asia-east1-docker.pkg.dev/YOUR_PROJECT_ID/rmbsale/app:latest \
+  --platform managed \
+  --region asia-east1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 512Mi \
+  --cpu 1 \
+  --min-instances 0 \
+  --max-instances 10 \
+  --set-env-vars "NODE_ENV=production" \
+  --set-secrets "DATABASE_URL=rmbsale-database-url:latest,JWT_SECRET=rmbsale-jwt-secret:latest"
+```
+
+部署完成後會顯示服務 URL，例如 `https://rmbsale-xxxxx-asia-east1.a.run.app`。
+
+---
+
+## 五、首次上線：資料庫 migration
+
+容器內不含 `tsx`，請在本機對**正式庫**執行：
+
+```powershell
+$env:DATABASE_URL="postgresql://...（正式庫）"
+$env:JWT_SECRET="..."
+$env:ADMIN_USERNAME="ds001"
+$env:ADMIN_PASSWORD="強密碼"
+npm.cmd run db:migrate
+npm.cmd run db:seed
+```
+
+---
+
+## 六、環境變數一覽
 
 | 變數 | 必填 | 說明 |
 |------|------|------|
-| `DATABASE_URL` | 是 | PostgreSQL 連線字串（建議 `?sslmode=require`） |
-| `JWT_SECRET` | 是 | 登入 session 簽章用長隨機字串 |
-| `PORT` | 否 | Cloud Run 自動注入，預設 `8080` |
-| `NODE_ENV` | 建議 | 設為 `production`（Dockerfile 已設定） |
-| `ADMIN_USERNAME` | 選填 | 首次 `db:seed` 用 |
-| `ADMIN_PASSWORD` | 選填 | 首次 `db:seed` 用 |
+| `DATABASE_URL` | 是 | PostgreSQL 連線字串 |
+| `JWT_SECRET` | 是 | 登入 session 簽章 |
+| `PORT` | 否 | Cloud Run 自動注入（程式預設 8080） |
+| `NODE_ENV` | 建議 | `production`（Dockerfile 已設） |
+| `ADMIN_USERNAME` | 選填 | seed 用，預設 `ds001` |
+| `ADMIN_PASSWORD` | 選填 | seed 用 |
 
-## 本機測試
+---
 
-```bash
-# 1. 環境變數
-copy .env.example .env.local
-# 編輯 .env.local 填入 DATABASE_URL、JWT_SECRET
+## 七、更新部署
 
-# 2. 資料庫（首次）
-npm.cmd run db:setup
-
-# 3a. 線上模式開發（Express + Vite 熱更新，port 8080）
-npm.cmd run dev:online
-
-# 3b. 正式模式本機（需先 build）
-npm.cmd run build
-set NODE_ENV=production
-npm.cmd start
-# 瀏覽 http://127.0.0.1:8080
-
-# 4. demo 模式（localStorage，無資料庫）
-npm.cmd run dev:demo
-```
-
-## Cloud Run 部署
+程式碼變更後：
 
 ```bash
-# 設定專案與區域
-gcloud config set project YOUR_PROJECT_ID
-gcloud config set run/region asia-east1
-
-# 建置並推送映像（Artifact Registry 需先建立 repository）
-gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT_ID/rmbsale/app:latest
-
-# 部署
-gcloud run deploy rmbsale \
-  --image REGION-docker.pkg.dev/PROJECT_ID/rmbsale/app:latest \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080 \
-  --set-env-vars "NODE_ENV=production" \
-  --set-secrets "DATABASE_URL=rmbsale-database-url:latest,JWT_SECRET=rmbsale-jwt-secret:latest"
-
-# 首次部署後在本機對正式庫執行 migration（或 Cloud SQL 連線後執行）
-# DATABASE_URL=... npm.cmd run db:migrate
-# DATABASE_URL=... npm.cmd run db:seed
+gcloud builds submit --tag asia-east1-docker.pkg.dev/YOUR_PROJECT_ID/rmbsale/app:latest
+gcloud run deploy rmbsale --image asia-east1-docker.pkg.dev/YOUR_PROJECT_ID/rmbsale/app:latest --region asia-east1
 ```
 
-健康檢查：`GET /health` → `{"ok":true}`
+若 schema 有變更，再執行 `npm run db:migrate`（對正式庫）。
+
+---
+
+## 八、健康檢查
+
+- HTTP：`GET /health` → `{"ok":true}`
+- Dockerfile 內建 `HEALTHCHECK` 亦會定期探測此端點
+
+---
+
+## 注意事項
+
+- **勿使用 SQLite 或容器內檔案存業務資料**；所有帳務資料在 PostgreSQL。
+- `npm run dev:demo` 僅本機 localStorage 示範，與 Cloud Run 無關。
+- 舊 `api/*.ts` Vercel shim 檔案不會被打進映像，可忽略。

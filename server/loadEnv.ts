@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 function loadFile(path: string) {
   if (!existsSync(path)) return;
@@ -22,7 +21,7 @@ function loadFile(path: string) {
   }
 }
 
-const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
+const root = process.cwd();
 loadFile(resolve(root, ".env"));
 loadFile(resolve(root, ".env.production"));
 loadFile(resolve(root, ".env.local"));
