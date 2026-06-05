@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { getDb } from "./db.js";
+import { getDb, type DbTx } from "./db.js";
 import { allocateFifo, calcProfit, calcTwd, toDbMoney, toDbRate } from "./money.js";
 import {
   accounts,
@@ -22,6 +22,15 @@ type Actor = {
   ipAddress?: string;
   userAgent?: string;
 };
+
+const DEPOSIT_CHANNEL = "入金";
+
+async function ensureChannelId(tx: DbTx, name: string) {
+  const [existing] = await tx.select({ id: channels.id }).from(channels).where(eq(channels.name, name));
+  if (existing) return existing.id;
+  const [created] = await tx.insert(channels).values({ name }).returning({ id: channels.id });
+  return created.id;
+}
 
 export async function createPurchase(input: {
   channelName?: string;
@@ -63,10 +72,30 @@ export async function createPurchase(input: {
       exchangeRate: toDbRate(input.exchangeRate)
     });
 
-    await addAccountDelta(tx, input.depositAccountId, "RMB", input.rmbAmount, "in", "purchase", purchase.id, actor.id, "RMB ????");
+    await addAccountDelta(
+      tx,
+      input.depositAccountId,
+      "RMB",
+      input.rmbAmount,
+      "in",
+      "purchase",
+      purchase.id,
+      actor.id,
+      `買入 ${toDbMoney(input.rmbAmount)} RMB`
+    );
 
     if (input.paymentStatus === "paid" && input.paymentAccountId) {
-      await addAccountDelta(tx, input.paymentAccountId, "TWD", twdCost.neg().toFixed(2), "out", "purchase", purchase.id, actor.id, "RMB ????");
+      await addAccountDelta(
+        tx,
+        input.paymentAccountId,
+        "TWD",
+        twdCost.neg().toFixed(2),
+        "out",
+        "purchase",
+        purchase.id,
+        actor.id,
+        `支付買入成本 ${toDbMoney(twdCost)} TWD`
+      );
     }
 
     await tx.insert(auditLogs).values({
@@ -94,7 +123,7 @@ export async function createSale(input: {
   const twdAmount = calcTwd(input.rmbAmount, input.exchangeRate);
 
   return db.transaction(async (tx) => {
-    const customerId = input.customerId ?? (await tx.insert(customers).values({ name: input.customerName || "?????" }).onConflictDoUpdate({
+    const customerId = input.customerId ?? (await tx.insert(customers).values({ name: input.customerName || "未命名客戶" }).onConflictDoUpdate({
       target: customers.name,
       set: { isActive: true }
     }).returning({ id: customers.id }))[0].id;
@@ -137,7 +166,20 @@ export async function createSale(input: {
       receivableTwd: sql`${customers.receivableTwd} + ${toDbMoney(twdAmount)}`
     }).where(eq(customers.id, customerId));
 
-    await addAccountDelta(tx, input.rmbAccountId, "RMB", `-${toDbMoney(input.rmbAmount)}`, "out", "sale", sale.id, actor.id, "RMB ?????");
+    const [customer] = await tx.select({ name: customers.name }).from(customers).where(eq(customers.id, customerId));
+    const customerName = customer?.name ?? "客戶";
+
+    await addAccountDelta(
+      tx,
+      input.rmbAccountId,
+      "RMB",
+      `-${toDbMoney(input.rmbAmount)}`,
+      "out",
+      "sale",
+      sale.id,
+      actor.id,
+      `售出 RMB 給${customerName}`
+    );
 
     await tx.insert(ledgerEntries).values({
       entryType: "receivable",
@@ -147,7 +189,7 @@ export async function createSale(input: {
       direction: "in",
       currency: "TWD",
       amount: toDbMoney(twdAmount),
-      description: "??????",
+      description: `${customerName} 應收增加`,
       operatorId: actor.id
     });
 
@@ -175,7 +217,12 @@ export async function createSettlement(input: {
       receivableTwd: sql`${customers.receivableTwd} - ${toDbMoney(input.amountTwd)}`
     }).where(eq(customers.id, input.customerId));
 
-    await addAccountDelta(tx, input.accountId, "TWD", input.amountTwd, "in", "settlement", settlement.id, actor.id, "????");
+    const [customer] = await tx.select({ name: customers.name }).from(customers).where(eq(customers.id, input.customerId));
+    const customerName = customer?.name ?? "客戶";
+    const description = input.note?.trim()
+      ? `收帳：${customerName}（${input.note.trim()}）`
+      : `收帳：${customerName}`;
+    await addAccountDelta(tx, input.accountId, "TWD", input.amountTwd, "in", "settlement", settlement.id, actor.id, description);
     return settlement;
   });
 }
@@ -190,8 +237,8 @@ export async function createTransfer(input: {
   return db.transaction(async (tx) => {
     const [from] = await tx.select().from(accounts).where(eq(accounts.id, input.fromAccountId));
     const [to] = await tx.select().from(accounts).where(eq(accounts.id, input.toAccountId));
-    if (!from || !to) throw new Error("Account not found");
-    if (from.currency !== to.currency) throw new Error("Transfers must use accounts with the same currency");
+    if (!from || !to) throw new Error("找不到帳戶");
+    if (from.currency !== to.currency) throw new Error("轉帳帳戶幣別必須相同");
 
     const [transfer] = await tx.insert(transfers).values({
       fromAccountId: input.fromAccountId,
@@ -201,14 +248,15 @@ export async function createTransfer(input: {
       operatorId: actor.id
     }).returning();
 
-    await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${toDbMoney(input.amount)}`, "out", "transfer", transfer.id, actor.id, "????");
-    await addAccountDelta(tx, input.toAccountId, to.currency as Currency, input.amount, "in", "transfer", transfer.id, actor.id, "????");
+    const transferNote = input.note?.trim() ? `轉帳：${input.note.trim()}` : "帳戶轉帳";
+    await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${toDbMoney(input.amount)}`, "out", "transfer", transfer.id, actor.id, transferNote);
+    await addAccountDelta(tx, input.toAccountId, to.currency as Currency, input.amount, "in", "transfer", transfer.id, actor.id, transferNote);
     return transfer;
   });
 }
 
 async function addAccountDelta(
-  tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
+  tx: DbTx,
   accountId: number,
   currency: Currency,
   amount: string,
@@ -216,22 +264,24 @@ async function addAccountDelta(
   relatedTable: string,
   relatedId: number,
   operatorId: number,
-  description: string
+  description: string,
+  entryType?: string
 ) {
   const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
   await tx.update(accounts).set({ balance: sql`${accounts.balance} + ${toDbMoney(amount)}` }).where(eq(accounts.id, accountId));
   const [after] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
 
   const entryTypeLabel =
-    relatedTable === "purchase"
-      ? "??"
+    entryType ??
+    (relatedTable === "purchase"
+      ? "買入"
       : relatedTable === "sale"
-        ? "??"
+        ? "售出"
         : relatedTable === "transfer"
-          ? "??"
+          ? "轉帳"
           : relatedTable === "settlement"
-            ? "??"
-            : relatedTable;
+            ? "收帳"
+            : relatedTable);
 
   await tx.insert(ledgerEntries).values({
     entryType: entryTypeLabel,
@@ -248,11 +298,72 @@ async function addAccountDelta(
   });
 }
 
+async function rmbDepositLot(
+  tx: DbTx,
+  accountId: number,
+  rmbAmount: string,
+  exchangeRate: string,
+  operatorId: number
+) {
+  const channelId = await ensureChannelId(tx, DEPOSIT_CHANNEL);
+  const twdCost = calcTwd(rmbAmount, exchangeRate);
+  const [purchase] = await tx
+    .insert(purchases)
+    .values({
+      channelId,
+      depositAccountId: accountId,
+      rmbAmount: toDbMoney(rmbAmount),
+      exchangeRate: toDbRate(exchangeRate),
+      twdCost: toDbMoney(twdCost),
+      paymentStatus: "paid",
+      operatorId
+    })
+    .returning();
+
+  await tx.insert(rmbLots).values({
+    purchaseId: purchase.id,
+    accountId,
+    originalRmb: toDbMoney(rmbAmount),
+    remainingRmb: toDbMoney(rmbAmount),
+    unitCostTwd: toDbRate(twdCost.div(rmbAmount)),
+    exchangeRate: toDbRate(exchangeRate)
+  });
+
+  return { purchase, twdCost: toDbMoney(twdCost) };
+}
+
+async function consumeRmbLotsFifo(tx: DbTx, accountId: number, rmbAmount: string) {
+  const lots = await tx
+    .select({
+      id: rmbLots.id,
+      remainingRmb: rmbLots.remainingRmb,
+      unitCostTwd: rmbLots.unitCostTwd
+    })
+    .from(rmbLots)
+    .where(and(eq(rmbLots.accountId, accountId), gt(rmbLots.remainingRmb, "0")))
+    .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
+
+  const allocation = allocateFifo(lots, rmbAmount);
+  if (Number(allocation.shortfallRmb) > 0) {
+    throw new Error(`RMB 庫存不足，尚缺 ${allocation.shortfallRmb} RMB`);
+  }
+
+  for (const item of allocation.allocations) {
+    await tx
+      .update(rmbLots)
+      .set({ remainingRmb: sql`${rmbLots.remainingRmb} - ${item.allocatedRmb}` })
+      .where(eq(rmbLots.id, item.lotId));
+  }
+
+  return allocation;
+}
+
 export async function createAccountAdjustment(
   input: {
     accountId: number;
     direction: "in" | "out";
     amount: string;
+    exchangeRate?: string;
     note?: string;
     withdrawType?: "capital" | "profit";
   },
@@ -261,17 +372,66 @@ export async function createAccountAdjustment(
   const db = getDb();
   return db.transaction(async (tx) => {
     const [account] = await tx.select().from(accounts).where(eq(accounts.id, input.accountId));
-    if (!account) throw new Error("?????");
-    if (Number(input.amount) <= 0) throw new Error("?????? 0");
+    if (!account) throw new Error("找不到帳戶");
+    if (Number(input.amount) <= 0) throw new Error("金額必須大於 0");
     if (input.direction === "out" && input.withdrawType === "profit" && account.currency !== "TWD") {
-      throw new Error("???????????");
+      throw new Error("分潤只能從台幣帳戶提取");
     }
 
-    const entryType = input.direction === "in" ? "??" : input.withdrawType === "profit" ? "??" : "??";
+    const note = input.note?.trim();
+    const noteSuffix = note ? `：${note}` : "";
+
+    if (account.currency === "RMB") {
+      if (!input.exchangeRate || Number(input.exchangeRate) <= 0) {
+        throw new Error("人民幣入出金請填寫匯率");
+      }
+
+      if (input.direction === "in") {
+        const { purchase, twdCost } = await rmbDepositLot(tx, account.id, input.amount, input.exchangeRate, actor.id);
+        const description = `${account.name} 入金 @${toDbRate(input.exchangeRate)}，帳面成本 ${twdCost} TWD${noteSuffix}`;
+        await addAccountDelta(
+          tx,
+          account.id,
+          "RMB",
+          input.amount,
+          "in",
+          "入金",
+          purchase.id,
+          actor.id,
+          description,
+          "入金"
+        );
+        return { entryType: "入金", amount: input.amount, exchangeRate: input.exchangeRate, bookCostTwd: twdCost };
+      }
+
+      const allocation = await consumeRmbLotsFifo(tx, account.id, input.amount);
+      const nominalTwd = toDbMoney(calcTwd(input.amount, input.exchangeRate));
+      const description = `${account.name} 撤資 @${toDbRate(input.exchangeRate)}，FIFO 成本 ${allocation.totalCostTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;
+      await addAccountDelta(
+        tx,
+        account.id,
+        "RMB",
+        `-${input.amount}`,
+        "out",
+        "撤資",
+        0,
+        actor.id,
+        description,
+        "撤資"
+      );
+      return {
+        entryType: "撤資",
+        amount: input.amount,
+        exchangeRate: input.exchangeRate,
+        bookCostTwd: allocation.totalCostTwd,
+        nominalTwd
+      };
+    }
+
+    const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
     const relatedTable = input.direction === "out" && input.withdrawType === "profit" ? "profit" : entryType;
     const signedAmount = input.direction === "in" ? input.amount : `-${input.amount}`;
-    const note = input.note?.trim();
-    const description = `${account.name} ${entryType}${note ? `?${note}` : ""}`;
+    const description = `${account.name} ${entryType}${noteSuffix}`;
 
     await addAccountDelta(
       tx,
@@ -282,7 +442,8 @@ export async function createAccountAdjustment(
       relatedTable,
       0,
       actor.id,
-      description
+      description,
+      entryType
     );
 
     return { entryType, amount: input.amount };
@@ -296,10 +457,10 @@ export async function payPurchasePayment(
   const db = getDb();
   return db.transaction(async (tx) => {
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, input.purchaseId));
-    if (!purchase) throw new Error("???????");
-    if (purchase.paymentStatus === "paid") throw new Error("??????");
-    if (Number(input.amountTwd) <= 0) throw new Error("?????? 0");
-    if (Number(input.amountTwd) > Number(purchase.twdCost)) throw new Error("??????????");
+    if (!purchase) throw new Error("找不到買入紀錄");
+    if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
+    if (Number(input.amountTwd) <= 0) throw new Error("金額必須大於 0");
+    if (Number(input.amountTwd) > Number(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
 
     await tx
       .update(purchases)
@@ -318,7 +479,7 @@ export async function payPurchasePayment(
       "purchase",
       purchase.id,
       actor.id,
-      `????? #${purchase.id}`
+      `支付買入款 #${purchase.id}`
     );
 
     return purchase;

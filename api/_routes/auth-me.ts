@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { eq } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
-import { fail, ok, requireUser } from "../_lib/http.js";
+import { fail, ok, requireUser, methodNotAllowed } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
 import { toAppUser } from "../_lib/userPermissions.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "GET") return fail(res, 405, "Method not allowed");
+  if (req.method !== "GET") return methodNotAllowed(res);
   try {
     const session = requireUser(req);
     const db = getDb();
@@ -18,6 +18,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     if (message === "Unauthorized" || message.includes("jwt")) {
       return ok(res, { user: null });
     }
-    return fail(res, 500, message || "Auth check failed");
+    return fail(res, 500, message || "驗證登入狀態失敗");
   }
 }

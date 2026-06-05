@@ -116,7 +116,13 @@ export const serverApi = {
   clearBusiness: () => request("admin/clear-business", { method: "POST" }),
 
   importBusiness: (payload: BusinessDataImport) =>
-    request("admin/import", { method: "POST", body: JSON.stringify(payload) })
+    request("admin/import", { method: "POST", body: JSON.stringify(payload) }),
+
+  reverseOperation: (entityType: string, entityId: number) =>
+    request("reversals", {
+      method: "POST",
+      body: JSON.stringify({ entityType, entityId })
+    })
 };
 
 /** 正式站用 API；本機 `npm run dev`（demo 模式）用 localStorage。 */

@@ -1,7 +1,15 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import ws from "ws";
 import * as schema from "./schema.js";
 
+/** Neon HTTP driver does not support transactions; all app code must use this Pool-backed client. */
+neonConfig.webSocketConstructor = ws;
+
+export type AppDb = ReturnType<typeof drizzle<typeof schema>>;
+export type DbTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
+let cachedPool: Pool | null = null;
 let cachedDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export function getDb() {
@@ -10,8 +18,8 @@ export function getDb() {
   }
 
   if (!cachedDb) {
-    const sql = neon(process.env.DATABASE_URL);
-    cachedDb = drizzle(sql, { schema });
+    cachedPool = new Pool({ connectionString: process.env.DATABASE_URL });
+    cachedDb = drizzle(cachedPool, { schema });
   }
 
   return cachedDb;

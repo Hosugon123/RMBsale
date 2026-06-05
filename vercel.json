@@ -1,5 +1,5 @@
 {
-  "devCommand": "npm run dev",
+  "devCommand": "vite --host 127.0.0.1",
   "rewrites": [
     {
       "source": "/api/(.*)",

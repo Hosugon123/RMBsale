@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
-import { fail, ok, readJson, requireAdmin, requireUser, setSessionCookie, signSession } from "../_lib/http.js";
+import { fail, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
 import {
   deriveRole,
@@ -139,11 +139,8 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       return ok(res, { user });
     }
 
-    return fail(res, 405, "Method not allowed");
+    return methodNotAllowed(res);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Users failed";
-    if (message === "Unauthorized") return fail(res, 401, message);
-    if (message === "Admin permission is required") return fail(res, 403, message);
-    return fail(res, 500, message);
+    return handleRouteError(res, error, { fallback: "使用者操作失敗", validationStatus: 500 });
   }
 }

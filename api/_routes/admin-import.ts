@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { importBusinessData, type BusinessDataImport } from "../_lib/importBusiness.js";
-import { fail, ok, readJson, requireAdmin } from "../_lib/http.js";
+import { fail, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const admin = await requireAdmin(req);
-    if (req.method !== "POST") return fail(res, 405, "Method not allowed");
+    if (req.method !== "POST") return methodNotAllowed(res);
 
     const payload = await readJson<BusinessDataImport>(req);
     if (payload && typeof payload === "object" && "users" in (payload as Record<string, unknown>)) {
@@ -15,9 +15,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     await importBusinessData(payload, admin.id);
     return ok(res, { imported: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Import failed";
-    if (message === "Unauthorized") return fail(res, 401, message);
-    if (message === "Admin permission is required") return fail(res, 403, message);
-    return fail(res, 500, message);
+    return handleRouteError(res, error, { fallback: "匯入失敗", validationStatus: 500 });
   }
 }

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { clearBusinessTables } from "./clearBusiness.js";
-import { getDb } from "./db.js";
+import { clearBusinessTablesInTx } from "./clearBusiness.js";
+import { getDb, type DbTx } from "./db.js";
 import {
   accounts,
   channels,
@@ -84,8 +84,10 @@ export type BusinessDataImport = {
   }[];
 };
 
-async function bumpSequence(table: "holders" | "accounts" | "customers" | "channels" | "purchases" | "rmb_lots" | "sales" | "sale_allocations" | "ledger_entries") {
-  const db = getDb();
+async function bumpSequence(
+  tx: DbTx,
+  table: "holders" | "accounts" | "customers" | "channels" | "purchases" | "rmb_lots" | "sales" | "sale_allocations" | "ledger_entries"
+) {
   const statements: Record<typeof table, ReturnType<typeof sql>> = {
     holders: sql`SELECT setval(pg_get_serial_sequence('holders', 'id'), COALESCE((SELECT MAX(id) FROM holders), 1))`,
     accounts: sql`SELECT setval(pg_get_serial_sequence('accounts', 'id'), COALESCE((SELECT MAX(id) FROM accounts), 1))`,
@@ -97,20 +99,21 @@ async function bumpSequence(table: "holders" | "accounts" | "customers" | "chann
     sale_allocations: sql`SELECT setval(pg_get_serial_sequence('sale_allocations', 'id'), COALESCE((SELECT MAX(id) FROM sale_allocations), 1))`,
     ledger_entries: sql`SELECT setval(pg_get_serial_sequence('ledger_entries', 'id'), COALESCE((SELECT MAX(id) FROM ledger_entries), 1))`
   };
-  await db.execute(statements[table]);
+  await tx.execute(statements[table]);
 }
 
 export async function importBusinessData(payload: BusinessDataImport, operatorId: number) {
-  await clearBusinessTables();
   const db = getDb();
+  return db.transaction(async (tx) => {
+    await clearBusinessTablesInTx(tx);
 
   for (const row of payload.holders ?? []) {
-    await db.insert(holders).values({ id: row.id, name: row.name, isActive: row.isActive });
+    await tx.insert(holders).values({ id: row.id, name: row.name, isActive: row.isActive });
   }
-  await bumpSequence("holders");
+  await bumpSequence(tx, "holders");
 
   for (const row of payload.accounts ?? []) {
-    await db.insert(accounts).values({
+    await tx.insert(accounts).values({
       id: row.id,
       holderId: row.holderId,
       name: row.name,
@@ -120,26 +123,26 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       isActive: row.isActive
     });
   }
-  await bumpSequence("accounts");
+  await bumpSequence(tx, "accounts");
 
   for (const row of payload.customers ?? []) {
-    await db.insert(customers).values({
+    await tx.insert(customers).values({
       id: row.id,
       name: row.name,
       receivableTwd: row.receivableTwd,
       isActive: row.isActive
     });
   }
-  await bumpSequence("customers");
+  await bumpSequence(tx, "customers");
 
   for (const row of payload.channels ?? []) {
-    await db.insert(channels).values({ id: row.id, name: row.name, isActive: row.isActive });
+    await tx.insert(channels).values({ id: row.id, name: row.name, isActive: row.isActive });
   }
-  await bumpSequence("channels");
+  await bumpSequence(tx, "channels");
 
   for (const row of payload.purchases ?? []) {
     const paymentStatus = row.paymentStatus === "paid" ? "paid" : "unpaid";
-    await db.insert(purchases).values({
+    await tx.insert(purchases).values({
       id: row.id,
       channelId: row.channelId > 0 ? row.channelId : null,
       paymentAccountId: row.paymentAccountId ?? null,
@@ -152,10 +155,10 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       createdAt: new Date(row.createdAt)
     });
   }
-  await bumpSequence("purchases");
+  await bumpSequence(tx, "purchases");
 
   for (const row of payload.rmbLots ?? []) {
-    await db.insert(rmbLots).values({
+    await tx.insert(rmbLots).values({
       id: row.id,
       purchaseId: row.purchaseId,
       accountId: row.accountId,
@@ -166,14 +169,14 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       createdAt: new Date(row.createdAt)
     });
   }
-  await bumpSequence("rmb_lots");
+  await bumpSequence(tx, "rmb_lots");
 
   for (const row of payload.sales ?? []) {
     const settlementStatus =
       row.settlementStatus === "settled" || row.settlementStatus === "partial"
         ? row.settlementStatus
         : "unsettled";
-    await db.insert(sales).values({
+    await tx.insert(sales).values({
       id: row.id,
       customerId: row.customerId,
       rmbAccountId: row.rmbAccountId,
@@ -187,10 +190,10 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       createdAt: new Date(row.createdAt)
     });
   }
-  await bumpSequence("sales");
+  await bumpSequence(tx, "sales");
 
   for (const row of payload.saleAllocations ?? []) {
-    await db.insert(saleAllocations).values({
+    await tx.insert(saleAllocations).values({
       id: row.id,
       saleId: row.saleId,
       lotId: row.lotId,
@@ -199,10 +202,10 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       createdAt: new Date(row.createdAt)
     });
   }
-  await bumpSequence("sale_allocations");
+  await bumpSequence(tx, "sale_allocations");
 
   for (const row of payload.ledger ?? []) {
-    await db.insert(ledgerEntries).values({
+    await tx.insert(ledgerEntries).values({
       id: row.id,
       entryType: row.entryType,
       accountId: row.accountId ?? null,
@@ -219,5 +222,6 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
       createdAt: new Date(row.createdAt)
     });
   }
-  await bumpSequence("ledger_entries");
+  await bumpSequence(tx, "ledger_entries");
+  });
 }

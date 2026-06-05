@@ -7,22 +7,24 @@ let ensured = false;
 export async function ensureUserProfileColumns() {
   if (ensured) return;
   const db = getDb();
-  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text`);
-  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "permissions_json" text`);
-  await db.execute(sql`
-    UPDATE "users"
-    SET "display_name" = "username"
-    WHERE "display_name" IS NULL OR trim("display_name") = ''
-  `);
-  await db.execute(sql`
-    UPDATE "users"
-    SET "permissions_json" = '["dashboard","purchase","sale","receivables","accounts","transfer","ledger","inventory","admin"]'
-    WHERE "role" = 'admin' AND ("permissions_json" IS NULL OR trim("permissions_json") = '')
-  `);
-  await db.execute(sql`
-    UPDATE "users"
-    SET "permissions_json" = '["dashboard","purchase","sale","receivables","accounts","transfer","ledger","inventory"]'
-    WHERE "role" <> 'admin' AND ("permissions_json" IS NULL OR trim("permissions_json") = '')
-  `);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text`);
+    await tx.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "permissions_json" text`);
+    await tx.execute(sql`
+      UPDATE "users"
+      SET "display_name" = "username"
+      WHERE "display_name" IS NULL OR trim("display_name") = ''
+    `);
+    await tx.execute(sql`
+      UPDATE "users"
+      SET "permissions_json" = '["dashboard","purchase","sale","receivables","accounts","transfer","ledger","inventory","admin"]'
+      WHERE "role" = 'admin' AND ("permissions_json" IS NULL OR trim("permissions_json") = '')
+    `);
+    await tx.execute(sql`
+      UPDATE "users"
+      SET "permissions_json" = '["dashboard","purchase","sale","receivables","accounts","transfer","ledger","inventory"]'
+      WHERE "role" <> 'admin' AND ("permissions_json" IS NULL OR trim("permissions_json") = '')
+    `);
+  });
   ensured = true;
 }

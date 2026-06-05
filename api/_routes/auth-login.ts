@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
 import { ensureUserProfileColumns } from "../_lib/ensureUserColumns.js";
-import { fail, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
+import { fail, handleRouteError, methodNotAllowed, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
 import { deriveRole, toAppUser } from "../_lib/userPermissions.js";
 
@@ -13,7 +13,7 @@ type LoginBody = {
 };
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") return fail(res, 405, "Method not allowed");
+  if (req.method !== "POST") return methodNotAllowed(res);
 
   try {
     const body = await readJson<LoginBody>(req);
@@ -30,6 +30,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     setSessionCookie(res, signSession({ id: appUser.id, username: appUser.username, role: deriveRole(appUser.permissions) }));
     return ok(res, { user: appUser });
   } catch (error) {
-    return fail(res, 500, error instanceof Error ? error.message : "Login failed");
+    return handleRouteError(res, error, { fallback: "登入失敗", validationStatus: 500 });
   }
 }

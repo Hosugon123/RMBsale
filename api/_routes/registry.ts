@@ -21,6 +21,7 @@ import { handler as adminImport } from "./admin-import.js";
 import { handler as adminAuditLogs } from "./admin-audit-logs.js";
 import { handler as inventoryFifo } from "./inventory-fifo.js";
 import { handler as reportsExportCsv } from "./reports-export-csv.js";
+import { handler as reversals } from "./reversals.js";
 import { handler as transactionReverse } from "./transaction-reverse.js";
 import { handler as bootstrap } from "./bootstrap.js";
 import { handler as holders } from "./holders.js";
@@ -57,6 +58,7 @@ export const routes: Record<string, RouteHandler> = {
   "admin/audit-logs": adminAuditLogs,
   "inventory/fifo": inventoryFifo,
   "reports/export.csv": reportsExportCsv,
+  reversals,
 };
 
 export const transactionReverseHandler = transactionReverse;

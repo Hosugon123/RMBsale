@@ -1,7 +1,9 @@
 import * as React from "react";
 import type { LedgerBalanceContext } from "../lib/localStore";
 import { ledgerOperationGroupKey } from "../lib/localStore";
+import type { ReversalTarget } from "../lib/reversalUi";
 import type { LedgerEntry } from "../lib/types";
+import { Button } from "./ui/button";
 import { profit, rmb, twd } from "../lib/currencyStyles";
 import { cn, fmtDirectionalMoney, fmtMoney } from "../lib/utils";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
@@ -32,6 +34,8 @@ type LedgerTableProps = {
   emptyMessage?: string;
   /** 小螢幕改卡片、md 以上維持表格 */
   layout?: "table" | "responsive";
+  resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
+  onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
 
 function directionLabel(direction: LedgerEntry["direction"]) {
@@ -78,7 +82,14 @@ function rowGroupClasses(
   };
 }
 
-export function LedgerTable({ entries, limit, emptyMessage = "尚無流水紀錄", layout = "table" }: LedgerTableProps) {
+export function LedgerTable({
+  entries,
+  limit,
+  emptyMessage = "尚無流水紀錄",
+  layout = "table",
+  resolveVoidTarget,
+  onVoid
+}: LedgerTableProps) {
   const rows = (limit ? entries.slice(0, limit) : entries).sort((a, b) => {
     const byTime = b.createdAt.localeCompare(a.createdAt);
     return byTime !== 0 ? byTime : b.id - a.id;
@@ -120,6 +131,7 @@ export function LedgerTable({ entries, limit, emptyMessage = "尚無流水紀錄
           <TH className="text-right">異動前餘額</TH>
           <TH className="text-right">異動後餘額</TH>
           <TH className="text-right">金額</TH>
+          {onVoid ? <TH className="text-right">操作</TH> : null}
         </TR>
       </THead>
       <TBody>
@@ -146,6 +158,25 @@ export function LedgerTable({ entries, limit, emptyMessage = "尚無流水紀錄
             <TD className={cn("text-right font-medium", ledgerAmountClass(entry))}>
               {fmtDirectionalMoney(entry.amount, entry.currency, entry.direction)}
             </TD>
+            {onVoid ? (
+              <TD className="text-right">
+                {(() => {
+                  const target = resolveVoidTarget?.(entry) ?? null;
+                  if (!target) return <span className="text-muted-foreground">-</span>;
+                  return (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      onClick={() => onVoid(entry, target)}
+                    >
+                      {target.label}
+                    </Button>
+                  );
+                })()}
+              </TD>
+            ) : null}
           </TR>
         );
         })}

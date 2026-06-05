@@ -3,7 +3,9 @@ import { Download } from "lucide-react";
 import { LEDGER_PAGE_SIZE, PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { VoidOperationDialog } from "../components/VoidOperationDialog";
 import { useAppStore } from "../features/AppStore";
+import { useLedgerVoid } from "../hooks/useLedgerVoid";
 import { profit as profitStyle, rmb, twd } from "../lib/currencyStyles";
 import {
   sortedCashLedgerWithBalances,
@@ -14,6 +16,11 @@ import { cn, fmtMoney } from "../lib/utils";
 
 export function LedgerPage() {
   const { state, summary } = useAppStore();
+  const { resolveVoidTarget, requestVoid, pending, error, cancelVoid, confirmVoid } = useLedgerVoid();
+  const voidProps = {
+    resolveVoidTarget,
+    onVoid: requestVoid
+  };
   const overviewRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
   const cashLedgerRows = React.useMemo(() => sortedCashLedgerWithBalances(state), [state]);
   const twdLedgerRows = React.useMemo(() => cashLedgerRows.filter((entry) => entry.currency === "TWD"), [cashLedgerRows]);
@@ -53,7 +60,7 @@ export function LedgerPage() {
           <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />CSV</Button>
         </CardHeader>
         <CardContent className="min-w-0 overflow-x-auto">
-          <PaginatedLedgerTable entries={overviewRows} pageSize={LEDGER_PAGE_SIZE} className="min-w-0" />
+          <PaginatedLedgerTable entries={overviewRows} pageSize={LEDGER_PAGE_SIZE} className="min-w-0" {...voidProps} />
         </CardContent>
       </Card>
 
@@ -72,6 +79,7 @@ export function LedgerPage() {
               pageSize={LEDGER_PAGE_SIZE}
               emptyMessage="尚無台幣流水"
               className="min-w-0"
+              {...voidProps}
             />
           </CardContent>
         </Card>
@@ -90,6 +98,7 @@ export function LedgerPage() {
               pageSize={LEDGER_PAGE_SIZE}
               emptyMessage="尚無人民幣流水"
               className="min-w-0"
+              {...voidProps}
             />
           </CardContent>
         </Card>
@@ -120,9 +129,22 @@ export function LedgerPage() {
             pageSize={LEDGER_PAGE_SIZE}
             emptyMessage="尚無利潤流水"
             className="min-w-0"
+            {...voidProps}
           />
         </CardContent>
       </Card>
+
+      <VoidOperationDialog
+        open={Boolean(pending)}
+        description={
+          pending
+            ? `確定要作廢「${pending.entry.description}」嗎？\n\n系統會以沖銷還原餘額與庫存，原始紀錄仍保留供查帳。`
+            : undefined
+        }
+        error={error}
+        onClose={cancelVoid}
+        onConfirm={() => void confirmVoid()}
+      />
     </div>
   );
 }

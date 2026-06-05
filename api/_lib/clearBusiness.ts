@@ -1,4 +1,4 @@
-import { getDb } from "./db.js";
+import { getDb, type DbTx } from "./db.js";
 import {
   accounts,
   channels,
@@ -13,18 +13,22 @@ import {
   transfers
 } from "./schema.js";
 
+export async function clearBusinessTablesInTx(tx: DbTx) {
+  await tx.delete(saleAllocations);
+  await tx.delete(sales);
+  await tx.delete(settlements);
+  await tx.delete(transfers);
+  await tx.delete(ledgerEntries);
+  await tx.delete(rmbLots);
+  await tx.delete(purchases);
+  await tx.delete(accounts);
+  await tx.delete(customers);
+  await tx.delete(channels);
+  await tx.delete(holders);
+}
+
 /** 清除所有帳務資料，保留使用者。 */
 export async function clearBusinessTables() {
   const db = getDb();
-  await db.delete(saleAllocations);
-  await db.delete(sales);
-  await db.delete(settlements);
-  await db.delete(transfers);
-  await db.delete(ledgerEntries);
-  await db.delete(rmbLots);
-  await db.delete(purchases);
-  await db.delete(accounts);
-  await db.delete(customers);
-  await db.delete(channels);
-  await db.delete(holders);
+  return db.transaction(async (tx) => clearBusinessTablesInTx(tx));
 }

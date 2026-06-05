@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { d } from "../lib/utils";
 import {
   addAccount,
   addChannel,
@@ -29,6 +30,7 @@ import {
   sortedReceivableLedgerWithBalances,
   renameAccount,
   renameHolder,
+  reverseOperation,
   totals
 } from "../lib/localStore";
 
@@ -402,6 +404,32 @@ describe("local demo store", () => {
     adjustAccount(state, { accountId: 1, direction: "out", amount: "3000", note: "測試出金" });
     expect(state.accounts.find((account) => account.id === 1)?.balance).toBe("122000.00");
     expect(state.ledger[0]).toMatchObject({ entryType: "撤資", accountId: 1, direction: "out", currency: "TWD", amount: "3000.00" });
+  });
+
+  it("voids TWD deposit via reversal without deleting ledger history", () => {
+    const state = createSeedState();
+    adjustAccount(state, { accountId: 1, direction: "in", amount: "5000" });
+    const depositEntry = state.ledger.find((entry) => entry.entryType === "入金" && entry.accountId === 1 && !entry.isReversal);
+    expect(depositEntry).toBeTruthy();
+
+    reverseOperation(state, { entityType: "adjustment", entityId: depositEntry!.id });
+    expect(state.accounts.find((account) => account.id === 1)?.balance).toBe("120000.00");
+    expect(state.ledger.some((entry) => entry.isReversal && entry.reversesLedgerId === depositEntry!.id)).toBe(true);
+  });
+
+  it("links RMB deposit to FIFO lots and withdraws by FIFO", () => {
+    const state = createSeedState();
+    const beforeLots = state.rmbLots.filter((lot) => lot.accountId === 2).reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+
+    adjustAccount(state, { accountId: 2, direction: "in", amount: "10000", exchangeRate: "4.50", note: "補庫" });
+    expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("48000.00");
+    const depositLot = state.rmbLots.find((lot) => lot.channelName === "入金" && lot.accountId === 2);
+    expect(depositLot).toMatchObject({ originalRmb: "10000.00", remainingRmb: "10000.00", unitCostTwd: "4.500000" });
+
+    adjustAccount(state, { accountId: 2, direction: "out", amount: "5000", exchangeRate: "4.55" });
+    expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("43000.00");
+    const afterLots = state.rmbLots.filter((lot) => lot.accountId === 2).reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+    expect(afterLots.toFixed(2)).toBe(beforeLots.add(10000).sub(5000).toFixed(2));
   });
 
   it("adds a new holder", () => {

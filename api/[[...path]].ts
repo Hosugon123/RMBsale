@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fail } from "./_lib/http.js";
+import { fail, methodNotAllowed, notFound } from "./_lib/http.js";
 import { routes, transactionReverseHandler } from "./_routes/registry.js";
 
 function normalizePath(req: VercelRequest): string {
@@ -21,13 +21,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const reverseMatch = path.match(/^transactions\/(\d+)\/reverse$/);
   if (reverseMatch) {
-    if (method !== "POST") return fail(res, 405, "Method not allowed");
+    if (method !== "POST") return methodNotAllowed(res);
     req.query.id = reverseMatch[1];
     return transactionReverseHandler(req, res);
   }
 
   const route = routes[path];
-  if (!route) return fail(res, 404, "Not found");
+  if (!route) return notFound(res);
 
   return route(req, res);
 }

@@ -19,6 +19,32 @@ export function fail(res: VercelResponse, status: number, message: string) {
   return res.status(status).json({ error: message });
 }
 
+export function methodNotAllowed(res: VercelResponse) {
+  return fail(res, 405, "不支援的請求方法");
+}
+
+export function notFound(res: VercelResponse) {
+  return fail(res, 404, "找不到此 API");
+}
+
+/** 將路由 catch 區塊的錯誤統一轉成繁中回應。 */
+export function handleRouteError(
+  res: VercelResponse,
+  error: unknown,
+  options?: { fallback?: string; validationStatus?: number }
+) {
+  const fallback = options?.fallback ?? "操作失敗";
+  const validationStatus = options?.validationStatus ?? 400;
+
+  if (error instanceof Error) {
+    if (error.message === "Unauthorized") return fail(res, 401, "請先登入");
+    if (error.message === "Admin permission is required") return fail(res, 403, "需要管理員權限");
+    if (error.message === "JWT_SECRET is not configured") return fail(res, 500, "伺服器未設定 JWT_SECRET");
+    return fail(res, validationStatus, error.message);
+  }
+  return fail(res, 500, fallback);
+}
+
 export async function readJson<T>(req: VercelRequest): Promise<T> {
   if (typeof req.body === "string") return JSON.parse(req.body) as T;
   return req.body as T;

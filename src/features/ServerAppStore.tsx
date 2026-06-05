@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
 import type { BusinessDataImport } from "../lib/dataImport";
+import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState } from "../lib/types";
 import type { AppStore } from "./AppStore";
 import { AppStoreContext } from "./AppStore";
@@ -188,6 +189,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     setUserActive: async (userId, isActive) => {
       await serverApi.setUserActive(userId, isActive);
       await afterMutation({ refreshSession: userId === sessionUser.id });
+    },
+    reverseOperation: async (input: { entityType: ReversalEntityType; entityId: number }) => {
+      await serverApi.reverseOperation(input.entityType, input.entityId);
+      await afterMutation();
     }
   };
 

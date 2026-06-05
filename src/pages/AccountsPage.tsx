@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
+import { VoidOperationDialog } from "../components/VoidOperationDialog";
+import { useLedgerVoid } from "../hooks/useLedgerVoid";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { openAccountTransferModal } from "../components/TransferModalHost";
 import { useAppStore } from "../features/AppStore";
@@ -18,6 +20,7 @@ import { runMutation } from "../lib/runMutation";
 
 type AccountCashForm = {
   amount: string;
+  exchangeRate: string;
   note: string;
   withdrawType: "capital" | "profit";
 };
@@ -35,7 +38,7 @@ type DeleteTarget =
   | { kind: "holder"; id: number; name: string }
   | { kind: "account"; id: number; name: string };
 
-const emptyCashForm: AccountCashForm = { amount: "", note: "", withdrawType: "capital" };
+const emptyCashForm: AccountCashForm = { amount: "", exchangeRate: "", note: "", withdrawType: "capital" };
 const emptyAddAccountForm = { name: "", currency: "TWD" as Currency };
 
 function canDeleteAccount(account: Account, state: AppState) {
@@ -246,6 +249,8 @@ export function AccountsPage() {
   );
 
   const ledgerRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
+  const { resolveVoidTarget, requestVoid, pending, error: voidError, cancelVoid, confirmVoid } = useLedgerVoid();
+  const voidProps = { resolveVoidTarget, onVoid: requestVoid };
   const modalAccount = cashModal ? state.accounts.find((account) => account.id === cashModal.accountId) : undefined;
 
   const openCashModal = (accountId: number, direction: "in" | "out") => {
@@ -364,7 +369,7 @@ export function AccountsPage() {
 
   const submitCashAdjustment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!cashModal) return;
+    if (!cashModal || !modalAccount) return;
 
     try {
       await runMutation(() =>
@@ -372,6 +377,7 @@ export function AccountsPage() {
         accountId: cashModal.accountId,
         direction: cashModal.direction,
         amount: modalForm.amount,
+        exchangeRate: modalAccount.currency === "RMB" ? modalForm.exchangeRate : undefined,
         note: modalForm.note,
         withdrawType: modalForm.withdrawType
       }));
@@ -496,9 +502,21 @@ export function AccountsPage() {
           </Link>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <PaginatedLedgerTable entries={ledgerRows} />
+          <PaginatedLedgerTable entries={ledgerRows} {...voidProps} />
         </CardContent>
       </Card>
+
+      <VoidOperationDialog
+        open={Boolean(pending)}
+        description={
+          pending
+            ? `確定要作廢「${pending.entry.description}」嗎？\n\n系統會以沖銷還原餘額與庫存，原始紀錄仍保留供查帳。`
+            : undefined
+        }
+        error={voidError}
+        onClose={cancelVoid}
+        onConfirm={() => void confirmVoid()}
+      />
 
       {renameTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={closeRenameModal}>
@@ -662,6 +680,24 @@ export function AccountsPage() {
                   required
                   autoFocus
                 />
+                {modalAccount.currency === "RMB" ? (
+                  <>
+                    <Input
+                      inputMode="decimal"
+                      placeholder="匯率"
+                      value={modalForm.exchangeRate}
+                      onChange={(event) => setModalForm((current) => ({ ...current, exchangeRate: event.target.value }))}
+                      required
+                    />
+                    {modalForm.amount && modalForm.exchangeRate && d(modalForm.amount).gt(0) && d(modalForm.exchangeRate).gt(0) ? (
+                      <p className="text-sm text-muted-foreground">
+                        {cashModal.direction === "in"
+                          ? `入庫成本：${fmtMoney(d(modalForm.amount).mul(modalForm.exchangeRate))}（建立新 FIFO 批次）`
+                          : `名目等值：${fmtMoney(d(modalForm.amount).mul(modalForm.exchangeRate))}；出金成本依 FIFO 舊批次計算`}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
                 <Input
                   placeholder="備註，可留空"
                   value={modalForm.note}

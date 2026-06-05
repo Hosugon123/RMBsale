@@ -112,6 +112,7 @@ export async function loadBootstrapState(sessionUserId: number) {
       twdCost: String(row.twdCost),
       paidTwd: row.paymentStatus === "paid" ? String(row.twdCost) : "0.00",
       paymentStatus: row.paymentStatus as "paid" | "unpaid",
+      status: row.status as "active" | "reversed",
       operatorName: operatorMap.get(row.operatorId) ?? "未知",
       createdAt: row.createdAt.toISOString()
     })),
@@ -126,6 +127,7 @@ export async function loadBootstrapState(sessionUserId: number) {
       costTwd: String(row.costTwd),
       profitTwd: String(row.profitTwd),
       settlementStatus: row.settlementStatus,
+      status: row.status as "active" | "reversed",
       operatorName: operatorMap.get(row.operatorId) ?? "未知",
       createdAt: row.createdAt.toISOString()
     })),
@@ -166,7 +168,9 @@ export async function loadBootstrapState(sessionUserId: number) {
       description: row.description,
       operatorName: operatorMap.get(row.operatorId) ?? "未知",
       relatedTable: row.relatedTable ?? undefined,
-      relatedId: row.relatedId ?? undefined
+      relatedId: row.relatedId ?? undefined,
+      isReversal: row.isReversal,
+      reversesLedgerId: row.reversesLedgerId ?? undefined
     }))
   };
 }

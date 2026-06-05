@@ -882,7 +882,63 @@ export function payPurchase(state: AppState, input: { purchaseId: number; accoun
   return state;
 }
 
-export function adjustAccount(state: AppState, input: { accountId: number; direction: "in" | "out"; amount: string; note?: string; withdrawType?: "capital" | "profit" }) {
+const DEPOSIT_CHANNEL = "入金";
+
+function addRmbDepositLot(
+  state: AppState,
+  accountId: number,
+  rmbAmount: string,
+  exchangeRate: string
+) {
+  const channel = getOrCreateByName(state.channels, DEPOSIT_CHANNEL);
+  const twdCost = money(d(rmbAmount).mul(exchangeRate));
+  const purchase = {
+    id: nextId(state.purchases),
+    channelId: channel.id,
+    channelName: channel.name,
+    depositAccountId: accountId,
+    rmbAmount,
+    exchangeRate: rate(exchangeRate),
+    twdCost,
+    paidTwd: "0.00",
+    paymentStatus: "paid" as const,
+    operatorName: currentOperator(state),
+    createdAt: txNow()
+  };
+  state.purchases.unshift(purchase);
+  state.rmbLots.push({
+    id: nextId(state.rmbLots),
+    purchaseId: purchase.id,
+    accountId,
+    channelName: channel.name,
+    originalRmb: rmbAmount,
+    remainingRmb: rmbAmount,
+    unitCostTwd: rate(d(twdCost).div(rmbAmount)),
+    exchangeRate: rate(exchangeRate),
+    createdAt: purchase.createdAt
+  });
+  return { purchase, twdCost };
+}
+
+function consumeRmbLotsStrict(state: AppState, accountId: number, rmbAmount: string) {
+  const allocation = allocateLocalFifo(state, accountId, rmbAmount);
+  if (d(allocation.shortfallRmb).gt(0)) {
+    throw new Error(`RMB 庫存不足，尚缺 ${allocation.shortfallRmb} RMB`);
+  }
+  return allocation;
+}
+
+export function adjustAccount(
+  state: AppState,
+  input: {
+    accountId: number;
+    direction: "in" | "out";
+    amount: string;
+    exchangeRate?: string;
+    note?: string;
+    withdrawType?: "capital" | "profit";
+  }
+) {
   const account = state.accounts.find((item) => item.id === input.accountId);
   if (!account) throw new Error("找不到帳戶");
   if (d(input.amount).lte(0)) throw new Error("金額必須大於 0");
@@ -891,11 +947,44 @@ export function adjustAccount(state: AppState, input: { accountId: number; direc
     if (d(totals(state).profit).lt(input.amount)) throw new Error("可提取利潤不足");
   }
 
+  const note = input.note?.trim();
+  const noteSuffix = note ? `：${note}` : "";
+
+  if (account.currency === "RMB") {
+    if (!input.exchangeRate || d(input.exchangeRate).lte(0)) {
+      throw new Error("人民幣入出金請填寫匯率");
+    }
+
+    if (input.direction === "in") {
+      const { purchase, twdCost } = addRmbDepositLot(state, account.id, money(input.amount), rate(input.exchangeRate));
+      const description = `${account.holderName} / ${account.name} 入金 @${rate(input.exchangeRate)}，帳面成本 ${twdCost} TWD${noteSuffix}`;
+      mutateAccount(state, account.id, "RMB", money(input.amount), "in", "入金", purchase.id, description, "入金");
+      saveState(state);
+      return state;
+    }
+
+    const allocation = consumeRmbLotsStrict(state, account.id, money(input.amount));
+    const nominalTwd = money(d(input.amount).mul(input.exchangeRate));
+    const description = `${account.holderName} / ${account.name} 撤資 @${rate(input.exchangeRate)}，FIFO 成本 ${allocation.costTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;
+    mutateAccount(
+      state,
+      account.id,
+      "RMB",
+      d(input.amount).neg().toFixed(2),
+      "out",
+      "撤資",
+      nextId(state.ledger),
+      description,
+      "撤資"
+    );
+    saveState(state);
+    return state;
+  }
+
   const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
   const relatedTable = input.direction === "out" && input.withdrawType === "profit" ? "profit" : entryType;
   const amount = input.direction === "in" ? input.amount : d(input.amount).neg().toFixed(2);
-  const note = input.note?.trim();
-  const description = `${account.holderName} / ${account.name} ${entryType}${note ? `：${note}` : ""}`;
+  const description = `${account.holderName} / ${account.name} ${entryType}${noteSuffix}`;
   mutateAccount(state, account.id, account.currency, amount, input.direction, relatedTable, nextId(state.ledger), description, entryType);
   saveState(state);
   return state;
@@ -1247,4 +1336,166 @@ function addLedger(state: AppState, input: Omit<LedgerEntry, "id" | "createdAt" 
     ...input,
     operatorName: currentOperator(state)
   });
+}
+
+function reverseAccountLedger(
+  state: AppState,
+  original: LedgerEntry,
+  description: string,
+  entryType = "作廢"
+) {
+  if (!original.accountId) return;
+  const account = state.accounts.find((item) => item.id === original.accountId);
+  if (!account) throw new Error("找不到帳戶");
+  const signed = original.direction === "in" ? d(original.amount).neg() : d(original.amount);
+  account.balance = money(d(account.balance).add(signed));
+  addLedger(state, {
+    entryType,
+    accountId: original.accountId,
+    direction: original.direction === "in" ? "out" : "in",
+    currency: original.currency,
+    amount: original.amount,
+    relatedTable: original.relatedTable ?? "adjustment",
+    relatedId: original.relatedId ?? original.id,
+    description,
+    isReversal: true,
+    reversesLedgerId: original.id
+  });
+}
+
+export function reverseOperation(
+  state: AppState,
+  input: { entityType: "purchase" | "sale" | "settlement" | "transfer" | "adjustment"; entityId: number }
+) {
+  switch (input.entityType) {
+    case "purchase": {
+      const purchase = state.purchases.find((row) => row.id === input.entityId);
+      if (!purchase || purchase.status === "reversed") throw new Error("找不到買入紀錄或已作廢");
+      const lot = state.rmbLots.find((row) => row.purchaseId === purchase.id);
+      if (!lot || !d(lot.remainingRmb).eq(lot.originalRmb)) {
+        throw new Error("此買入的庫存已被動用，請先作廢相關售出或出金");
+      }
+      const ledgers = state.ledger.filter(
+        (row) =>
+          !row.isReversal &&
+          row.relatedId === purchase.id &&
+          (row.relatedTable === "purchases" || row.relatedTable === "purchase" || row.relatedTable === "入金")
+      );
+      for (const row of ledgers) reverseAccountLedger(state, row, `作廢買入 #${purchase.id}`, "買入作廢");
+      lot.remainingRmb = "0.00";
+      purchase.status = "reversed";
+      break;
+    }
+    case "sale": {
+      const sale = state.sales.find((row) => row.id === input.entityId);
+      if (!sale || sale.status === "reversed") throw new Error("找不到售出紀錄或已作廢");
+      if (sale.settlementStatus !== "unsettled") throw new Error("此售出已收款，請先作廢相關收帳");
+      for (const alloc of state.saleAllocations.filter((row) => row.saleId === sale.id)) {
+        const lot = state.rmbLots.find((row) => row.id === alloc.lotId);
+        if (lot) lot.remainingRmb = money(d(lot.remainingRmb).add(alloc.allocatedRmb));
+      }
+      const customer = state.customers.find((row) => row.id === sale.customerId);
+      if (customer) customer.receivableTwd = money(d(customer.receivableTwd).sub(sale.twdAmount));
+      const accountLedger = state.ledger.find(
+        (row) => row.relatedTable === "售出" && row.relatedId === sale.id && row.accountId && !row.isReversal
+      );
+      if (accountLedger) reverseAccountLedger(state, accountLedger, `作廢售出 #${sale.id}`, "售出作廢");
+      state.ledger
+        .filter((row) => !row.isReversal && row.relatedTable === "sales" && row.relatedId === sale.id)
+        .forEach((row) => {
+          addLedger(state, {
+            entryType: "作廢",
+            customerId: row.customerId,
+            direction: row.direction === "in" ? "out" : "in",
+            currency: row.currency,
+            amount: row.amount,
+            description: `作廢售出應收 #${sale.id}`,
+            relatedTable: row.relatedTable,
+            relatedId: row.relatedId,
+            isReversal: true,
+            reversesLedgerId: row.id
+          });
+        });
+      sale.status = "reversed";
+      break;
+    }
+    case "settlement": {
+      const anchor = state.ledger.find(
+        (row) =>
+          !row.isReversal &&
+          row.relatedId === input.entityId &&
+          (row.relatedTable === "settlements" || row.relatedTable === "settlement") &&
+          row.accountId
+      );
+      if (!anchor) throw new Error("找不到收帳紀錄或已作廢");
+      const customer = state.customers.find((row) => row.id === anchor.customerId);
+      if (customer) customer.receivableTwd = money(d(customer.receivableTwd).add(anchor.amount));
+      state.ledger
+        .filter(
+          (row) =>
+            !row.isReversal &&
+            row.relatedId === input.entityId &&
+            (row.relatedTable === "settlements" || row.relatedTable === "settlement")
+        )
+        .forEach((row) => {
+          if (row.accountId) {
+            reverseAccountLedger(state, row, `作廢收帳 #${input.entityId}`, "收帳作廢");
+          } else {
+            addLedger(state, {
+              entryType: "作廢",
+              customerId: row.customerId,
+              direction: row.direction === "in" ? "out" : "in",
+              currency: row.currency,
+              amount: row.amount,
+              description: `作廢收帳 #${input.entityId}`,
+              relatedTable: row.relatedTable,
+              relatedId: row.relatedId,
+              isReversal: true,
+              reversesLedgerId: row.id
+            });
+          }
+        });
+      break;
+    }
+    case "transfer": {
+      const ledgers = state.ledger.filter(
+        (row) =>
+          !row.isReversal &&
+          row.relatedId === input.entityId &&
+          (row.relatedTable === "內轉" || row.relatedTable === "transfer") &&
+          row.accountId
+      );
+      if (ledgers.length === 0) throw new Error("找不到轉帳紀錄或已作廢");
+      ledgers.forEach((row) => reverseAccountLedger(state, row, `作廢轉帳 #${input.entityId}`, "轉帳作廢"));
+      break;
+    }
+    case "adjustment": {
+      const entry = state.ledger.find((row) => row.id === input.entityId);
+      if (!entry || entry.isReversal) throw new Error("找不到流水紀錄");
+      if (state.ledger.some((row) => row.reversesLedgerId === entry.id)) throw new Error("此筆操作已作廢");
+      if (entry.entryType === "入金" && entry.relatedTable === "入金" && entry.relatedId && entry.currency === "RMB") {
+        const purchase = state.purchases.find((row) => row.id === entry.relatedId);
+        const lot = state.rmbLots.find((row) => row.purchaseId === entry.relatedId);
+        if (!purchase || !lot || !d(lot.remainingRmb).eq(lot.originalRmb)) {
+          throw new Error("此入金無法作廢，庫存可能已被動用");
+        }
+        reverseAccountLedger(state, entry, `作廢入金 #${entry.relatedId}`, "入金作廢");
+        lot.remainingRmb = "0.00";
+        purchase.status = "reversed";
+        break;
+      }
+      if (entry.entryType === "撤資" && entry.currency === "RMB" && entry.direction === "out") {
+        const rateMatch = entry.description.match(/@([\d.]+)/);
+        const exchangeRate = rateMatch?.[1];
+        if (!exchangeRate) throw new Error("無法還原人民幣撤資匯率");
+        addRmbDepositLot(state, entry.accountId!, entry.amount, exchangeRate);
+      }
+      reverseAccountLedger(state, entry, `作廢：${entry.description}`, `${entry.entryType}作廢`);
+      break;
+    }
+    default:
+      throw new Error("不支援的作廢類型");
+  }
+  saveState(state);
+  return state;
 }

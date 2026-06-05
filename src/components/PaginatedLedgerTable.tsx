@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { ReversalTarget } from "../lib/reversalUi";
 import { LedgerTable, type LedgerTableRow } from "./LedgerTable";
 import { NumberPagination } from "./NumberPagination";
 import { cn } from "../lib/utils";
@@ -11,6 +12,8 @@ type PaginatedLedgerTableProps = {
   pageSize?: number;
   className?: string;
   layout?: "table" | "responsive";
+  resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
+  onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
 
 export function PaginatedLedgerTable({
@@ -18,7 +21,9 @@ export function PaginatedLedgerTable({
   emptyMessage,
   pageSize = LEDGER_PAGE_SIZE,
   className = "space-y-4",
-  layout = "table"
+  layout = "table",
+  resolveVoidTarget,
+  onVoid
 }: PaginatedLedgerTableProps) {
   const [page, setPage] = React.useState(1);
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
@@ -38,7 +43,13 @@ export function PaginatedLedgerTable({
 
   return (
     <div className={cn("min-w-0 max-w-full", className)}>
-      <LedgerTable entries={pagedEntries} emptyMessage={emptyMessage} layout={layout} />
+      <LedgerTable
+        entries={pagedEntries}
+        emptyMessage={emptyMessage}
+        layout={layout}
+        resolveVoidTarget={resolveVoidTarget}
+        onVoid={onVoid}
+      />
       <NumberPagination page={page} pageCount={pageCount} onPageChange={setPage} />
     </div>
   );

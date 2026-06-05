@@ -80,6 +80,7 @@ export type Sale = {
   costTwd: string;
   profitTwd: string;
   settlementStatus: "unsettled" | "partial" | "settled";
+  status?: "active" | "reversed";
   operatorName: string;
   createdAt: string;
 };
@@ -107,6 +108,7 @@ export type Purchase = {
   twdCost: string;
   paidTwd: string;
   paymentStatus: "paid" | "unpaid" | "partial";
+  status?: "active" | "reversed";
   operatorName: string;
   createdAt: string;
 };
@@ -125,6 +127,8 @@ export type LedgerEntry = {
   operatorName: string;
   relatedTable?: string;
   relatedId?: number;
+  isReversal?: boolean;
+  reversesLedgerId?: number;
 };
 
 export type AppState = {

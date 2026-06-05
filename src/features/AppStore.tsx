@@ -17,6 +17,7 @@ import {
   setUserActive,
   updateUser,
   payPurchase,
+  reverseOperation,
   renameAccount,
   renameChannel,
   renameCustomer,
@@ -39,6 +40,7 @@ import {
   XLSX_AUTO_IMPORT_VERSION,
   XLSX_IMPORT_NOTICE_KEY
 } from "../lib/xlsxAutoImport";
+import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState, AppUser, PermissionKey } from "../lib/types";
 import { ServerAppStoreProvider } from "./ServerAppStore";
 import { useServerDataMode } from "../lib/serverApi";
@@ -81,6 +83,7 @@ export type AppStore = {
     input: { username: string; password?: string; displayName: string; permissions: PermissionKey[] }
   ) => void | Promise<void>;
   setUserActive: (userId: number, isActive: boolean) => void | Promise<void>;
+  reverseOperation: (input: { entityType: ReversalEntityType; entityId: number }) => void | Promise<void>;
 };
 
 export const AppStoreContext = React.createContext<AppStore | null>(null);
@@ -190,7 +193,8 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
     deleteAccount: (input) => commit((draft) => deleteAccount(draft, input)),
     createUser: (input) => commit((draft) => createUser(draft, input)),
     updateUser: (userId, input) => commit((draft) => updateUser(draft, userId, input)),
-    setUserActive: (userId, isActive) => commit((draft) => setUserActive(draft, userId, isActive))
+    setUserActive: (userId, isActive) => commit((draft) => setUserActive(draft, userId, isActive)),
+    reverseOperation: (input) => commit((draft) => reverseOperation(draft, input))
   }), [applyState, commit, sessionUser, state]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
