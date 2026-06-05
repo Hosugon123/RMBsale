@@ -1,9 +1,10 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { allocateFifo, calcProfit, calcTwd, toDbMoney, toDbRate } from "./money.js";
+import { AuditAction, writeAudit } from "./audit.js";
+import { assertPurchaseEditable } from "./locks.js";
 import {
   accounts,
-  auditLogs,
   channels,
   customers,
   holders,
@@ -98,14 +99,12 @@ export async function createPurchase(input: {
       );
     }
 
-    await tx.insert(auditLogs).values({
-      action: "CREATE_PURCHASE",
-      entityType: "purchase",
-      entityId: purchase.id,
-      afterJson: JSON.stringify(purchase),
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_PURCHASE,
+      targetType: "purchase",
+      targetId: purchase.id,
+      after: purchase,
+      actor
     });
 
     return purchase;
@@ -193,6 +192,14 @@ export async function createSale(input: {
       operatorId: actor.id
     });
 
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_SALE,
+      targetType: "sale",
+      targetId: sale.id,
+      after: sale,
+      actor
+    });
+
     return sale;
   });
 }
@@ -223,6 +230,15 @@ export async function createSettlement(input: {
       ? `收帳：${customerName}（${input.note.trim()}）`
       : `收帳：${customerName}`;
     await addAccountDelta(tx, input.accountId, "TWD", input.amountTwd, "in", "settlement", settlement.id, actor.id, description);
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_SETTLEMENT,
+      targetType: "settlement",
+      targetId: settlement.id,
+      after: settlement,
+      actor
+    });
+
     return settlement;
   });
 }
@@ -251,6 +267,15 @@ export async function createTransfer(input: {
     const transferNote = input.note?.trim() ? `轉帳：${input.note.trim()}` : "帳戶轉帳";
     await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${toDbMoney(input.amount)}`, "out", "transfer", transfer.id, actor.id, transferNote);
     await addAccountDelta(tx, input.toAccountId, to.currency as Currency, input.amount, "in", "transfer", transfer.id, actor.id, transferNote);
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_TRANSFER,
+      targetType: "transfer",
+      targetId: transfer.id,
+      after: transfer,
+      actor
+    });
+
     return transfer;
   });
 }
@@ -401,7 +426,15 @@ export async function createAccountAdjustment(
           description,
           "入金"
         );
-        return { entryType: "入金", amount: input.amount, exchangeRate: input.exchangeRate, bookCostTwd: twdCost };
+        const depositResult = { entryType: "入金", amount: input.amount, exchangeRate: input.exchangeRate, bookCostTwd: twdCost };
+        await writeAudit(tx, {
+          action: AuditAction.CREATE_ADJUSTMENT,
+          targetType: "adjustment",
+          targetId: input.accountId,
+          after: depositResult,
+          actor
+        });
+        return depositResult;
       }
 
       const allocation = await consumeRmbLotsFifo(tx, account.id, input.amount);
@@ -419,13 +452,21 @@ export async function createAccountAdjustment(
         description,
         "撤資"
       );
-      return {
+      const withdrawResult = {
         entryType: "撤資",
         amount: input.amount,
         exchangeRate: input.exchangeRate,
         bookCostTwd: allocation.totalCostTwd,
         nominalTwd
       };
+      await writeAudit(tx, {
+        action: AuditAction.CREATE_ADJUSTMENT,
+        targetType: "adjustment",
+        targetId: input.accountId,
+        after: withdrawResult,
+        actor
+      });
+      return withdrawResult;
     }
 
     const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
@@ -446,7 +487,15 @@ export async function createAccountAdjustment(
       entryType
     );
 
-    return { entryType, amount: input.amount };
+    const result = { entryType, amount: input.amount };
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_ADJUSTMENT,
+      targetType: "adjustment",
+      targetId: input.accountId,
+      after: result,
+      actor
+    });
+    return result;
   });
 }
 
@@ -458,6 +507,7 @@ export async function payPurchasePayment(
   return db.transaction(async (tx) => {
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, input.purchaseId));
     if (!purchase) throw new Error("找不到買入紀錄");
+    assertPurchaseEditable(purchase);
     if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
     if (Number(input.amountTwd) <= 0) throw new Error("金額必須大於 0");
     if (Number(input.amountTwd) > Number(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
@@ -481,6 +531,14 @@ export async function payPurchasePayment(
       actor.id,
       `支付買入款 #${purchase.id}`
     );
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_PURCHASE_PAYMENT,
+      targetType: "purchase",
+      targetId: purchase.id,
+      after: { purchaseId: purchase.id, amountTwd: input.amountTwd, accountId: input.accountId },
+      actor
+    });
 
     return purchase;
   });

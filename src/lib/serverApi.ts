@@ -122,7 +122,59 @@ export const serverApi = {
     request("reversals", {
       method: "POST",
       body: JSON.stringify({ entityType, entityId })
-    })
+    }),
+
+  listAuditLogs: (limit = 200) =>
+    request<{
+      auditLogs: Array<{
+        id: number;
+        username?: string | null;
+        action: string;
+        targetType: string;
+        targetId?: number | null;
+        createdAt: string;
+      }>;
+    }>(`admin/audit-logs?limit=${limit}`),
+
+  listSnapshots: () =>
+    request<{
+      snapshots: Array<{
+        id: number;
+        snapshotDate: string;
+        totalTwdBalance: string;
+        totalRmbBalance: string;
+        totalReceivablesTwd: string;
+        openSalesCount: number;
+        openPurchasesCount: number;
+        ledgerEntriesCount: number;
+        checksum: string;
+      }>;
+    }>("admin/snapshots"),
+
+  createSnapshot: () => request("admin/snapshots/create", { method: "POST" }),
+
+  compareSnapshots: (from: string, to: string) =>
+    request<Record<string, unknown>>(`admin/snapshots?from=${from}&to=${to}`),
+
+  listBackups: () =>
+    request<{
+      storageMode: string;
+      runs: Array<{
+        id: number;
+        type: string;
+        status: string;
+        startedAt: string;
+        finishedAt?: string | null;
+        fileName?: string | null;
+        fileSize?: number | null;
+        storageTarget: string;
+        errorMessage?: string | null;
+      }>;
+    }>("admin/backups"),
+
+  runBackup: () => request("admin/backups/run", { method: "POST" }),
+
+  backupDownloadUrl: (id: number) => `/api/admin/backups/download?id=${id}`
 };
 
 /** 正式站用 API；本機 `npm run dev`（demo 模式）用 localStorage。 */

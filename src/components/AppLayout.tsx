@@ -11,6 +11,7 @@ import { PermissionRoute } from "./PermissionRoute";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 import { useAppStore } from "../features/AppStore";
+import { PullToRefresh } from "./PullToRefresh";
 import { detectLevel, hasPermission, levelLabel, permissionForPath } from "../lib/permissions";
 
 const baseNav = [
@@ -27,7 +28,7 @@ const adminNavItem = { to: "/admin", label: "管理後台", icon: Settings };
 
 export function AppLayout() {
   const [open, setOpen] = React.useState(false);
-  const { sessionUser } = useAppStore();
+  const { sessionUser, refresh } = useAppStore();
   const { logout } = useAuth();
   const location = useLocation();
 
@@ -188,7 +189,7 @@ export function AppLayout() {
               variant="outline"
               size="sm"
               title="收帳"
-              onClick={openSettlementModal}
+              onClick={() => openSettlementModal()}
             >
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
               <span>收帳</span>
@@ -218,11 +219,13 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main className="min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-6">
-          <PermissionRoute>
-            <Outlet />
-          </PermissionRoute>
-        </main>
+        <PullToRefresh onRefresh={refresh}>
+          <main className="min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-6">
+            <PermissionRoute>
+              <Outlet />
+            </PermissionRoute>
+          </main>
+        </PullToRefresh>
       </div>
     </div>
   );

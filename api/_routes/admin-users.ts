@@ -1,8 +1,9 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import bcrypt from "bcryptjs";
 import { asc, eq, sql } from "drizzle-orm";
+import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { getDb } from "../_lib/db.js";
-import { fail, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser, setSessionCookie, signSession } from "../_lib/http.js";
+import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
 import {
   deriveRole,
@@ -39,7 +40,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "POST") {
-      await requireAdmin(req);
+      const createAdmin = await requireAdmin(req);
       const body = await readJson<CreateBody>(req);
       const username = body.username?.trim() ?? "";
       const displayName = body.displayName?.trim() ?? "";
@@ -75,11 +76,19 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
         })
         .returning();
 
+      await writeAudit(db, {
+        action: AuditAction.USER_CREATE,
+        targetType: "user",
+        targetId: row.id,
+        after: toAppUser(row),
+        actor: { id: createAdmin.id, username: createAdmin.username, ...getClientMeta(req) }
+      });
+
       return ok(res, { user: toAppUser(row) }, 201);
     }
 
     if (req.method === "PATCH") {
-      await requireAdmin(req);
+      const patchAdmin = await requireAdmin(req);
       const session = requireUser(req);
       const body = await readJson<PatchBody>(req);
       const targetId = Number(body.id);
@@ -135,6 +144,15 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       if (isSelf) {
         setSessionCookie(res, signSession({ id: user.id, username: user.username, role: user.role }));
       }
+
+      await writeAudit(db, {
+        action: body.isActive === false ? AuditAction.USER_DEACTIVATE : AuditAction.USER_UPDATE,
+        targetType: "user",
+        targetId: targetId,
+        before: toAppUser(target),
+        after: user,
+        actor: { id: patchAdmin.id, username: patchAdmin.username, ...getClientMeta(req) }
+      });
 
       return ok(res, { user });
     }

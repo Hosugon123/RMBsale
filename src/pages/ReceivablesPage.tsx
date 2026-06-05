@@ -379,7 +379,7 @@ export function ReceivablesPage() {
                 size="sm"
                 className="h-9"
                 disabled={receivables.length === 0}
-                onClick={openSettlementModal}
+                onClick={() => openSettlementModal()}
               >
                 <CheckCircle2 className="h-4 w-4" />
                 客戶收帳

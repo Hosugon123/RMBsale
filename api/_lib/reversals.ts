@@ -1,9 +1,10 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { calcTwd, toDbMoney, toDbRate } from "./money.js";
+import { AuditAction, writeAudit } from "./audit.js";
+import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
 import {
   accounts,
-  auditLogs,
   channels,
   customers,
   ledgerEntries,
@@ -73,7 +74,8 @@ export async function reversePurchase(purchaseId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId));
-    if (!purchase || purchase.status === "reversed") throw new Error("找不到買入紀錄或已作廢");
+    if (!purchase) throw new Error("找不到買入紀錄或已作廢");
+    assertNotReversedStatus(purchase.status, "進貨單");
 
     const [lot] = await tx.select().from(rmbLots).where(eq(rmbLots.purchaseId, purchaseId));
     if (!lot) throw new Error("找不到對應庫存批次");
@@ -136,15 +138,23 @@ export async function reversePurchase(purchaseId: number, actor: Actor) {
     }
 
     await tx.update(rmbLots).set({ remainingRmb: "0.00" }).where(eq(rmbLots.id, lot.id));
-    await tx.update(purchases).set({ status: "reversed" }).where(eq(purchases.id, purchaseId));
+    await tx
+      .update(purchases)
+      .set({
+        status: "reversed",
+        deletedAt: new Date(),
+        deletedBy: actor.id,
+        deleteReason: "作廢進貨單"
+      })
+      .where(eq(purchases.id, purchaseId));
 
-    await tx.insert(auditLogs).values({
-      action: "REVERSE_PURCHASE",
-      entityType: "purchase",
-      entityId: purchaseId,
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.DELETE_PURCHASE,
+      targetType: "purchase",
+      targetId: purchaseId,
+      before: purchase,
+      after: { status: "reversed" },
+      actor
     });
 
     return purchase;
@@ -155,7 +165,9 @@ export async function reverseSale(saleId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId));
-    if (!sale || sale.status === "reversed") throw new Error("找不到售出紀錄或已作廢");
+    if (!sale) throw new Error("找不到售出紀錄或已作廢");
+    assertSaleEditable(sale);
+    assertNotReversedStatus(sale.status, "銷貨單");
     if (sale.settlementStatus !== "unsettled") {
       throw new Error("此售出已收款或部分收款，請先作廢相關收帳");
     }
@@ -221,15 +233,23 @@ export async function reverseSale(saleId: number, actor: Actor) {
       });
     }
 
-    await tx.update(sales).set({ status: "reversed" }).where(eq(sales.id, saleId));
+    await tx
+      .update(sales)
+      .set({
+        status: "reversed",
+        deletedAt: new Date(),
+        deletedBy: actor.id,
+        deleteReason: "作廢銷貨單"
+      })
+      .where(eq(sales.id, saleId));
 
-    await tx.insert(auditLogs).values({
-      action: "REVERSE_SALE",
-      entityType: "sale",
-      entityId: saleId,
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.DELETE_SALE,
+      targetType: "sale",
+      targetId: saleId,
+      before: sale,
+      after: { status: "reversed" },
+      actor
     });
 
     return sale;
@@ -240,7 +260,8 @@ export async function reverseSettlement(settlementId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [settlement] = await tx.select().from(settlements).where(eq(settlements.id, settlementId));
-    if (!settlement || settlement.status === "reversed") throw new Error("找不到收帳紀錄或已作廢");
+    if (!settlement) throw new Error("找不到收帳紀錄或已作廢");
+    assertNotReversedStatus(settlement.status, "收帳紀錄");
 
     await tx
       .update(customers)
@@ -270,15 +291,23 @@ export async function reverseSettlement(settlementId: number, actor: Actor) {
       );
     }
 
-    await tx.update(settlements).set({ status: "reversed" }).where(eq(settlements.id, settlementId));
+    await tx
+      .update(settlements)
+      .set({
+        status: "reversed",
+        deletedAt: new Date(),
+        deletedBy: actor.id,
+        deleteReason: "作廢收帳"
+      })
+      .where(eq(settlements.id, settlementId));
 
-    await tx.insert(auditLogs).values({
-      action: "REVERSE_SETTLEMENT",
-      entityType: "settlement",
-      entityId: settlementId,
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.REVERSE_OPERATION,
+      targetType: "settlement",
+      targetId: settlementId,
+      before: settlement,
+      after: { status: "reversed" },
+      actor
     });
 
     return settlement;
@@ -289,7 +318,8 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [transfer] = await tx.select().from(transfers).where(eq(transfers.id, transferId));
-    if (!transfer || transfer.status === "reversed") throw new Error("找不到轉帳紀錄或已作廢");
+    if (!transfer) throw new Error("找不到轉帳紀錄或已作廢");
+    assertNotReversedStatus(transfer.status, "轉帳紀錄");
 
     const ledgers = await tx
       .select()
@@ -317,15 +347,23 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
       );
     }
 
-    await tx.update(transfers).set({ status: "reversed" }).where(eq(transfers.id, transferId));
+    await tx
+      .update(transfers)
+      .set({
+        status: "reversed",
+        deletedAt: new Date(),
+        deletedBy: actor.id,
+        deleteReason: "作廢轉帳"
+      })
+      .where(eq(transfers.id, transferId));
 
-    await tx.insert(auditLogs).values({
-      action: "REVERSE_TRANSFER",
-      entityType: "transfer",
-      entityId: transferId,
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.REVERSE_OPERATION,
+      targetType: "transfer",
+      targetId: transferId,
+      before: transfer,
+      after: { status: "reversed" },
+      actor
     });
 
     return transfer;
@@ -371,14 +409,21 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
           "入金作廢"
         );
         await tx.update(rmbLots).set({ remainingRmb: "0.00" }).where(eq(rmbLots.id, lot.id));
-        await tx.update(purchases).set({ status: "reversed" }).where(eq(purchases.id, purchaseId));
-        await tx.insert(auditLogs).values({
-          action: "REVERSE_ADJUSTMENT",
-          entityType: "ledger",
-          entityId: ledgerEntryId,
-          operatorId: actor.id,
-          ipAddress: actor.ipAddress,
-          userAgent: actor.userAgent
+        await tx
+          .update(purchases)
+          .set({
+            status: "reversed",
+            deletedAt: new Date(),
+            deletedBy: actor.id,
+            deleteReason: "作廢入金"
+          })
+          .where(eq(purchases.id, purchaseId));
+        await writeAudit(tx, {
+          action: AuditAction.REVERSE_OPERATION,
+          targetType: "ledger",
+          targetId: ledgerEntryId,
+          before: entry,
+          actor
         });
         return entry;
       }
@@ -435,13 +480,12 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
       `${entry.entryType}作廢`
     );
 
-    await tx.insert(auditLogs).values({
-      action: "REVERSE_ADJUSTMENT",
-      entityType: "ledger",
-      entityId: ledgerEntryId,
-      operatorId: actor.id,
-      ipAddress: actor.ipAddress,
-      userAgent: actor.userAgent
+    await writeAudit(tx, {
+      action: AuditAction.REVERSE_OPERATION,
+      targetType: "ledger",
+      targetId: ledgerEntryId,
+      before: entry,
+      actor
     });
 
     return entry;

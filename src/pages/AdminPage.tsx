@@ -1,5 +1,6 @@
-import { Pencil, Plus, RefreshCw, Trash2, Upload, X } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Shield, Trash2, Upload, X } from "lucide-react";
 import * as React from "react";
+import { Link } from "react-router-dom";
 import { isAdmin } from "../components/AdminRoute";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -242,6 +243,13 @@ export function AdminPage() {
         <CardHeader className={cn(adminCardHeader, "flex-col items-stretch sm:flex-row sm:items-center sm:justify-between")}>
           <CardTitle className="text-base sm:text-lg">系統設定</CardTitle>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <Link
+              to="/admin/backup"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background/40 px-3 text-sm font-medium sm:w-auto"
+            >
+              <Shield className="h-4 w-4 shrink-0" />
+              備份與稽核
+            </Link>
             <Button variant="destructive" size="sm" className="h-10 w-full sm:w-auto" onClick={() => setClearConfirmOpen(true)}>
               <Trash2 className="h-4 w-4 shrink-0" />
               清除數據

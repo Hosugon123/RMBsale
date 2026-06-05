@@ -1,7 +1,8 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { asc, eq } from "drizzle-orm";
+import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { getDb } from "../_lib/db.js";
-import { fail, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser } from "../_lib/http.js";
+import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser } from "../_lib/http.js";
 import { customers } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
@@ -33,8 +34,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       return ok(res, { customer }, created ? 201 : 200);
     }
     if (req.method === "PATCH") {
-      await requireAdmin(req);
-      const body = await readJson<{ id: number; name?: string; isActive?: boolean }>(req);
+      const admin = await requireAdmin(req);
+      const meta = getClientMeta(req);
+      const body = await readJson<{ id: number; name?: string; isActive?: boolean; deleteReason?: string }>(req);
       const [customer] = await db.select().from(customers).where(eq(customers.id, body.id));
       if (!customer) return fail(res, 404, "找不到客戶");
       const name = body.name?.trim();
@@ -46,8 +48,27 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const patch: Partial<typeof customers.$inferInsert> = {};
       if (name) patch.name = name;
-      if (typeof body.isActive === "boolean") patch.isActive = body.isActive;
+      if (typeof body.isActive === "boolean") {
+        patch.isActive = body.isActive;
+        if (body.isActive === false) {
+          patch.deletedAt = new Date();
+          patch.deletedBy = admin.id;
+          patch.deleteReason = body.deleteReason ?? "管理員停用";
+        } else {
+          patch.deletedAt = null;
+          patch.deletedBy = null;
+          patch.deleteReason = null;
+        }
+      }
       const [row] = await db.update(customers).set(patch).where(eq(customers.id, body.id)).returning();
+      await writeAudit(db, {
+        action: AuditAction.CUSTOMER_UPDATE,
+        targetType: "customer",
+        targetId: row.id,
+        before: customer,
+        after: row,
+        actor: { id: admin.id, username: admin.username, ...meta }
+      });
       return ok(res, { customer: row });
     }
     if (req.method !== "GET") return methodNotAllowed(res);

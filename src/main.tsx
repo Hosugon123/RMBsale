@@ -20,6 +20,7 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { LedgerPage } from "./pages/LedgerPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { AdminPage } from "./pages/AdminPage";
+import { BackupAuditPage } from "./pages/BackupAuditPage";
 import { LoginPage } from "./pages/LoginPage";
 import "./styles/globals.css";
 
@@ -48,6 +49,14 @@ function AppRoutes() {
             element={
               <AdminRoute>
                 <AdminPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="admin/backup"
+            element={
+              <AdminRoute>
+                <BackupAuditPage />
               </AdminRoute>
             }
           />

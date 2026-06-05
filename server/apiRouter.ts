@@ -19,7 +19,8 @@ export function createApiRouter() {
     }
   });
 
-  for (const [path, handler] of Object.entries(routes)) {
+  const sortedRoutes = Object.entries(routes).sort((a, b) => b[0].length - a[0].length);
+  for (const [path, handler] of sortedRoutes) {
     router.all(`/${path}`, async (req, res, next) => {
       try {
         await handler(asHttpRequest(req, path), asHttpResponse(res));

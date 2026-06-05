@@ -1,7 +1,8 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { desc } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
-import { fail, ok, requireAdmin, methodNotAllowed, handleRouteError } from "../_lib/http.js";
+import { formatAuditLog } from "../_lib/audit.js";
+import { ok, requireAdmin, methodNotAllowed, handleRouteError } from "../_lib/http.js";
 import { auditLogs } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
@@ -9,7 +10,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await requireAdmin(req);
     const db = getDb();
-    return ok(res, { auditLogs: await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200) });
+    const limit = Math.min(Number(req.query.limit ?? 200), 1000);
+    const rows = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
+    return ok(res, { auditLogs: rows.map(formatAuditLog) });
   } catch (error) {
     return handleRouteError(res, error, { fallback: "操作失敗", validationStatus: 403 });
   }

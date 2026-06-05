@@ -1,6 +1,8 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
+import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { importBusinessData, type BusinessDataImport } from "../_lib/importBusiness.js";
-import { fail, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
+import { getDb } from "../_lib/db.js";
+import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -13,6 +15,12 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await importBusinessData(payload, admin.id);
+    await writeAudit(getDb(), {
+      action: AuditAction.IMPORT_DATA,
+      targetType: "business",
+      after: { keys: Object.keys(payload ?? {}) },
+      actor: { id: admin.id, username: admin.username, ...getClientMeta(req) }
+    });
     return ok(res, { imported: true });
   } catch (error) {
     return handleRouteError(res, error, { fallback: "匯入失敗", validationStatus: 500 });

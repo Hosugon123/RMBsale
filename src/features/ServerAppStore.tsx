@@ -84,9 +84,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     state,
     sessionUser,
     summary: totals(state),
-    refresh: () => {
-      void refresh();
-    },
+    refresh: () => refresh(),
     resetDemo: () => {
       throw new Error("線上環境不提供重置示範資料，請使用「清除帳務資料」。");
     },

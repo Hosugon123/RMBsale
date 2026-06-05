@@ -1,5 +1,7 @@
 import {
+  bigint,
   boolean,
+  date,
   index,
   integer,
   numeric,
@@ -25,6 +27,9 @@ export const holders = pgTable("holders", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -33,6 +38,9 @@ export const customers = pgTable("customers", {
   name: text("name").notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
   receivableTwd: numeric("receivable_twd", { precision: 14, scale: 2 }).notNull().default("0"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -46,6 +54,9 @@ export const accounts = pgTable(
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
     profitBalance: numeric("profit_balance", { precision: 14, scale: 2 }).notNull().default("0"),
     isActive: boolean("is_active").notNull().default(true),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: integer("deleted_by").references(() => users.id),
+    deleteReason: text("delete_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
@@ -72,6 +83,9 @@ export const purchases = pgTable("purchases", {
   paymentStatus: text("payment_status", { enum: ["paid", "unpaid"] }).notNull().default("paid"),
   status: text("status", { enum: ["active", "reversed"] }).notNull().default("active"),
   operatorId: integer("operator_id").notNull().references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -104,6 +118,9 @@ export const sales = pgTable("sales", {
   settlementStatus: text("settlement_status", { enum: ["unsettled", "partial", "settled"] }).notNull().default("unsettled"),
   status: text("status", { enum: ["active", "reversed"] }).notNull().default("active"),
   operatorId: integer("operator_id").notNull().references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -124,6 +141,9 @@ export const settlements = pgTable("settlements", {
   note: text("note"),
   status: text("status", { enum: ["active", "reversed"] }).notNull().default("active"),
   operatorId: integer("operator_id").notNull().references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -135,6 +155,9 @@ export const transfers = pgTable("transfers", {
   note: text("note"),
   status: text("status", { enum: ["active", "reversed"] }).notNull().default("active"),
   operatorId: integer("operator_id").notNull().references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -156,6 +179,9 @@ export const ledgerEntries = pgTable(
     isReversal: boolean("is_reversal").notNull().default(false),
     reversesLedgerId: integer("reverses_ledger_id"),
     operatorId: integer("operator_id").notNull().references(() => users.id),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: integer("deleted_by").references(() => users.id),
+    deleteReason: text("delete_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
@@ -164,18 +190,68 @@ export const ledgerEntries = pgTable(
   })
 );
 
-export const auditLogs = pgTable("audit_logs", {
-  id: serial("id").primaryKey(),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: integer("entity_id"),
-  beforeJson: text("before_json"),
-  afterJson: text("after_json"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  operatorId: integer("operator_id").references(() => users.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: serial("id").primaryKey(),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id"),
+    username: text("username"),
+    beforeJson: text("before_json"),
+    afterJson: text("after_json"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    operatorId: integer("operator_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    createdIdx: index("audit_logs_created_idx").on(table.createdAt)
+  })
+);
+
+export const dailySnapshots = pgTable(
+  "daily_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    snapshotDate: date("snapshot_date").notNull(),
+    totalTwdBalance: numeric("total_twd_balance", { precision: 14, scale: 2 }).notNull(),
+    totalRmbBalance: numeric("total_rmb_balance", { precision: 14, scale: 2 }).notNull(),
+    totalReceivablesTwd: numeric("total_receivables_twd", { precision: 14, scale: 2 }).notNull(),
+    totalReceivablesRmb: numeric("total_receivables_rmb", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalPayablesTwd: numeric("total_payables_twd", { precision: 14, scale: 2 }).notNull(),
+    totalPayablesRmb: numeric("total_payables_rmb", { precision: 14, scale: 2 }).notNull().default("0"),
+    openSalesCount: integer("open_sales_count").notNull().default(0),
+    openPurchasesCount: integer("open_purchases_count").notNull().default(0),
+    ledgerEntriesCount: integer("ledger_entries_count").notNull().default(0),
+    checksum: text("checksum").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    snapshotDateUnique: uniqueIndex("daily_snapshots_date_unique").on(table.snapshotDate)
+  })
+);
+
+export const backupRuns = pgTable(
+  "backup_runs",
+  {
+    id: serial("id").primaryKey(),
+    type: text("type", { enum: ["manual", "daily", "monthly"] }).notNull(),
+    status: text("status", { enum: ["success", "failed", "running"] }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    fileName: text("file_name"),
+    fileSize: bigint("file_size", { mode: "number" }),
+    storageTarget: text("storage_target").notNull(),
+    storagePath: text("storage_path"),
+    errorMessage: text("error_message"),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    startedIdx: index("backup_runs_started_idx").on(table.startedAt)
+  })
+);
 
 export type UserRole = "admin" | "operator";
 export type Currency = "TWD" | "RMB";
