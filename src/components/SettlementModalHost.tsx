@@ -11,16 +11,23 @@ import { Select } from "./ui/select";
 
 const SETTLEMENT_OPEN_EVENT = "rmb:open-settlement";
 
+type SettlementOpenDetail = {
+  customerId?: number;
+};
+
 type SettlementFormState = {
   customerId: string;
   accountId: string;
   amountTwd: string;
 };
 
-function defaultSettlementForm(state: AppState): SettlementFormState {
+function buildSettlementForm(state: AppState, preselectedCustomerId?: number): SettlementFormState {
   const receivables = state.customers.filter((customer) => Number(customer.receivableTwd) > 0);
   const twdAccounts = state.accounts.filter((account) => account.currency === "TWD" && account.isActive);
-  const customer = receivables[0];
+  const customer =
+    (preselectedCustomerId != null
+      ? state.customers.find((item) => item.id === preselectedCustomerId && Number(item.receivableTwd) > 0)
+      : undefined) ?? receivables[0];
   return {
     customerId: String(customer?.id ?? ""),
     accountId: String(twdAccounts[0]?.id ?? ""),
@@ -28,15 +35,15 @@ function defaultSettlementForm(state: AppState): SettlementFormState {
   };
 }
 
-export function openSettlementModal() {
-  window.dispatchEvent(new CustomEvent(SETTLEMENT_OPEN_EVENT));
+export function openSettlementModal(customerId?: number) {
+  window.dispatchEvent(new CustomEvent<SettlementOpenDetail>(SETTLEMENT_OPEN_EVENT, { detail: { customerId } }));
 }
 
 export function SettlementModalHost() {
   const { state, createSettlement } = useAppStore();
   const [open, setOpen] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [form, setForm] = React.useState<SettlementFormState>(() => defaultSettlementForm(state));
+  const [form, setForm] = React.useState<SettlementFormState>(() => buildSettlementForm(state));
 
   const receivables = React.useMemo(
     () => state.customers.filter((customer) => Number(customer.receivableTwd) > 0),
@@ -48,15 +55,17 @@ export function SettlementModalHost() {
   );
   const selectedCustomer = state.customers.find((customer) => customer.id === Number(form.customerId));
 
-  const openModal = React.useCallback(() => {
+  const openModal = React.useCallback((event?: Event) => {
     setError("");
-    setForm(defaultSettlementForm(state));
+    const customerId = (event as CustomEvent<SettlementOpenDetail> | undefined)?.detail?.customerId;
+    setForm(buildSettlementForm(state, customerId));
     setOpen(true);
   }, [state]);
 
   React.useEffect(() => {
-    window.addEventListener(SETTLEMENT_OPEN_EVENT, openModal);
-    return () => window.removeEventListener(SETTLEMENT_OPEN_EVENT, openModal);
+    const handler = (event: Event) => openModal(event);
+    window.addEventListener(SETTLEMENT_OPEN_EVENT, handler);
+    return () => window.removeEventListener(SETTLEMENT_OPEN_EVENT, handler);
   }, [openModal]);
 
   const close = () => {
@@ -84,7 +93,7 @@ export function SettlementModalHost() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={close}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={close}>
       <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
         <CardHeader className="flex-row items-start justify-between gap-4 border-b p-4">
           <CardTitle>客戶收帳</CardTitle>

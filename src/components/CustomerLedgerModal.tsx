@@ -1,6 +1,7 @@
-import { X } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 import * as React from "react";
 import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
+import { openSettlementModal } from "./SettlementModalHost";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -62,9 +63,25 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
             <CardTitle className="text-base sm:text-lg">{selectedCustomer.name} 個人帳務流水</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground sm:text-sm">彙整此客戶的售出、應收與收帳紀錄</p>
           </div>
-          <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-9"
+              disabled={Number(selectedCustomer.receivableTwd) <= 0}
+              onClick={() => {
+                const id = selectedCustomer.id;
+                onClose();
+                queueMicrotask(() => openSettlementModal(id));
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              收帳
+            </Button>
+            <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="max-h-[calc(88vh-5rem)] space-y-5 overflow-y-auto p-3 sm:p-4">
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">

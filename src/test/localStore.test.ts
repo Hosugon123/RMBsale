@@ -166,7 +166,7 @@ describe("local demo store", () => {
       (entry) => entry.entryType === "收帳" && entry.customerId === customer.id
     );
     expect(receivableRow).toMatchObject({
-      subjectLabel: "阿明 應收",
+      subjectLabel: "阿明",
       balanceCurrency: "TWD"
     });
     expect(receivableRow?.balanceAfter).toBe(customer.receivableTwd);
@@ -255,7 +255,7 @@ describe("local demo store", () => {
 
     expect(channelRows.some((entry) => entry.entryType === "應付" && entry.direction === "in")).toBe(true);
     expect(channelRows.some((entry) => entry.entryType === "應付付款" && entry.direction === "out")).toBe(true);
-    expect(channelRows.find((entry) => entry.entryType === "應付")?.subjectLabel).toContain("應付");
+    expect(channelRows.find((entry) => entry.entryType === "應付")?.subjectLabel).toBe("即付渠道");
     expect(new Set(channelRows.map((entry) => ledgerOperationGroupKey(entry)))).toEqual(
       new Set([`purchases:${purchase.id}`])
     );
@@ -280,7 +280,7 @@ describe("local demo store", () => {
 
     expect(increase).toMatchObject({
       amount: "9000.00",
-      subjectLabel: "賒帳渠道 應付"
+      subjectLabel: "賒帳渠道"
     });
     expect(
       sortedPayableLedgerWithBalances(state).some(
@@ -479,13 +479,13 @@ describe("local demo store", () => {
     const receivableEntry = rows.find((entry) => entry.entryType === "應收");
 
     expect(saleEntry).toMatchObject({
-      subjectLabel: "團隊帳戶 / 支付寶 RMB",
+      subjectLabel: "團隊帳戶",
       balanceBefore: "62000.00",
       balanceAfter: "58500.00",
       balanceCurrency: "RMB"
     });
     expect(receivableEntry).toMatchObject({
-      subjectLabel: "阿明 應收",
+      subjectLabel: "阿明",
       balanceBefore: "0.00",
       balanceAfter: "15800.05",
       balanceCurrency: "TWD"

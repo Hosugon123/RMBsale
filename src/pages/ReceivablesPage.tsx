@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, History, X } from "lucide-react";
 import { useAppStore } from "../features/AppStore";
 import { runMutation } from "../lib/runMutation";
 import { Button } from "../components/ui/button";
@@ -10,6 +10,7 @@ import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { receivable, rmb, twd } from "../lib/currencyStyles";
 import { ChannelLedgerModal } from "../components/ChannelLedgerModal";
 import { CustomerLedgerModal } from "../components/CustomerLedgerModal";
+import { HistoricalCustomersModal } from "../components/HistoricalCustomersModal";
 import { PayPurchaseConfirmModal } from "../components/PayPurchaseConfirmModal";
 import { openSettlementModal } from "../components/SettlementModalHost";
 import { PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
@@ -40,6 +41,10 @@ function ReceivableCustomerCards({
   customers: Customer[];
   onSelectCustomer: (customerId: number) => void;
 }) {
+  if (customers.length === 0) {
+    return <p className="py-4 text-center text-sm text-muted-foreground md:hidden">目前無待收客戶</p>;
+  }
+
   return (
     <div className="space-y-2 md:hidden">
       {customers.map((customer) => {
@@ -276,6 +281,7 @@ export function ReceivablesPage() {
     amountTwd: ""
   });
   const [ledgerCustomerId, setLedgerCustomerId] = React.useState<number | null>(null);
+  const [historicalOpen, setHistoricalOpen] = React.useState(false);
   const [ledgerChannelId, setLedgerChannelId] = React.useState<number | null>(null);
   const [payModalOpen, setPayModalOpen] = React.useState(false);
   const [payConfirmOpen, setPayConfirmOpen] = React.useState(false);
@@ -328,6 +334,23 @@ export function ReceivablesPage() {
     () => state.purchases.reduce((sum, purchase) => sum + Number(purchasePayableTwd(purchase)), 0),
     [state.purchases]
   );
+  const activeReceivableCustomers = React.useMemo(
+    () =>
+      [...state.customers]
+        .filter((customer) => Number(customer.receivableTwd) > 0)
+        .sort((a, b) => {
+          const diff = Number(b.receivableTwd) - Number(a.receivableTwd);
+          return diff !== 0 ? diff : a.name.localeCompare(b.name, "zh-Hant");
+        }),
+    [state.customers]
+  );
+  const historicalCustomers = React.useMemo(
+    () =>
+      [...state.customers]
+        .filter((customer) => Number(customer.receivableTwd) <= 0)
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")),
+    [state.customers]
+  );
 
   return (
     <div className="grid min-w-0 max-w-full gap-3 sm:gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
@@ -340,19 +363,34 @@ export function ReceivablesPage() {
                 待收合計 {fmtMoney(totalReceivable)}
               </p>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              className="h-9 shrink-0"
-              disabled={receivables.length === 0}
-              onClick={openSettlementModal}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              客戶收帳
-            </Button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9"
+                onClick={() => setHistoricalOpen(true)}
+              >
+                <History className="h-4 w-4" />
+                歷史客戶
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9"
+                disabled={receivables.length === 0}
+                onClick={openSettlementModal}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                客戶收帳
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className={cn(cardContentClass, "space-y-4 sm:space-y-6")}>
-            <ReceivableCustomerCards customers={state.customers} onSelectCustomer={setLedgerCustomerId} />
+            <ReceivableCustomerCards
+              customers={activeReceivableCustomers}
+              onSelectCustomer={setLedgerCustomerId}
+            />
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <THead>
@@ -363,21 +401,29 @@ export function ReceivablesPage() {
                   </TR>
                 </THead>
                 <TBody>
-                  {state.customers.map((customer) => (
-                    <TR key={customer.id}>
-                      <TD>
-                        <button
-                          type="button"
-                          className="font-medium text-left hover:text-receivable focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => setLedgerCustomerId(customer.id)}
-                        >
-                          {customer.name}
-                        </button>
+                  {activeReceivableCustomers.length > 0 ? (
+                    activeReceivableCustomers.map((customer) => (
+                      <TR key={customer.id}>
+                        <TD>
+                          <button
+                            type="button"
+                            className="font-medium text-left hover:text-receivable focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => setLedgerCustomerId(customer.id)}
+                          >
+                            {customer.name}
+                          </button>
+                        </TD>
+                        <TD className="text-right font-semibold text-receivable">{fmtMoney(customer.receivableTwd)}</TD>
+                        <TD>待收</TD>
+                      </TR>
+                    ))
+                  ) : (
+                    <TR>
+                      <TD colSpan={3} className="py-6 text-center text-muted-foreground">
+                        目前無待收客戶
                       </TD>
-                      <TD className="text-right font-semibold text-receivable">{fmtMoney(customer.receivableTwd)}</TD>
-                      <TD>{Number(customer.receivableTwd) > 0 ? "待收" : "已結清"}</TD>
                     </TR>
-                  ))}
+                  )}
                 </TBody>
               </Table>
             </div>
@@ -428,6 +474,15 @@ export function ReceivablesPage() {
         </Card>
       </div>
 
+      <HistoricalCustomersModal
+        open={historicalOpen}
+        customers={historicalCustomers}
+        onClose={() => setHistoricalOpen(false)}
+        onSelectCustomer={(customerId) => {
+          setHistoricalOpen(false);
+          setLedgerCustomerId(customerId);
+        }}
+      />
       <CustomerLedgerModal customerId={ledgerCustomerId} onClose={() => setLedgerCustomerId(null)} />
       <ChannelLedgerModal channelId={ledgerChannelId} onClose={() => setLedgerChannelId(null)} />
 

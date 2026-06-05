@@ -27,12 +27,20 @@ export function DashboardPage() {
   const [showRmbLedger, setShowRmbLedger] = React.useState(false);
   const [showReceivableLedger, setShowReceivableLedger] = React.useState(false);
 
-  const unsettled = state.sales.filter((sale) => sale.settlementStatus !== "settled");
   const ledgerRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
   const twdLedgerRows = React.useMemo(() => ledgerRows.filter((entry) => entry.currency === "TWD"), [ledgerRows]);
   const rmbLedgerRows = React.useMemo(() => ledgerRows.filter((entry) => entry.currency === "RMB"), [ledgerRows]);
   const profitLedgerRows = React.useMemo(() => sortedProfitLedgerWithBalances(state), [state]);
   const receivableLedgerRows = React.useMemo(() => sortedReceivableLedgerWithBalances(state), [state]);
+  const topReceivableCustomers = React.useMemo(
+    () =>
+      [...state.customers]
+        .filter((customer) => Number(customer.receivableTwd) > 0)
+        .sort((a, b) => Number(b.receivableTwd) - Number(a.receivableTwd))
+        .slice(0, 5),
+    [state.customers]
+  );
+  const pendingReceivableCount = state.customers.filter((customer) => Number(customer.receivableTwd) > 0).length;
   return (
     <div className="min-w-0 max-w-full space-y-5">
       {importNotice ? (
@@ -62,7 +70,6 @@ export function DashboardPage() {
               value={fmtMoney(summary.twd, "TWD")}
               icon={Banknote}
               tone="twd"
-              footer="所有台幣帳戶合計"
               onClick={() => setShowTwdLedger(true)}
             />
             <MetricCard
@@ -70,7 +77,6 @@ export function DashboardPage() {
               value={fmtMoney(summary.rmb, "RMB")}
               icon={HandCoins}
               tone="rmb"
-              footer="所有人民幣帳戶合計"
               onClick={() => setShowRmbLedger(true)}
             />
             <MetricCard
@@ -78,7 +84,6 @@ export function DashboardPage() {
               value={fmtMoney(summary.receivable, "TWD")}
               icon={AlertTriangle}
               tone="receivable"
-              footer={`${unsettled.length} 筆未結清售出`}
               onClick={() => setShowReceivableLedger(true)}
             />
             <MetricCard
@@ -97,7 +102,10 @@ export function DashboardPage() {
           <CardTitle>待收帳款</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {state.customers.filter((c) => Number(c.receivableTwd) > 0).map((customer) => (
+          {topReceivableCustomers.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">目前無待收帳款</p>
+          ) : null}
+          {topReceivableCustomers.map((customer) => (
             <button
               key={customer.id}
               className="flex w-full items-center justify-between rounded-md border bg-background/40 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -111,6 +119,11 @@ export function DashboardPage() {
               <p className="font-semibold text-receivable">{fmtMoney(customer.receivableTwd)}</p>
             </button>
           ))}
+          {pendingReceivableCount > 5 ? (
+            <p className="text-center text-xs text-muted-foreground">
+              另有 {pendingReceivableCount - 5} 位客戶待收，請至應收帳款頁查看
+            </p>
+          ) : null}
           <Button className="w-full" onClick={() => navigate("/receivables")}>
             進入收帳
           </Button>

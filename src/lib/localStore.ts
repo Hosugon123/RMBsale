@@ -442,7 +442,8 @@ export function totals(state: AppState) {
 }
 
 export type LedgerBalanceContext = {
-  subjectLabel: string;
+  /** 戶名：帳戶為持有人、應收為客戶名、應付為渠道名 */
+  subjectLabel?: string;
   balanceBefore: string;
   balanceAfter: string;
   balanceCurrency: Currency;
@@ -480,7 +481,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       const after = accountBalances.get(entry.accountId)!;
       const before = after.sub(delta);
       contextById.set(entry.id, {
-        subjectLabel: `${account.holderName} / ${account.name}`,
+        subjectLabel: account.holderName,
         balanceBefore: money(before),
         balanceAfter: money(after),
         balanceCurrency: account.currency
@@ -495,7 +496,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       const after = customerReceivables.get(entry.customerId)!;
       const before = after.sub(delta);
       contextById.set(entry.id, {
-        subjectLabel: `${customer.name} 應收`,
+        subjectLabel: customer.name,
         balanceBefore: money(before),
         balanceAfter: money(after),
         balanceCurrency: "TWD"
@@ -510,7 +511,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       const after = channelPayables.get(entry.channelId)!;
       const before = after.sub(delta);
       contextById.set(entry.id, {
-        subjectLabel: `${channel.name} 應付`,
+        subjectLabel: channel.name,
         balanceBefore: money(before),
         balanceAfter: money(after),
         balanceCurrency: "TWD"
@@ -1044,8 +1045,7 @@ export function addCustomer(state: AppState, input: { name: string }) {
   if (!name) throw new Error("請輸入客戶名稱");
   const existing = state.customers.find((customer) => customer.name === name);
   if (existing) {
-    if (existing.isActive) throw new Error("此客戶已存在");
-    existing.isActive = true;
+    if (!existing.isActive) existing.isActive = true;
     saveState(state);
     return state;
   }

@@ -5,6 +5,7 @@ import type { ReversalTarget } from "../lib/reversalUi";
 import type { LedgerEntry } from "../lib/types";
 import { Button } from "./ui/button";
 import { profit, rmb, twd } from "../lib/currencyStyles";
+import { ledgerDirectionLabel } from "../lib/ledgerDirectionLabel";
 import { cn, fmtDirectionalMoney, fmtMoney } from "../lib/utils";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
 
@@ -37,10 +38,6 @@ type LedgerTableProps = {
   resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
   onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
-
-function directionLabel(direction: LedgerEntry["direction"]) {
-  return direction === "in" ? "收入" : direction === "out" ? "支出" : "-";
-}
 
 function isProfitLedgerEntry(entry: LedgerTableRow) {
   return (
@@ -123,9 +120,9 @@ export function LedgerTable({
       <THead>
         <TR>
           <TH>時間</TH>
-          <TH>帳戶 / 對象</TH>
+          <TH>戶名</TH>
           <TH>類型</TH>
-          <TH>方向</TH>
+          <TH>異動</TH>
           <TH>說明</TH>
           <TH>操作人</TH>
           <TH className="text-right">異動前餘額</TH>
@@ -142,7 +139,7 @@ export function LedgerTable({
             <TD className={cn("text-muted-foreground", group.firstCell)}>{new Date(entry.createdAt).toLocaleString("zh-TW")}</TD>
             <TD>{entry.subjectLabel ?? "-"}</TD>
             <TD>{entry.entryType}</TD>
-            <TD>{directionLabel(entry.direction)}</TD>
+            <TD>{ledgerDirectionLabel(entry)}</TD>
             <TD>{entry.description}</TD>
             <TD>{entry.operatorName}</TD>
             <TD className="text-right">
@@ -213,7 +210,7 @@ export function LedgerTable({
             <p className="mt-2 font-medium leading-snug">{entry.subjectLabel ?? "-"}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               <span className="rounded-md bg-muted/60 px-2 py-0.5">{entry.entryType}</span>
-              <span className="rounded-md bg-muted/60 px-2 py-0.5">{directionLabel(entry.direction)}</span>
+              <span className="rounded-md bg-muted/60 px-2 py-0.5">{ledgerDirectionLabel(entry)}</span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{entry.description}</p>
             {entry.balanceBefore !== undefined ? (

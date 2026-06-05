@@ -46,9 +46,15 @@ describe("store error handling (no partial apply on failure)", () => {
     expect(snapshotFingerprint(state)).toBe(before);
   });
 
-  it("rejects duplicate active preset names", () => {
+  it("reuses duplicate active customer by name without error", () => {
     const state = createSeedState();
-    expect(() => addCustomer(state, { name: "阿明" })).toThrow("此客戶已存在");
+    const before = snapshotFingerprint(state);
+    addCustomer(state, { name: "阿明" });
+    expect(snapshotFingerprint(state)).toBe(before);
+  });
+
+  it("rejects duplicate active preset channel names", () => {
+    const state = createSeedState();
     expect(() => addChannel(state, { name: "交易所 A" })).toThrow("此渠道已存在");
   });
 
