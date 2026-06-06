@@ -14,6 +14,9 @@ import {
   addSettlement,
   payPurchase,
   purchasePayableTwd,
+  addTransfer,
+  accountFifoRmb,
+  reconcileLocalRmbLotInventory,
   previewSaleProfit,
   adjustAccount,
   createSeedState,
@@ -92,6 +95,29 @@ describe("local demo store", () => {
       exchangeRate: "4.5"
     });
     expect(preview).toMatchObject({ twdAmount: "4500.00", profitTwd: "80.00", profitError: null });
+  });
+
+  it("moves FIFO lots on RMB internal transfer", () => {
+    const state = createSeedState();
+    const fromFifoBefore = accountFifoRmb(state, 4);
+    addTransfer(state, { fromAccountId: 4, toAccountId: 2, amount: "1000" });
+    expect(accountFifoRmb(state, 4)).toBe(d(fromFifoBefore).sub(1000).toDecimalPlaces(2).toFixed(2));
+    expect(accountFifoRmb(state, 2)).toBe("39000.00");
+  });
+
+  it("reconciles fifo inventory when account balance exceeds lots", () => {
+    const state = createSeedState();
+    const account = state.accounts.find((item) => item.id === 4)!;
+    account.balance = "20000.00";
+    state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
+    reconcileLocalRmbLotInventory(state);
+    expect(accountFifoRmb(state, 4)).toBe("20000.00");
+    const preview = previewSaleProfit(state, {
+      rmbAccountId: 4,
+      rmbAmount: "3000",
+      exchangeRate: "4.73"
+    });
+    expect(preview?.profitWarning).toBeNull();
   });
 
   it("creates a sale, reduces RMB, and increases receivable", () => {

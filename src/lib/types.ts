@@ -67,6 +67,8 @@ export type RmbLot = {
   unitCostTwd: string;
   exchangeRate: string;
   createdAt: string;
+  /** 內轉搬移時標記來源轉帳，供作廢還原 FIFO 批次 */
+  transferId?: number;
 };
 
 export type Sale = {

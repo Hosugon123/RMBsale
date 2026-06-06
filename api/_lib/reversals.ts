@@ -3,6 +3,7 @@ import { getDb, type DbTx } from "./db.js";
 import { calcTwd, toDbMoney, toDbRate } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
+import { reverseRmbLotTransfer } from "./rmbInventory.js";
 import {
   accounts,
   channels,
@@ -320,6 +321,14 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
     const [transfer] = await tx.select().from(transfers).where(eq(transfers.id, transferId));
     if (!transfer) throw new Error("找不到轉帳紀錄或已作廢");
     assertNotReversedStatus(transfer.status, "轉帳紀錄");
+
+    const [fromAccount] = await tx
+      .select({ currency: accounts.currency })
+      .from(accounts)
+      .where(eq(accounts.id, transfer.fromAccountId));
+    if (fromAccount?.currency === "RMB") {
+      await reverseRmbLotTransfer(tx, transferId, transfer.fromAccountId);
+    }
 
     const ledgers = await tx
       .select()

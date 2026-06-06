@@ -3,11 +3,12 @@ import { CheckCircle2, X } from "lucide-react";
 import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
 import { fmtMoney } from "../lib/utils";
-import { runMutation } from "../lib/runMutation";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
+import { SettlementConfirmModal } from "./SettlementConfirmModal";
 
 const SETTLEMENT_OPEN_EVENT = "rmb:open-settlement";
 
@@ -41,7 +42,9 @@ export function openSettlementModal(customerId?: number) {
 
 export function SettlementModalHost() {
   const { state, createSettlement } = useAppStore();
+  const isMutating = useIsMutating();
   const [open, setOpen] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [error, setError] = React.useState("");
   const [form, setForm] = React.useState<SettlementFormState>(() => buildSettlementForm(state));
 
@@ -54,9 +57,11 @@ export function SettlementModalHost() {
     [state.accounts]
   );
   const selectedCustomer = state.customers.find((customer) => customer.id === Number(form.customerId));
+  const selectedAccount = twdAccounts.find((account) => account.id === Number(form.accountId));
 
   const openModal = React.useCallback((event?: Event) => {
     setError("");
+    setConfirmOpen(false);
     const customerId = (event as CustomEvent<SettlementOpenDetail> | undefined)?.detail?.customerId;
     setForm(buildSettlementForm(state, customerId));
     setOpen(true);
@@ -69,23 +74,32 @@ export function SettlementModalHost() {
   }, [openModal]);
 
   const close = () => {
+    setConfirmOpen(false);
     setOpen(false);
     setError("");
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!selectedCustomer || !form.accountId || !form.amountTwd.trim()) return;
+    setError("");
+    setConfirmOpen(true);
+  };
+
+  const confirmSettlement = async () => {
     if (!selectedCustomer) return;
     try {
       await runMutation(() =>
-      createSettlement({
-        customerId: Number(form.customerId),
-        accountId: Number(form.accountId),
-        amountTwd: form.amountTwd
-      }));
+        createSettlement({
+          customerId: Number(form.customerId),
+          accountId: Number(form.accountId),
+          amountTwd: form.amountTwd
+        })
+      );
       setForm((current) => ({ ...current, amountTwd: "" }));
       close();
     } catch (err) {
+      setConfirmOpen(false);
       setError(err instanceof Error ? err.message : "收帳失敗");
     }
   };
@@ -105,7 +119,7 @@ export function SettlementModalHost() {
           {receivables.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">目前無待收帳款</p>
           ) : (
-            <form className="space-y-4" onSubmit={submit}>
+            <form className="space-y-4" onSubmit={openConfirm}>
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>客戶</span>
                 <Select
@@ -155,14 +169,31 @@ export function SettlementModalHost() {
                 />
               </label>
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
-              <Button className="h-10 w-full" disabled={!selectedCustomer || !form.accountId} type="submit">
+              <Button
+                className="h-10 w-full"
+                disabled={!selectedCustomer || !form.accountId || !form.amountTwd.trim() || isMutating}
+                type="submit"
+              >
                 <CheckCircle2 className="h-4 w-4" />
-                確認收帳
+                下一步
               </Button>
             </form>
           )}
         </CardContent>
       </Card>
+
+      <SettlementConfirmModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => void confirmSettlement()}
+        customerName={selectedCustomer?.name ?? ""}
+        accountLabel={
+          selectedAccount ? `${selectedAccount.holderName} / ${selectedAccount.name}` : ""
+        }
+        amountTwd={form.amountTwd}
+        receivableBefore={selectedCustomer?.receivableTwd ?? "0.00"}
+        isMutating={isMutating}
+      />
     </div>
   );
 }

@@ -99,6 +99,7 @@ export const rmbLots = pgTable(
     remainingRmb: numeric("remaining_rmb", { precision: 14, scale: 2 }).notNull(),
     unitCostTwd: numeric("unit_cost_twd", { precision: 14, scale: 6 }).notNull(),
     exchangeRate: numeric("exchange_rate", { precision: 12, scale: 6 }).notNull(),
+    transferId: integer("transfer_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({

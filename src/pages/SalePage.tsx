@@ -13,15 +13,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
-import { previewSaleProfit } from "../lib/localStore";
+import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
 
 const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 
-function accountOptionLabel(holderName: string, name: string, balance: string) {
-  return `${holderName}/${name} (${fmtMoney(balance, "RMB")})`;
+function accountOptionLabel(holderName: string, name: string, balance: string, fifoRmb: string) {
+  const balanceLabel = fmtMoney(balance, "RMB");
+  if (fifoRmb === balance) return `${holderName}/${name} (${balanceLabel})`;
+  return `${holderName}/${name} (餘額 ${balanceLabel} · 可售 ${fmtMoney(fifoRmb, "RMB")})`;
 }
 
 function settlementLabel(status: string) {
@@ -136,7 +138,7 @@ export function SalePage() {
                 <option value="">請選擇帳戶</option>
                 {rmbAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {accountOptionLabel(account.holderName, account.name, account.balance)}
+                    {accountOptionLabel(account.holderName, account.name, account.balance, accountFifoRmb(state, account.id))}
                   </option>
                 ))}
               </Select>

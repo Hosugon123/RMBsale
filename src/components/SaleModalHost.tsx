@@ -3,7 +3,7 @@ import { HandCoins, X } from "lucide-react";
 import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
 import { useSaleCustomerSource } from "../hooks/useSaleCustomerSource";
-import { previewSaleProfit } from "../lib/localStore";
+import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
 import { runMutation } from "../lib/runMutation";
 import { rmb } from "../lib/currencyStyles";
 import { fmtMoney } from "../lib/utils";
@@ -167,11 +167,19 @@ export function SaleModalHost() {
                   onChange={(event) => setForm({ ...form, rmbAccountId: event.target.value })}
                   required
                 >
-                  {rmbAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.holderName} / {account.name} ({fmtMoney(account.balance, "RMB")})
-                    </option>
-                  ))}
+                  {rmbAccounts.map((account) => {
+                    const fifo = accountFifoRmb(state, account.id);
+                    const balanceLabel = fmtMoney(account.balance, "RMB");
+                    const label =
+                      fifo === account.balance
+                        ? `${account.holderName} / ${account.name} (${balanceLabel})`
+                        : `${account.holderName} / ${account.name} (餘額 ${balanceLabel} · 可售 ${fmtMoney(fifo, "RMB")})`;
+                    return (
+                      <option key={account.id} value={account.id}>
+                        {label}
+                      </option>
+                    );
+                  })}
                 </Select>
               </label>
               <div className="grid min-w-0 grid-cols-2 items-start gap-2 sm:gap-3 max-[440px]:grid-cols-1">

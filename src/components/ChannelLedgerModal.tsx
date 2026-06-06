@@ -38,6 +38,7 @@ export function ChannelLedgerModal({ channelId, onClose }: ChannelLedgerModalPro
         entry.relatedId !== undefined &&
         purchaseIds.has(entry.relatedId) &&
         (entry.relatedTable === "purchases" ||
+          entry.relatedTable === "purchase" ||
           entry.relatedTable === "買入" ||
           entry.relatedTable === "買入付款" ||
           entry.relatedTable === "應付付款" ||

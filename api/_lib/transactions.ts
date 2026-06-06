@@ -2,7 +2,8 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { allocateFifo, calcProfit, calcTwd, toDbMoney, toDbRate } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
-import { assertPurchasePayable } from "./purchaseUtils.js";
+import { reverseRmbLotTransfer, transferRmbLots } from "./rmbInventory.js";
+import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
 import {
   accounts,
@@ -74,6 +75,9 @@ export async function createPurchase(input: {
       exchangeRate: toDbRate(input.exchangeRate)
     });
 
+    const channelName = await getPurchaseChannelName(tx, channelId);
+    const isDeposit = isDepositChannelName(channelName);
+
     await addAccountDelta(
       tx,
       input.depositAccountId,
@@ -86,17 +90,39 @@ export async function createPurchase(input: {
       `買入 ${toDbMoney(input.rmbAmount)} RMB`
     );
 
+    if (!isDeposit) {
+      await addPayableLedger(tx, {
+        entryType: "應付",
+        purchaseId: purchase.id,
+        direction: "in",
+        amount: toDbMoney(twdCost),
+        description: `${channelName ?? "未命名渠道"} 應付增加`,
+        operatorId: actor.id
+      });
+    }
+
     if (input.paymentStatus === "paid" && input.paymentAccountId) {
+      if (!isDeposit) {
+        await addPayableLedger(tx, {
+          entryType: "應付付款",
+          purchaseId: purchase.id,
+          direction: "out",
+          amount: toDbMoney(twdCost),
+          description: `支付買入款：${channelName ?? "未命名渠道"}`,
+          operatorId: actor.id
+        });
+      }
       await addAccountDelta(
         tx,
         input.paymentAccountId,
         "TWD",
         twdCost.neg().toFixed(2),
         "out",
-        "purchase",
+        "purchases",
         purchase.id,
         actor.id,
-        `支付買入成本 ${toDbMoney(twdCost)} TWD`
+        `支付買入成本 ${toDbMoney(twdCost)} TWD`,
+        isDeposit ? "買入" : "買入付款"
       );
     }
 
@@ -265,6 +291,15 @@ export async function createTransfer(input: {
       operatorId: actor.id
     }).returning();
 
+    if (from.currency === "RMB") {
+      await transferRmbLots(tx, {
+        fromAccountId: input.fromAccountId,
+        toAccountId: input.toAccountId,
+        amount: input.amount,
+        transferId: transfer.id
+      });
+    }
+
     const transferNote = input.note?.trim() ? `轉帳：${input.note.trim()}` : "帳戶轉帳";
     await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${toDbMoney(input.amount)}`, "out", "transfer", transfer.id, actor.id, transferNote);
     await addAccountDelta(tx, input.toAccountId, to.currency as Currency, input.amount, "in", "transfer", transfer.id, actor.id, transferNote);
@@ -278,6 +313,29 @@ export async function createTransfer(input: {
     });
 
     return transfer;
+  });
+}
+
+async function addPayableLedger(
+  tx: DbTx,
+  input: {
+    entryType: "應付" | "應付付款";
+    purchaseId: number;
+    direction: "in" | "out";
+    amount: string;
+    description: string;
+    operatorId: number;
+  }
+) {
+  await tx.insert(ledgerEntries).values({
+    entryType: input.entryType,
+    relatedTable: "purchases",
+    relatedId: input.purchaseId,
+    direction: input.direction,
+    currency: "TWD",
+    amount: toDbMoney(input.amount),
+    description: input.description,
+    operatorId: input.operatorId
   });
 }
 
@@ -522,16 +580,28 @@ export async function payPurchasePayment(
       })
       .where(eq(purchases.id, purchase.id));
 
+    const channelName = await getPurchaseChannelName(tx, purchase.channelId);
+
+    await addPayableLedger(tx, {
+      entryType: "應付付款",
+      purchaseId: purchase.id,
+      direction: "out",
+      amount: input.amountTwd,
+      description: `支付買入款：${channelName ?? "未命名渠道"}`,
+      operatorId: actor.id
+    });
+
     await addAccountDelta(
       tx,
       input.accountId,
       "TWD",
       `-${input.amountTwd}`,
       "out",
-      "purchase",
+      "purchases",
       purchase.id,
       actor.id,
-      `支付買入款 #${purchase.id}`
+      `支付買入款 #${purchase.id}`,
+      "應付付款"
     );
 
     await writeAudit(tx, {

@@ -1,7 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "./db.js";
 import { ensureUserProfileColumns } from "./ensureUserColumns.js";
-import { ensureAuditBackupSchema } from "./ensureAuditBackupSchema.js";
+import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "./ensureAuditBackupSchema.js";
 import { toAppUser } from "./userPermissions.js";
 import {
   accounts,
@@ -27,7 +27,9 @@ const ENTRY_LABELS: Record<string, string> = {
   "撤資": "撤資",
   "分潤": "分潤",
   "內轉": "內轉",
-  "應付付款": "應付付款"
+  "應付": "應付",
+  "應付付款": "應付付款",
+  "買入付款": "買入付款"
 };
 
 function mapEntryType(entryType: string) {
@@ -41,6 +43,7 @@ export async function loadBootstrapState(
   if (!options?.skipSchemaEnsure) {
     await ensureUserProfileColumns();
     await ensureAuditBackupSchema();
+    await ensureRmbLotInventorySchema(sessionUserId);
   }
   const db = getDb();
   const [userRows, holderRows, customerRows, channelRows, accountRows, purchaseRows, saleRows, lotRows, allocationRows, ledgerRows] =
@@ -161,6 +164,7 @@ export async function loadBootstrapState(
       remainingRmb: String(row.remainingRmb),
       unitCostTwd: String(row.unitCostTwd),
       exchangeRate: String(row.exchangeRate),
+      transferId: row.transferId ?? undefined,
       createdAt: row.createdAt.toISOString()
     })),
     ledger: ledgerRows.map((row) => ({
