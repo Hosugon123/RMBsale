@@ -352,8 +352,11 @@ async function addAccountDelta(
   entryType?: string
 ) {
   const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
-  await tx.update(accounts).set({ balance: sql`${accounts.balance} + ${toDbMoney(amount)}` }).where(eq(accounts.id, accountId));
-  const [after] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
+  const [after] = await tx
+    .update(accounts)
+    .set({ balance: sql`${accounts.balance} + ${toDbMoney(amount)}` })
+    .where(eq(accounts.id, accountId))
+    .returning({ balance: accounts.balance });
 
   const entryTypeLabel =
     entryType ??

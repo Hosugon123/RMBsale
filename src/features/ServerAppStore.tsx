@@ -4,13 +4,82 @@ import { REFRESH_PROFILES, type RefreshProfile } from "../lib/bootstrapSections"
 import { mergeBootstrapState } from "../lib/mergeBootstrapState";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
+import { d } from "../lib/utils";
 import type { BusinessDataImport } from "../lib/dataImport";
 import type { ReversalEntityType } from "../lib/reversalUi";
-import type { AppState } from "../lib/types";
+import type { AppState, AppUser } from "../lib/types";
 import type { AppStore } from "./AppStore";
 import { AppStoreContext } from "./AppStore";
 
 type RefreshOptions = { full?: boolean; profile?: RefreshProfile };
+
+type SettlementInput = {
+  customerId: number;
+  accountId: number;
+  amountTwd: string;
+  note?: string;
+};
+
+function money(value: unknown) {
+  return d(value as never).toDecimalPlaces(2).toFixed(2);
+}
+
+function applyOptimisticSettlement(state: AppState, input: SettlementInput, sessionUser: AppUser): AppState {
+  const customer = state.customers.find((item) => item.id === input.customerId);
+  if (!customer) throw new Error("找不到客戶");
+  const account = state.accounts.find((item) => item.id === input.accountId && item.currency === "TWD");
+  if (!account) throw new Error("找不到 TWD 帳戶");
+  const amount = d(input.amountTwd);
+  if (amount.lte(0)) throw new Error("金額必須大於 0");
+  if (d(customer.receivableTwd).lt(amount)) throw new Error("收款金額超過應收餘額");
+
+  const amountTwd = money(amount);
+  const nextReceivable = money(d(customer.receivableTwd).sub(amountTwd));
+  const nextBalance = money(d(account.balance).add(amountTwd));
+  const now = new Date().toISOString();
+  const tempId = -Date.now();
+  const note = input.note?.trim();
+  const description = note ? `收帳：${customer.name}（${note}）` : `收帳：${customer.name}`;
+
+  return {
+    ...state,
+    customers: state.customers.map((item) =>
+      item.id === customer.id ? { ...item, receivableTwd: nextReceivable } : item
+    ),
+    accounts: state.accounts.map((item) =>
+      item.id === account.id ? { ...item, balance: nextBalance } : item
+    ),
+    ledger: [
+      {
+        id: tempId,
+        createdAt: now,
+        entryType: "收帳",
+        customerId: customer.id,
+        direction: "out",
+        currency: "TWD",
+        amount: amountTwd,
+        description,
+        operatorName: sessionUser.displayName,
+        relatedTable: "settlements",
+        relatedId: tempId
+      },
+      {
+        id: tempId - 1,
+        createdAt: now,
+        entryType: "收帳",
+        accountId: account.id,
+        direction: "in",
+        currency: "TWD",
+        amount: amountTwd,
+        description,
+        operatorName: sessionUser.displayName,
+        relatedTable: "settlements",
+        relatedId: tempId
+      },
+      ...state.ledger
+    ]
+  };
+}
 
 export function ServerAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser, loading: authLoading, refresh: refreshAuth } = useAuth();
@@ -135,8 +204,19 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       afterMutation("sale");
     },
     createSettlement: async (input) => {
-      await serverApi.createSettlement(input as Record<string, unknown>);
-      afterMutation("settlement");
+      const settlementInput = input as SettlementInput;
+      const rollbackState = state;
+      setState((current) =>
+        current ? applyOptimisticSettlement(current, settlementInput, sessionUser) : current
+      );
+      void serverApi.createSettlement(settlementInput as unknown as Record<string, unknown>)
+        .then(() => afterMutation("settlement"))
+        .catch((err) => {
+          setState(rollbackState);
+          const message = err instanceof Error ? err.message : "收帳失敗，已復原畫面資料";
+          setLoadError(message);
+          console.error(err);
+        });
     },
     payPurchase: async (input) => {
       await serverApi.payPurchase(input as Record<string, unknown>);

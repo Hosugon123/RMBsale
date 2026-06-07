@@ -1,5 +1,24 @@
 # RMBsale
 
+## Production Latency And Asia Deployment
+
+This release includes important production latency improvements for Cloud Run + Neon:
+
+- Cloud Run should run in `asia-east1` (Taiwan) for Taiwan users.
+- Neon Postgres should be created in the nearest available Asia region, preferably Singapore `aws-ap-southeast-1` when Taiwan is not available.
+- Production Cloud Run should keep `--min-instances 1` to avoid scale-to-zero cold starts during real user operations.
+- Startup database maintenance is disabled by default with `RUN_STARTUP_DB_MAINTENANCE=0`; run migrations explicitly before deployment.
+- Settlement refresh now loads only the required state sections (`customers`, `accounts`, `ledger`) instead of also fetching users and sales.
+- Settlement operations use optimistic UI updates so the user sees the receivable/account balance update immediately while the server confirms in the background.
+
+Deploy the Asia production target with:
+
+```powershell
+npm.cmd run deploy:asia
+```
+
+See [CLOUD_RUN.md](./CLOUD_RUN.md) for the Cloud Run settings and Neon migration notes.
+
 RMBsale 是以 Vite + React + TypeScript 建立的人民幣代付與換匯金流記帳系統。第一版保留舊系統的核心流程，但改為前後端分離、Drizzle schema、Vercel Functions 與 Neon Postgres。
 
 ## 開發

@@ -1,3 +1,7 @@
+# Asia deployment target
+
+Production target: deploy Cloud Run to `asia-east1` (Taiwan) and use an Asia Neon database region such as `aws-ap-southeast-1` (Singapore) to keep request latency low for Taiwan users.
+
 # 部署說明（已改為 Google Cloud Run）
 
 本專案不再部署至 Vercel。請改看 **[CLOUD_RUN.md](./CLOUD_RUN.md)** 取得完整步驟。

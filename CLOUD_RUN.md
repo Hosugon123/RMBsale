@@ -1,3 +1,20 @@
+# Asia production target
+
+- Cloud Run region: `asia-east1` (Taiwan)
+- Service name: `dsrmbsys`
+- Artifact Registry region: `asia-east1`
+- Neon database region: choose the closest available Asia region, preferably Singapore `aws-ap-southeast-1` if Taiwan is not available in Neon.
+- Keep Cloud Run and Neon in Asia. Do not keep Cloud Run in `europe-west1` for Taiwan users.
+- Production settings: `--min-instances 1`, `--memory 1Gi`, `RUN_STARTUP_DB_MAINTENANCE=0`.
+
+Neon region changes are not an in-place setting. Create a new Neon project/database in the Asia region, migrate data from the current database, then update the `rmbsale-database-url` Secret Manager value to the new Asia connection string.
+
+Deploy to Taiwan with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\deploy-cloud-run-asia.ps1
+```
+
 # Google Cloud Run 完整部署步驟
 
 架構：**單一 Express 容器** = `/api` 後端 + Vite 建置的靜態前端（`dist/`）。
@@ -119,15 +136,21 @@ gcloud run deploy rmbsale \
   --region asia-east1 \
   --allow-unauthenticated \
   --port 8080 \
-  --memory 512Mi \
+  --memory 1Gi \
   --cpu 1 \
-  --min-instances 0 \
+  --min-instances 1 \
   --max-instances 10 \
-  --set-env-vars "NODE_ENV=production" \
+  --set-env-vars "NODE_ENV=production,RUN_STARTUP_DB_MAINTENANCE=0" \
   --set-secrets "DATABASE_URL=rmbsale-database-url:latest,JWT_SECRET=rmbsale-jwt-secret:latest"
 ```
 
 部署完成後會顯示服務 URL，例如 `https://rmbsale-xxxxx-asia-east1.a.run.app`。
+
+### Latency settings
+
+- Keep `--min-instances 1` for production so Cloud Run does not scale to zero between real user operations.
+- Keep Cloud Run and Neon Postgres in nearby regions. Cross-region database transactions can make every create/update request feel slow.
+- Run `npm.cmd run db:migrate` before deploying schema changes. Startup DB maintenance is disabled by default with `RUN_STARTUP_DB_MAINTENANCE=0`; set it to `1` only for a one-off maintenance deploy.
 
 ---
 

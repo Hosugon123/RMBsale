@@ -11,6 +11,7 @@ const distDir = resolveDistDir(rootDir);
 const PORT = Number(process.env.PORT) || 8080;
 const isProduction = process.env.NODE_ENV === "production";
 const useViteDev = process.env.VITE_DEV === "1" && !isProduction;
+const runStartupDbMaintenance = process.env.RUN_STARTUP_DB_MAINTENANCE === "1";
 
 function validateProductionEnv() {
   if (!isProduction) return;
@@ -64,7 +65,7 @@ validateProductionEnv();
 if (isProduction && !useViteDev) {
   assertDistExists(distDir);
 }
-if (process.env.DATABASE_URL) {
+if (process.env.DATABASE_URL && runStartupDbMaintenance) {
   try {
     await ensureUserProfileColumns();
     await ensureAuditBackupSchema();
@@ -74,6 +75,8 @@ if (process.env.DATABASE_URL) {
     console.error("Database schema migration failed:", error);
     if (isProduction) process.exit(1);
   }
+} else if (process.env.DATABASE_URL) {
+  console.log("Database startup maintenance skipped. Run migrations explicitly before deployment.");
 }
 const app = await createApp();
 app.listen(PORT, "0.0.0.0", () => {

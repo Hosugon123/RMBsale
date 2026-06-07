@@ -26,7 +26,7 @@ export const ALL_BOOTSTRAP_SECTIONS: BootstrapSection[] = [
 export const REFRESH_PROFILES = {
   sale: ["users", "customers", "channels", "accounts", "sales", "saleAllocations", "rmbLots", "ledger"],
   purchase: ["users", "channels", "accounts", "purchases", "rmbLots", "ledger"],
-  settlement: ["users", "customers", "sales", "accounts", "ledger"],
+  settlement: ["customers", "accounts", "ledger"],
   purchasePay: ["users", "channels", "purchases", "accounts", "ledger"],
   adjustment: ["users", "channels", "accounts", "purchases", "rmbLots", "ledger"],
   transfer: ["users", "accounts", "ledger"],

@@ -51,8 +51,11 @@ async function postReversalDelta(
   entryType?: string
 ) {
   const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
-  await tx.update(accounts).set({ balance: sql`${accounts.balance} + ${toDbMoney(signedAmount)}` }).where(eq(accounts.id, accountId));
-  const [after] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
+  const [after] = await tx
+    .update(accounts)
+    .set({ balance: sql`${accounts.balance} + ${toDbMoney(signedAmount)}` })
+    .where(eq(accounts.id, accountId))
+    .returning({ balance: accounts.balance });
 
   await tx.insert(ledgerEntries).values({
     entryType: entryType ?? "作廢",
