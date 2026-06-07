@@ -400,6 +400,38 @@ export function saveState(state: AppState) {
   if (storage) storage.setItem(KEY, JSON.stringify(state));
 }
 
+/** 淺拷貝頂層陣列供 React 更新，避免 structuredClone 整份帳務。 */
+export function publishAppStateShallow(state: AppState): AppState {
+  return {
+    ...state,
+    users: [...state.users],
+    holders: [...state.holders],
+    accounts: state.accounts.map((account) => ({ ...account })),
+    customers: state.customers.map((customer) => ({ ...customer })),
+    channels: [...state.channels],
+    purchases: [...state.purchases],
+    sales: [...state.sales],
+    saleAllocations: [...state.saleAllocations],
+    rmbLots: state.rmbLots.map((lot) => ({ ...lot })),
+    ledger: [...state.ledger]
+  };
+}
+
+let pendingSaveState: AppState | null = null;
+let saveStateQueued = false;
+
+/** 延後寫入 localStorage，讓 UI 先結束「處理中」再存檔。 */
+export function scheduleSaveState(state: AppState) {
+  pendingSaveState = state;
+  if (saveStateQueued) return;
+  saveStateQueued = true;
+  queueMicrotask(() => {
+    if (pendingSaveState) saveState(pendingSaveState);
+    pendingSaveState = null;
+    saveStateQueued = false;
+  });
+}
+
 export function resetState() {
   const seed = createSeedState();
   saveState(seed);
@@ -790,7 +822,6 @@ export function addPurchase(state: AppState, input: {
       "買入付款"
     );
   }
-  saveState(state);
   return state;
 }
 
@@ -838,7 +869,6 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
       relatedId: sale.id
     });
   }
-  saveState(state);
   return state;
 }
 
@@ -910,7 +940,6 @@ export function payPurchase(state: AppState, input: { purchaseId: number; accoun
     `支付買入款：${purchase.channelName}`,
     "應付付款"
   );
-  saveState(state);
   return state;
 }
 
@@ -1389,7 +1418,6 @@ export function addTransfer(state: AppState, input: { fromAccountId: number; toA
 
   mutateAccount(state, from.id, from.currency, d(input.amount).neg().toFixed(2), "out", "內轉", transferId, `轉出至 ${to.holderName} / ${to.name}`);
   mutateAccount(state, to.id, to.currency, input.amount, "in", "內轉", transferId, `由 ${from.holderName} / ${from.name} 轉入`);
-  saveState(state);
   return state;
 }
 
@@ -1685,6 +1713,5 @@ export function reverseOperation(
     default:
       throw new Error("不支援的作廢類型");
   }
-  saveState(state);
   return state;
 }

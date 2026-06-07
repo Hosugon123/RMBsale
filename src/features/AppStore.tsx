@@ -28,7 +28,8 @@ import {
   clearBusinessData,
   replaceBusinessData,
   resetState,
-  saveState,
+  publishAppStateShallow,
+  scheduleSaveState,
   totals
 } from "../lib/localStore";
 import { applyBusinessImport, type BusinessDataImport } from "../lib/dataImport";
@@ -103,32 +104,34 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
   stateRef.current = state;
 
   const applyState = React.useCallback((next: AppState) => {
-    saveState(next);
     stateRef.current = next;
-    setState(next);
+    const published = publishAppStateShallow(next);
+    stateRef.current = published;
+    setState(published);
+    scheduleSaveState(published);
   }, []);
 
   const commit = React.useCallback((producer: (draft: AppState) => unknown) => {
-    const draft = structuredClone(stateRef.current) as AppState;
-    let next: AppState;
     try {
-      const result = producer(draft);
-      next = result && typeof result === "object" && "users" in (result as AppState) ? (result as AppState) : draft;
+      producer(stateRef.current);
     } catch (err) {
       throw err;
     }
-    applyState(next);
-  }, [applyState]);
+    const published = publishAppStateShallow(stateRef.current);
+    stateRef.current = published;
+    setState(published);
+    scheduleSaveState(published);
+  }, []);
 
-  const applyImportedState = React.useCallback(
-    (payload: BusinessDataImport) => {
-      const draft = structuredClone(stateRef.current) as AppState;
-      clearBusinessData(draft);
-      const imported = applyBusinessImport(draft.sessionUserId, draft.users, payload);
-      applyState(replaceBusinessData(draft, imported));
-    },
-    [applyState]
-  );
+  const applyImportedState = React.useCallback((payload: BusinessDataImport) => {
+    const base = clearBusinessData(stateRef.current);
+    const imported = applyBusinessImport(base.sessionUserId, base.users, payload);
+    const merged = replaceBusinessData(base, imported);
+    const published = publishAppStateShallow(merged);
+    stateRef.current = published;
+    setState(published);
+    scheduleSaveState(published);
+  }, []);
 
   React.useEffect(() => {
     if (import.meta.env.MODE === "test") return;
