@@ -66,6 +66,15 @@ export async function ensureAuditBackupSchema() {
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS "backup_runs_started_idx" ON "backup_runs" ("started_at" DESC)`);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS "audit_logs_created_idx" ON "audit_logs" ("created_at" DESC)`);
     await tx.execute(sql`ALTER TABLE "rmb_lots" ADD COLUMN IF NOT EXISTS "transfer_id" integer`);
+    await tx.execute(
+      sql`CREATE INDEX IF NOT EXISTS "rmb_lots_inventory_idx" ON "rmb_lots" ("account_id", "remaining_rmb", "created_at")`
+    );
+    await tx.execute(
+      sql`CREATE INDEX IF NOT EXISTS "sales_status_created_idx" ON "sales" ("status", "created_at" DESC)`
+    );
+    await tx.execute(
+      sql`CREATE INDEX IF NOT EXISTS "purchases_status_created_idx" ON "purchases" ("status", "created_at" DESC)`
+    );
   });
   ensured = true;
 }

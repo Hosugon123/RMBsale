@@ -1,7 +1,8 @@
 import "./loadEnv.js";
 import express from "express";
 import path from "node:path";
-import { ensureAuditBackupSchema } from "../api/_lib/ensureAuditBackupSchema.js";
+import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "../api/_lib/ensureAuditBackupSchema.js";
+import { ensureUserProfileColumns } from "../api/_lib/ensureUserColumns.js";
 import { createApiRouter } from "./apiRouter.js";
 import { assertDistExists, resolveAppRoot, resolveDistDir } from "./paths.js";
 
@@ -65,7 +66,9 @@ if (isProduction && !useViteDev) {
 }
 if (process.env.DATABASE_URL) {
   try {
+    await ensureUserProfileColumns();
     await ensureAuditBackupSchema();
+    await ensureRmbLotInventorySchema(1);
     console.log("Database schema check complete.");
   } catch (error) {
     console.error("Database schema migration failed:", error);

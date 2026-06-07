@@ -37,13 +37,27 @@ export function SalesEntry() {
     const r = parseFloat(rmbAmount) || 0;
     const e = parseFloat(exchangeRate) || 0;
     setTwdReceivable(Math.round(r * e * 100) / 100);
-    if (r > 0 && e > 0) {
-      api.calculateProfit(r, e)
-        .then((p) => setProfitPreview(p))
-        .catch(() => setProfitPreview(null));
-    } else {
+    if (r <= 0 || e <= 0) {
       setProfitPreview(null);
+      return;
     }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void api
+        .calculateProfit(r, e)
+        .then((preview) => {
+          if (!cancelled) setProfitPreview(preview);
+        })
+        .catch(() => {
+          if (!cancelled) setProfitPreview(null);
+        });
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [rmbAmount, exchangeRate]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -61,7 +75,7 @@ export function SalesEntry() {
       setExchangeRate('');
       setCustomerManual('');
       setCustomerId('');
-      load();
+      await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : '建立失敗';
       if ((err as Error & { code?: string }).code === 'VERSION_CONFLICT') {
@@ -94,7 +108,8 @@ export function SalesEntry() {
     if (!name) return;
     try {
       await api.addCustomer(name);
-      await load();
+      const customers = await api.customers();
+      setData((prev) => (prev ? { ...prev, customers } : prev));
       await Swal.fire({ icon: 'success', title: '已加入常用客戶' });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: err instanceof Error ? err.message : '失敗' });

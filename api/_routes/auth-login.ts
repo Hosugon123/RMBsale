@@ -2,7 +2,6 @@ import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } fro
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
-import { ensureUserProfileColumns } from "../_lib/ensureUserColumns.js";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
@@ -20,7 +19,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     const body = await readJson<LoginBody>(req);
     const loginName = body.username?.trim() ?? "";
     const meta = getClientMeta(req);
-    await ensureUserProfileColumns();
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.username, loginName));
 

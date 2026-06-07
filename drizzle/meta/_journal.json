@@ -22,6 +22,20 @@
       "when": 1749216000000,
       "tag": "0002_audit_backup",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1749302400000,
+      "tag": "0003_rmb_lot_transfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1749388800000,
+      "tag": "0004_query_indexes",
+      "breakpoints": true
     }
   ]
 }

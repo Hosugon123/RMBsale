@@ -1,10 +1,20 @@
 import { Router } from "express";
 import { routes, transactionReverseHandler } from "../api/_routes/registry.js";
 import { methodNotAllowed, notFound } from "../api/_lib/http.js";
+import { routeTimingLabel } from "../api/_lib/requestTiming.js";
 import { asHttpRequest, asHttpResponse } from "./httpAdapter.js";
 
 export function createApiRouter() {
   const router = Router();
+
+  router.use((req, res, next) => {
+    const label = routeTimingLabel(asHttpRequest(req), req.path.replace(/^\//, ""));
+    console.time(label);
+    res.on("finish", () => {
+      console.timeEnd(label);
+    });
+    next();
+  });
 
   router.post("/transactions/:id/reverse", async (req, res, next) => {
     try {

@@ -87,7 +87,9 @@ export const purchases = pgTable("purchases", {
   deletedBy: integer("deleted_by").references(() => users.id),
   deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+}, (table) => ({
+  statusCreatedIdx: index("purchases_status_created_idx").on(table.status, table.createdAt)
+}));
 
 export const rmbLots = pgTable(
   "rmb_lots",
@@ -103,7 +105,8 @@ export const rmbLots = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
-    fifoIdx: index("rmb_lots_fifo_idx").on(table.accountId, table.createdAt)
+    fifoIdx: index("rmb_lots_fifo_idx").on(table.accountId, table.createdAt),
+    inventoryIdx: index("rmb_lots_inventory_idx").on(table.accountId, table.remainingRmb, table.createdAt)
   })
 );
 
@@ -123,7 +126,9 @@ export const sales = pgTable("sales", {
   deletedBy: integer("deleted_by").references(() => users.id),
   deleteReason: text("delete_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+}, (table) => ({
+  statusCreatedIdx: index("sales_status_created_idx").on(table.status, table.createdAt)
+}));
 
 export const saleAllocations = pgTable("sale_allocations", {
   id: serial("id").primaryKey(),

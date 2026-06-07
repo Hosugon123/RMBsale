@@ -1,5 +1,7 @@
 import * as React from "react";
 import { useAuth } from "../context/AuthContext";
+import { REFRESH_PROFILES, type RefreshProfile } from "../lib/bootstrapSections";
+import { mergeBootstrapState } from "../lib/mergeBootstrapState";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
 import type { BusinessDataImport } from "../lib/dataImport";
@@ -8,6 +10,8 @@ import type { AppState } from "../lib/types";
 import type { AppStore } from "./AppStore";
 import { AppStoreContext } from "./AppStore";
 
+type RefreshOptions = { full?: boolean; profile?: RefreshProfile };
+
 export function ServerAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser, loading: authLoading, refresh: refreshAuth } = useAuth();
   const [state, setState] = React.useState<AppState | null>(null);
@@ -15,25 +19,34 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
   const [loadError, setLoadError] = React.useState("");
   const refreshInFlightRef = React.useRef<Promise<void> | null>(null);
 
-  const refresh = React.useCallback(async (options?: { lite?: boolean }) => {
+  const refresh = React.useCallback(async (options?: RefreshOptions) => {
     setLoadError("");
-    const { state: next } = await serverApi.bootstrap(options);
+    if (options?.profile) {
+      const sections = [...REFRESH_PROFILES[options.profile]];
+      const { state: patch } = await serverApi.bootstrap({ sections });
+      setState((prev) => (prev ? mergeBootstrapState(prev, patch) : (patch as AppState)));
+      return;
+    }
+    const { state: next } = await serverApi.bootstrap();
     setState(next);
   }, []);
 
-  const scheduleRefresh = React.useCallback(() => {
-    if (refreshInFlightRef.current) return refreshInFlightRef.current;
-    refreshInFlightRef.current = refresh({ lite: true })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : "更新帳務資料失敗";
-        setLoadError(message);
-        console.error(err);
-      })
-      .finally(() => {
-        refreshInFlightRef.current = null;
-      });
-    return refreshInFlightRef.current;
-  }, [refresh]);
+  const scheduleRefresh = React.useCallback(
+    (profile?: RefreshProfile) => {
+      if (refreshInFlightRef.current) return refreshInFlightRef.current;
+      refreshInFlightRef.current = refresh(profile ? { profile } : undefined)
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : "更新帳務資料失敗";
+          setLoadError(message);
+          console.error(err);
+        })
+        .finally(() => {
+          refreshInFlightRef.current = null;
+        });
+      return refreshInFlightRef.current;
+    },
+    [refresh]
+  );
 
   React.useEffect(() => {
     if (authLoading) return;
@@ -43,7 +56,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       return;
     }
     setLoading(true);
-    void refresh()
+    void refresh({ full: true })
       .catch((err) => {
         const message = err instanceof Error ? err.message : "載入帳務資料失敗";
         setLoadError(message);
@@ -66,7 +79,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
               className="text-primary underline"
               onClick={() => {
                 setLoading(true);
-                void refresh()
+                void refresh({ full: true })
                   .catch((err) => setLoadError(err instanceof Error ? err.message : "載入失敗"))
                   .finally(() => setLoading(false));
               }}
@@ -90,8 +103,8 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     );
   }
 
-  const afterMutation = (options?: { refreshSession?: boolean }) => {
-    scheduleRefresh();
+  const afterMutation = (profile: RefreshProfile, options?: { refreshSession?: boolean }) => {
+    scheduleRefresh(profile);
     if (options?.refreshSession) void refreshAuth();
   };
 
@@ -99,113 +112,115 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     state,
     sessionUser,
     summary: totals(state),
-    refresh: () => refresh({ lite: true }),
+    refresh: () => {
+      void refresh({ full: true });
+    },
     resetDemo: () => {
       throw new Error("線上環境不提供重置示範資料，請使用「清除帳務資料」。");
     },
     clearData: async () => {
       await serverApi.clearBusiness();
-      await refresh();
+      await refresh({ full: true });
     },
     importBusinessData: async (payload: BusinessDataImport) => {
       await serverApi.importBusiness(payload);
-      await refresh();
+      await refresh({ full: true });
     },
     createPurchase: async (input) => {
       await serverApi.createPurchase(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("purchase");
     },
     createSale: async (input) => {
       await serverApi.createSale(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("sale");
     },
     createSettlement: async (input) => {
       await serverApi.createSettlement(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("settlement");
     },
     payPurchase: async (input) => {
       await serverApi.payPurchase(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("purchasePay");
     },
     adjustAccount: async (input) => {
       await serverApi.adjustAccount(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("adjustment");
     },
     createTransfer: async (input) => {
       await serverApi.createTransfer(input as Record<string, unknown>);
-      afterMutation();
+      afterMutation("transfer");
     },
     createAccount: async (input) => {
       await serverApi.createAccount(input);
-      afterMutation();
+      afterMutation("accountAdmin");
     },
     createHolder: async (input) => {
       await serverApi.createHolder(input.name);
-      afterMutation();
+      afterMutation("holderAdmin");
     },
     createChannel: async (input) => {
       const name = input.name.trim();
       if (!name) throw new Error("請輸入渠道名稱");
       await serverApi.createChannel(name);
-      afterMutation();
+      afterMutation("channelAdmin");
     },
     renameChannel: async (input) => {
       await serverApi.renameChannel(input);
-      afterMutation();
+      afterMutation("channelAdmin");
     },
     deleteChannel: async (channelId) => {
       await serverApi.deleteChannel(channelId);
-      afterMutation();
+      afterMutation("channelAdmin");
     },
     setChannelActive: async (channelId, isActive) => {
       await serverApi.setChannelActive(channelId, isActive);
-      afterMutation();
+      afterMutation("channelAdmin");
     },
     createCustomer: async (input) => {
       const name = input.name.trim();
       if (!name) throw new Error("請輸入客戶名稱");
       await serverApi.createCustomer(name);
-      afterMutation();
+      afterMutation("customerAdmin");
     },
     renameCustomer: async (input) => {
       await serverApi.renameCustomer(input);
-      afterMutation();
+      afterMutation("customerAdmin");
     },
     deleteCustomer: async (customerId) => {
       await serverApi.deleteCustomer(customerId);
-      afterMutation();
+      afterMutation("customerAdmin");
     },
     renameHolder: async (input) => {
       await serverApi.renameHolder(input);
-      afterMutation();
+      afterMutation("holderAdmin");
     },
     renameAccount: async (input) => {
       await serverApi.renameAccount(input);
-      afterMutation();
+      afterMutation("accountAdmin");
     },
     deleteHolder: async (input) => {
       await serverApi.deleteHolder(input.holderId);
-      afterMutation();
+      afterMutation("holderAdmin");
     },
     deleteAccount: async (input) => {
       await serverApi.deleteAccount(input.accountId);
-      afterMutation();
+      afterMutation("accountAdmin");
     },
     createUser: async (input) => {
       await serverApi.createUser(input);
-      afterMutation();
+      afterMutation("userAdmin");
     },
     updateUser: async (userId, input) => {
       await serverApi.updateUser(userId, input);
-      afterMutation({ refreshSession: userId === sessionUser.id });
+      afterMutation("userAdmin", { refreshSession: userId === sessionUser.id });
     },
     setUserActive: async (userId, isActive) => {
       await serverApi.setUserActive(userId, isActive);
-      afterMutation({ refreshSession: userId === sessionUser.id });
+      afterMutation("userAdmin", { refreshSession: userId === sessionUser.id });
     },
     reverseOperation: async (input: { entityType: ReversalEntityType; entityId: number }) => {
       await serverApi.reverseOperation(input.entityType, input.entityId);
-      afterMutation();
+      afterMutation("reversal");
     }
   };
 

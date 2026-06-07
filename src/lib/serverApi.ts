@@ -1,4 +1,5 @@
 import type { AppState, AppUser, PermissionKey } from "./types";
+import type { BootstrapSection } from "./bootstrapSections";
 import type { BusinessDataImport } from "./dataImport";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -33,8 +34,10 @@ export const serverApi = {
     return data.user;
   },
 
-  bootstrap: (options?: { lite?: boolean }) =>
-    request<{ state: AppState }>(options?.lite ? "bootstrap?lite=1" : "bootstrap"),
+  bootstrap: (options?: { sections?: BootstrapSection[] }) => {
+    const query = options?.sections?.length ? `?sections=${options.sections.join(",")}` : "";
+    return request<{ state: AppState; partial?: boolean }>(`bootstrap${query}`);
+  },
 
   createPurchase: (body: Record<string, unknown>) =>
     request("purchases", { method: "POST", body: JSON.stringify(body) }),
