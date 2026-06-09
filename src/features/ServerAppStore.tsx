@@ -20,6 +20,38 @@ type SettlementInput = {
   note?: string;
 };
 
+const INITIAL_BOOTSTRAP_SECTIONS = [
+  "users",
+  "holders",
+  "accounts",
+  "customers",
+  "channels",
+  "ledger"
+] as const;
+
+const BACKGROUND_BOOTSTRAP_SECTIONS = [
+  "purchases",
+  "sales",
+  "rmbLots",
+  "saleAllocations"
+] as const;
+
+function stateFromPartial(patch: Partial<AppState> & { sessionUserId?: number }): AppState {
+  return {
+    sessionUserId: patch.sessionUserId ?? 0,
+    users: patch.users ?? [],
+    holders: patch.holders ?? [],
+    accounts: patch.accounts ?? [],
+    customers: patch.customers ?? [],
+    channels: patch.channels ?? [],
+    purchases: patch.purchases ?? [],
+    sales: patch.sales ?? [],
+    rmbLots: patch.rmbLots ?? [],
+    saleAllocations: patch.saleAllocations ?? [],
+    ledger: patch.ledger ?? []
+  };
+}
+
 function money(value: unknown) {
   return d(value as never).toDecimalPlaces(2).toFixed(2);
 }
@@ -94,11 +126,27 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     if (options?.profile) {
       const sections = [...REFRESH_PROFILES[options.profile]];
       const { state: patch } = await serverApi.bootstrap({ sections });
-      setState((prev) => (prev ? mergeBootstrapState(prev, patch) : (patch as AppState)));
+      setState((prev) => (prev ? mergeBootstrapState(prev, patch) : stateFromPartial(patch)));
       return;
     }
     const { state: next } = await serverApi.bootstrap();
     setState(next);
+  }, []);
+
+  const loadInitialState = React.useCallback(async () => {
+    setLoadError("");
+    const { state: patch } = await serverApi.bootstrap({ sections: [...INITIAL_BOOTSTRAP_SECTIONS] });
+    setState(stateFromPartial(patch));
+
+    void serverApi.bootstrap({ sections: [...BACKGROUND_BOOTSTRAP_SECTIONS] })
+      .then(({ state: backgroundPatch }) => {
+        setState((prev) => (prev ? mergeBootstrapState(prev, backgroundPatch) : stateFromPartial(backgroundPatch)));
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "背景載入交易資料失敗";
+        setBannerError(message);
+        console.error(err);
+      });
   }, []);
 
   const scheduleRefresh = React.useCallback(
@@ -126,7 +174,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       return;
     }
     setLoading(true);
-    void refresh({ full: true })
+    void loadInitialState()
       .catch((err) => {
         const message = err instanceof Error ? err.message : "載入帳務資料失敗";
         setLoadError(message);
@@ -134,7 +182,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
         console.error(err);
       })
       .finally(() => setLoading(false));
-  }, [authUser, authLoading, refresh]);
+  }, [authUser, authLoading, loadInitialState]);
 
   if (authLoading || loading || !state || !authUser) {
     return (

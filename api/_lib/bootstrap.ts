@@ -160,6 +160,7 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
     const purchaseChannelMap = new Map(
       purchaseRows.map((row) => [row.id, row.channelId ? channelMap.get(row.channelId) ?? "未命名渠道" : "未命名渠道"])
     );
+    const lotMap = new Map(lotRows.map((row) => [row.id, row]));
 
     const result: Record<string, unknown> & { sessionUserId: number } = {
       sessionUserId
@@ -238,7 +239,7 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
     }
     if (loadAll || wantsSection(sections, "saleAllocations")) {
       result.saleAllocations = allocationRows.map((row) => {
-        const lot = lotRows.find((item) => item.id === row.lotId);
+        const lot = lotMap.get(row.lotId);
         return {
           id: row.id,
           saleId: row.saleId,

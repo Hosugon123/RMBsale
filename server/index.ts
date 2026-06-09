@@ -1,4 +1,5 @@
 import "./loadEnv.js";
+import compression from "compression";
 import express from "express";
 import path from "node:path";
 import { sql } from "drizzle-orm";
@@ -29,6 +30,7 @@ function validateProductionEnv() {
 async function createApp() {
   const app = express();
   app.set("trust proxy", 1);
+  app.use(compression());
   app.use(express.json({ limit: "10mb" }));
 
   app.get("/health", async (_req, res) => {
