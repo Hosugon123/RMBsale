@@ -14,7 +14,7 @@ describe("AppStoreProvider", () => {
     expect(result.current.state.sessionUserId).toBeGreaterThan(0);
   });
 
-  it("records sale with negative RMB balance when inventory is short", () => {
+  it("rejects sale when RMB inventory is insufficient", () => {
     const { result } = renderHook(() => useAppStore(), { wrapper });
     act(() => {
       const account = result.current.state.accounts.find((a) => a.id === 4)!;
@@ -22,17 +22,19 @@ describe("AppStoreProvider", () => {
       result.current.state.rmbLots = result.current.state.rmbLots.filter((lot) => lot.accountId !== 4);
     });
 
-    act(() =>
-      result.current.createSale({
-        customerName: "測試客戶",
-        rmbAccountId: 4,
-        rmbAmount: "500",
-        exchangeRate: "4.5"
-      })
-    );
+    const salesBefore = result.current.state.sales.length;
+    expect(() =>
+      act(() =>
+        result.current.createSale({
+          customerName: "測試客戶",
+          rmbAccountId: 4,
+          rmbAmount: "500",
+          exchangeRate: "4.5"
+        })
+      )
+    ).toThrow("RMB 庫存不足");
 
-    expect(result.current.state.accounts.find((a) => a.id === 4)?.balance).toBe("-500.00");
-    expect(result.current.state.sales.length).toBeGreaterThan(0);
+    expect(result.current.state.sales.length).toBe(salesBefore);
   });
 
   it("keeps valid AppState after createUser mutation", () => {

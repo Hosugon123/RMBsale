@@ -58,7 +58,7 @@ describe("store error handling (no partial apply on failure)", () => {
     expect(() => addChannel(state, { name: "交易所 A" })).toThrow("此渠道已存在");
   });
 
-  it("allows sale when inventory is short by recording negative RMB balance", () => {
+  it("rejects sale when RMB inventory is insufficient", () => {
     const state = createSeedState();
     state.accounts.find((a) => a.id === 4)!.balance = "0.00";
     state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
@@ -72,23 +72,17 @@ describe("store error handling (no partial apply on failure)", () => {
       })
     );
 
-    expect(result.ok).toBe(true);
-    expect(result.state.accounts.find((a) => a.id === 4)?.balance).toBe("-1000.00");
-    expect(result.state.sales).toHaveLength(state.sales.length + 1);
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeInstanceOf(Error);
+    expect((result.error as Error).message).toContain("RMB 庫存不足");
+    expect(result.state.sales).toHaveLength(state.sales.length);
   });
 
-  it("offsets negative balance when purchase is deposited later", () => {
+  it("allows sale after purchase replenishes inventory", () => {
     const state = createSeedState();
     state.accounts.find((a) => a.id === 4)!.balance = "0.00";
     state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
-
-    addSale(state, {
-      customerName: "測試",
-      rmbAccountId: 4,
-      rmbAmount: "1000",
-      exchangeRate: "4.5"
-    });
-    expect(state.accounts.find((a) => a.id === 4)?.balance).toBe("-1000.00");
+    const salesBefore = state.sales.length;
 
     addPurchase(state, {
       channelName: "交易所 A",
@@ -97,7 +91,15 @@ describe("store error handling (no partial apply on failure)", () => {
       exchangeRate: "4.4",
       paymentStatus: "unpaid"
     });
+
+    addSale(state, {
+      customerName: "測試",
+      rmbAccountId: 4,
+      rmbAmount: "1000",
+      exchangeRate: "4.5"
+    });
     expect(state.accounts.find((a) => a.id === 4)?.balance).toBe("0.00");
+    expect(state.sales).toHaveLength(salesBefore + 1);
   });
 
   it("allows account withdrawal below zero balance", () => {

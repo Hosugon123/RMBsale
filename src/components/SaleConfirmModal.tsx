@@ -14,6 +14,7 @@ type SaleConfirmModalProps = {
   exchangeRate: string;
   receivableTwd: string;
   profitTwd: string | null;
+  isMutating?: boolean;
   overlayClassName?: string;
 };
 
@@ -27,6 +28,7 @@ export function SaleConfirmModal({
   exchangeRate,
   receivableTwd,
   profitTwd,
+  isMutating = false,
   overlayClassName = "z-50"
 }: SaleConfirmModalProps) {
   if (!open) return null;
@@ -34,7 +36,7 @@ export function SaleConfirmModal({
   return (
     <div
       className={`fixed inset-0 flex items-center justify-center bg-black/70 p-4 ${overlayClassName}`}
-      onClick={onClose}
+      onClick={isMutating ? undefined : onClose}
     >
       <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
         <CardHeader className="border-b p-4">
@@ -68,11 +70,11 @@ export function SaleConfirmModal({
             </p>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            <Button type="button" variant="outline" className="flex-1" disabled={isMutating} onClick={onClose}>
               取消
             </Button>
-            <Button type="button" className="flex-1" onClick={onConfirm}>
-              確認建立
+            <Button type="button" className="flex-1" disabled={isMutating} onClick={onConfirm}>
+              {isMutating ? "處理中…" : "確認建立"}
             </Button>
           </div>
         </CardContent>

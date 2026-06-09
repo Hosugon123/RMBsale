@@ -1,16 +1,18 @@
 import * as React from "react";
 import type { LedgerTableRow } from "../components/LedgerTable";
 import { useAppStore } from "../features/AppStore";
+import { canWriteLedger } from "../lib/permissions";
 import { canVoidLedgerEntry, type ReversalTarget } from "../lib/reversalUi";
 
 export function useLedgerVoid() {
-  const { state, reverseOperation } = useAppStore();
+  const { state, sessionUser, reverseOperation } = useAppStore();
+  const canVoid = canWriteLedger(sessionUser);
   const [pending, setPending] = React.useState<{ entry: LedgerTableRow; target: ReversalTarget } | null>(null);
   const [error, setError] = React.useState("");
 
   const resolveVoidTarget = React.useCallback(
-    (entry: LedgerTableRow) => canVoidLedgerEntry(state, entry),
-    [state]
+    (entry: LedgerTableRow) => (canVoid ? canVoidLedgerEntry(state, entry) : null),
+    [canVoid, state]
   );
 
   const requestVoid = React.useCallback((entry: LedgerTableRow, target: ReversalTarget) => {

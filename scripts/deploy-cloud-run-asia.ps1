@@ -49,7 +49,7 @@ Run "gcloud" @(
   "--cpu", "1",
   "--min-instances", "1",
   "--max-instances", "20",
-  "--set-env-vars", "NODE_ENV=production,RUN_STARTUP_DB_MAINTENANCE=0",
+  "--set-env-vars", "NODE_ENV=production,RUN_STARTUP_DB_MAINTENANCE=0,BACKUP_STORAGE=gcs",
   "--set-secrets", "DATABASE_URL=$DatabaseSecret`:latest,JWT_SECRET=$JwtSecret`:latest"
 )
 

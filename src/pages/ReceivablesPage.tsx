@@ -13,6 +13,7 @@ import { CustomerLedgerModal } from "../components/CustomerLedgerModal";
 import { HistoricalCustomersModal } from "../components/HistoricalCustomersModal";
 import { PayPurchaseConfirmModal } from "../components/PayPurchaseConfirmModal";
 import { openSettlementModal } from "../components/SettlementModalHost";
+import { NumberPagination } from "../components/NumberPagination";
 import { PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
 import {
   purchasePayableTwd,
@@ -28,6 +29,7 @@ const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const cardHeaderClass = "p-3 pb-2 sm:p-4 sm:pb-0";
 const cardContentClass = "min-w-0 p-3 pt-0 sm:p-4";
+const PAYABLE_PAGE_SIZE = 5;
 
 function ReceivableCustomerCards({
   customers,
@@ -454,10 +456,7 @@ export function ReceivablesPage() {
             </Button>
           </CardHeader>
           <CardContent className={cn(cardContentClass, "space-y-4 sm:space-y-6")}>
-            <PayablePurchaseCards purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
-            <div className="hidden overflow-x-auto md:block">
-              <PayablesTable purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
-            </div>
+            <PaginatedPayables purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
             <div className="min-w-0 overflow-x-auto border-t border-border/60 pt-4">
               <p className="mb-3 text-xs font-medium text-muted-foreground sm:text-sm">應付／付款流水</p>
               <PaginatedLedgerTable
@@ -547,9 +546,7 @@ export function ReceivablesPage() {
             </Button>
           </CardHeader>
           <CardContent className={cn(cardContentClass, "space-y-4 sm:space-y-6")}>
-            <div className="overflow-x-auto">
-              <PayablesTable purchases={purchasePayables} onSelectChannel={setLedgerChannelId} />
-            </div>
+            <PaginatedPayables purchases={purchasePayables} onSelectChannel={setLedgerChannelId} layout="table" />
             <div className="min-w-0 overflow-x-auto border-t border-border/60 pt-4">
               <p className="mb-3 text-xs font-medium text-muted-foreground sm:text-sm">應付／付款流水</p>
               <PaginatedLedgerTable
@@ -561,6 +558,44 @@ export function ReceivablesPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function PaginatedPayables({
+  purchases,
+  onSelectChannel,
+  layout = "responsive"
+}: {
+  purchases: Purchase[];
+  onSelectChannel: (channelId: number) => void;
+  layout?: "responsive" | "table";
+}) {
+  const [page, setPage] = React.useState(1);
+  const pageCount = Math.max(1, Math.ceil(purchases.length / PAYABLE_PAGE_SIZE));
+
+  React.useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [purchases.length]);
+
+  const pagedPurchases = React.useMemo(
+    () => purchases.slice((page - 1) * PAYABLE_PAGE_SIZE, page * PAYABLE_PAGE_SIZE),
+    [purchases, page]
+  );
+
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      {layout === "responsive" ? (
+        <PayablePurchaseCards purchases={pagedPurchases} onSelectChannel={onSelectChannel} />
+      ) : null}
+      <div className={cn(layout === "responsive" && "hidden overflow-x-auto md:block")}>
+        <PayablesTable purchases={pagedPurchases} onSelectChannel={onSelectChannel} />
+      </div>
+      <NumberPagination page={page} pageCount={pageCount} onPageChange={setPage} />
     </div>
   );
 }
@@ -584,6 +619,13 @@ function PayablesTable({
         </TR>
       </THead>
       <TBody>
+        {purchases.length === 0 ? (
+          <TR>
+            <TD colSpan={5} className="py-6 text-center text-muted-foreground">
+              尚無買入紀錄
+            </TD>
+          </TR>
+        ) : null}
         {purchases.map((purchase) => (
           <TR key={purchase.id}>
             <TD>

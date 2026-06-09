@@ -1,8 +1,10 @@
 import "./loadEnv.js";
 import express from "express";
 import path from "node:path";
+import { sql } from "drizzle-orm";
 import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "../api/_lib/ensureAuditBackupSchema.js";
 import { ensureUserProfileColumns } from "../api/_lib/ensureUserColumns.js";
+import { getDb } from "../api/_lib/db.js";
 import { createApiRouter } from "./apiRouter.js";
 import { assertDistExists, resolveAppRoot, resolveDistDir } from "./paths.js";
 
@@ -29,8 +31,19 @@ async function createApp() {
   app.set("trust proxy", 1);
   app.use(express.json({ limit: "10mb" }));
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
+  app.get("/health", async (_req, res) => {
+    if (!process.env.DATABASE_URL) {
+      res.status(503).json({ ok: false, db: "missing" });
+      return;
+    }
+    try {
+      const db = getDb();
+      await db.execute(sql`select 1`);
+      res.json({ ok: true, db: "up" });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(503).json({ ok: false, db: "down" });
+    }
   });
 
   app.use("/api", createApiRouter());

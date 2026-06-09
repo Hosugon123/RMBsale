@@ -86,6 +86,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
   const [state, setState] = React.useState<AppState | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
+  const [bannerError, setBannerError] = React.useState("");
   const refreshInFlightRef = React.useRef<Promise<void> | null>(null);
 
   const refresh = React.useCallback(async (options?: RefreshOptions) => {
@@ -106,7 +107,7 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       refreshInFlightRef.current = refresh(profile ? { profile } : undefined)
         .catch((err) => {
           const message = err instanceof Error ? err.message : "更新帳務資料失敗";
-          setLoadError(message);
+          setBannerError(message);
           console.error(err);
         })
         .finally(() => {
@@ -209,14 +210,13 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       setState((current) =>
         current ? applyOptimisticSettlement(current, settlementInput, sessionUser) : current
       );
-      void serverApi.createSettlement(settlementInput as unknown as Record<string, unknown>)
-        .then(() => afterMutation("settlement"))
-        .catch((err) => {
-          setState(rollbackState);
-          const message = err instanceof Error ? err.message : "收帳失敗，已復原畫面資料";
-          setLoadError(message);
-          console.error(err);
-        });
+      try {
+        await serverApi.createSettlement(settlementInput as unknown as Record<string, unknown>);
+        afterMutation("settlement");
+      } catch (err) {
+        setState(rollbackState);
+        throw err instanceof Error ? err : new Error("收帳失敗，已復原畫面資料");
+      }
     },
     payPurchase: async (input) => {
       await serverApi.payPurchase(input as Record<string, unknown>);
@@ -304,5 +304,24 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     }
   };
 
-  return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
+  return (
+    <AppStoreContext.Provider value={value}>
+      {bannerError ? (
+        <div
+          className="sticky top-0 z-[100] flex items-center justify-between gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive"
+          role="alert"
+        >
+          <span className="min-w-0 flex-1">{bannerError}</span>
+          <button
+            type="button"
+            className="shrink-0 underline"
+            onClick={() => setBannerError("")}
+          >
+            關閉
+          </button>
+        </div>
+      ) : null}
+      {children}
+    </AppStoreContext.Provider>
+  );
 }

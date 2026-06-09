@@ -57,7 +57,13 @@ export function LoginPage() {
             </label>
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">密碼</span>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
             </label>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "登入中…" : "登入"}

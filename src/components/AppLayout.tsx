@@ -46,7 +46,7 @@ export function AppLayout() {
 
   const pageTitle = React.useMemo(() => {
     if (location.pathname === "/" || location.pathname === "") return "儀表板";
-    if (location.pathname === "/account") return "帳務管理";
+    if (location.pathname === "/account" || location.pathname === "/accounts") return "帳務管理";
     if (location.pathname === "/admin") return adminNavItem.label;
     return nav.find((item) => item.to === location.pathname)?.label ?? "RMBsale";
   }, [location.pathname, nav]);

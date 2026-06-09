@@ -1,6 +1,6 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { reverseOperation, type ReversalEntityType } from "../_lib/reversals.js";
-import { getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireUser } from "../_lib/http.js";
+import { getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireWriteAccess } from "../_lib/http.js";
 
 type ReversalBody = {
   entityType: ReversalEntityType;
@@ -10,7 +10,7 @@ type ReversalBody = {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
   try {
-    const user = requireUser(req);
+    const user = await requireWriteAccess(req);
     const body = await readJson<ReversalBody>(req);
     if (!body.entityType || !body.entityId) {
       throw new Error("請提供 entityType 與 entityId");

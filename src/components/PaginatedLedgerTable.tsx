@@ -21,7 +21,7 @@ export function PaginatedLedgerTable({
   emptyMessage,
   pageSize = LEDGER_PAGE_SIZE,
   className = "space-y-4",
-  layout = "table",
+  layout = "responsive",
   resolveVoidTarget,
   onVoid
 }: PaginatedLedgerTableProps) {

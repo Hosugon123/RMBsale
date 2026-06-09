@@ -272,27 +272,49 @@ export async function reverseSettlement(settlementId: number, actor: Actor) {
       .set({ receivableTwd: sql`${customers.receivableTwd} + ${settlement.amountTwd}` })
       .where(eq(customers.id, settlement.customerId));
 
-    const [ledger] = await tx
+    const ledgers = await tx
       .select()
       .from(ledgerEntries)
       .where(
-        and(eq(ledgerEntries.relatedTable, "settlement"), eq(ledgerEntries.relatedId, settlementId), eq(ledgerEntries.isReversal, false))
-      )
-      .limit(1);
-    if (ledger?.accountId) {
-      await postReversalDelta(
-        tx,
-        ledger.accountId,
-        "TWD",
-        `-${settlement.amountTwd}`,
-        "out",
-        "settlement",
-        settlementId,
-        actor.id,
-        `作廢收帳 #${settlementId}`,
-        ledger.id,
-        "收帳作廢"
+        and(
+          eq(ledgerEntries.relatedId, settlementId),
+          eq(ledgerEntries.isReversal, false),
+          sql`${ledgerEntries.relatedTable} in ('settlement', 'settlements')`
+        )
       );
+
+    for (const row of ledgers) {
+      if (row.accountId) {
+        await postReversalDelta(
+          tx,
+          row.accountId,
+          "TWD",
+          `-${row.amount}`,
+          "out",
+          "settlements",
+          settlementId,
+          actor.id,
+          `作廢收帳 #${settlementId}`,
+          row.id,
+          "收帳作廢"
+        );
+        continue;
+      }
+      if (row.customerId) {
+        await tx.insert(ledgerEntries).values({
+          entryType: "作廢",
+          customerId: row.customerId,
+          relatedTable: row.relatedTable,
+          relatedId: row.relatedId,
+          direction: row.direction === "in" ? "out" : "in",
+          currency: row.currency,
+          amount: row.amount,
+          description: `作廢收帳 #${settlementId}`,
+          isReversal: true,
+          reversesLedgerId: row.id,
+          operatorId: actor.id
+        });
+      }
     }
 
     await tx
@@ -534,7 +556,9 @@ export function resolveReversalTarget(relatedTable?: string | null, relatedId?: 
   }
   if (relatedTable === "purchase") return { entityType: "purchase" as const, entityId: relatedId };
   if (relatedTable === "sale") return { entityType: "sale" as const, entityId: relatedId };
-  if (relatedTable === "settlement") return { entityType: "settlement" as const, entityId: relatedId };
+  if (relatedTable === "settlement" || relatedTable === "settlements") {
+    return { entityType: "settlement" as const, entityId: relatedId };
+  }
   if (relatedTable === "transfer") return { entityType: "transfer" as const, entityId: relatedId };
   if (relatedTable === "入金" || relatedTable === "撤資" || relatedTable === "profit" || relatedTable === "分潤") {
     return null;

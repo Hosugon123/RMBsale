@@ -12,13 +12,16 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
+import { NumberPagination } from "../components/NumberPagination";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
 
 const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const SALE_PAGE_SIZE = 20;
 
 function accountOptionLabel(holderName: string, name: string, balance: string, fifoRmb: string) {
   const balanceLabel = fmtMoney(balance, "RMB");
@@ -34,6 +37,7 @@ function settlementLabel(status: string) {
 
 export function SalePage() {
   const { state, createSale } = useAppStore();
+  const isMutating = useIsMutating();
   const rmbAccounts = state.accounts.filter((account) => account.currency === "RMB" && account.isActive);
   const activeCustomers = state.customers.filter((customer) => customer.isActive);
   const [customerManagerOpen, setCustomerManagerOpen] = React.useState(false);
@@ -66,15 +70,32 @@ export function SalePage() {
   );
   const receivableTwd = amountPreview?.twdAmount ?? "0";
   const rmbAccount = rmbAccounts.find((account) => String(account.id) === form.rmbAccountId);
+  const [salePage, setSalePage] = React.useState(1);
+  const salePageCount = Math.max(1, Math.ceil(state.sales.length / SALE_PAGE_SIZE));
 
-  const submitSale = () => {
+  React.useEffect(() => {
+    if (salePage > salePageCount) setSalePage(salePageCount);
+  }, [salePage, salePageCount]);
+
+  React.useEffect(() => {
+    setSalePage(1);
+  }, [state.sales.length]);
+
+  const pagedSales = React.useMemo(
+    () => state.sales.slice((salePage - 1) * SALE_PAGE_SIZE, salePage * SALE_PAGE_SIZE),
+    [state.sales, salePage]
+  );
+
+  const submitSale = async () => {
     try {
-      createSale({
-        customerName,
-        rmbAccountId: Number(form.rmbAccountId),
-        rmbAmount: form.rmbAmount,
-        exchangeRate: form.exchangeRate
-      });
+      await runMutation(() =>
+        createSale({
+          customerName,
+          rmbAccountId: Number(form.rmbAccountId),
+          rmbAmount: form.rmbAmount,
+          exchangeRate: form.exchangeRate
+        })
+      );
       setForm((current) => ({ ...current, rmbAmount: "", exchangeRate: "" }));
       resetCustomerSource();
       setConfirmOpen(false);
@@ -176,9 +197,9 @@ export function SalePage() {
               profitHint={amountPreview?.profitError ?? undefined}
             />
             {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
-            <Button className="h-10 w-full" type="submit">
+            <Button className="h-10 w-full" disabled={isMutating} type="submit">
               <HandCoins className="h-4 w-4" />
-              建立售出
+              {isMutating ? "處理中…" : "建立售出"}
             </Button>
           </form>
         </CardContent>
@@ -188,7 +209,7 @@ export function SalePage() {
         <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-0">
           <CardTitle>售出紀錄</CardTitle>
         </CardHeader>
-        <CardContent className="min-w-0 p-3 pt-0 sm:p-4">
+        <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-4">
           <Table>
             <THead>
               <TR>
@@ -203,7 +224,14 @@ export function SalePage() {
               </TR>
             </THead>
             <TBody>
-              {state.sales.map((item) => (
+              {pagedSales.length === 0 ? (
+                <TR>
+                  <TD colSpan={8} className="py-6 text-center text-muted-foreground">
+                    尚無售出紀錄
+                  </TD>
+                </TR>
+              ) : null}
+              {pagedSales.map((item) => (
                 <TR key={item.id}>
                   <TD className="text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("zh-TW")}</TD>
                   <TD>{item.customerName}</TD>
@@ -217,6 +245,7 @@ export function SalePage() {
               ))}
             </TBody>
           </Table>
+          <NumberPagination page={salePage} pageCount={salePageCount} onPageChange={setSalePage} />
         </CardContent>
       </Card>
 
@@ -225,7 +254,8 @@ export function SalePage() {
       <SaleConfirmModal
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={submitSale}
+        onConfirm={() => void submitSale()}
+        isMutating={isMutating}
         customerName={customerName}
         accountLabel={rmbAccount ? `${rmbAccount.holderName} / ${rmbAccount.name}` : "—"}
         rmbAmount={form.rmbAmount}

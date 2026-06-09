@@ -8,7 +8,7 @@ export const PERMISSION_GROUPS = [
       { key: "purchase", label: "買入 RMB" },
       { key: "sale", label: "售出 RMB" },
       { key: "receivables", label: "應收應付" },
-      { key: "accounts", label: "帳戶金流" },
+      { key: "accounts", label: "帳務管理" },
       { key: "transfer", label: "帳戶轉帳" }
     ] as const
   },
@@ -92,4 +92,11 @@ export function permissionsSummary(permissions: PermissionKey[]) {
 
 export function deriveRole(permissions: PermissionKey[]): AppUser["role"] {
   return permissions.includes("admin") ? "admin" : "operator";
+}
+
+const WRITE_PERMISSIONS: PermissionKey[] = ["purchase", "sale", "receivables", "accounts", "transfer", "admin"];
+
+export function canWriteLedger(user: AppUser) {
+  if (!user.isActive) return false;
+  return WRITE_PERMISSIONS.some((permission) => user.permissions.includes(permission));
 }

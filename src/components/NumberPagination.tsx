@@ -29,7 +29,10 @@ export function NumberPagination({ page, pageCount, onPageChange, className }: N
   if (pageCount <= 1) return null;
 
   return (
-    <nav className={cn("flex flex-wrap items-center justify-center gap-1", className)} aria-label="分頁">
+    <nav className={cn("flex flex-wrap items-center justify-center gap-2", className)} aria-label="分頁">
+      <span className="w-full text-center text-xs text-muted-foreground sm:w-auto sm:text-sm">
+        第 {safePage} / {pageCount} 頁
+      </span>
       <Button
         type="button"
         variant="outline"

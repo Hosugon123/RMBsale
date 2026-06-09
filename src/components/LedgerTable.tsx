@@ -230,6 +230,25 @@ export function LedgerTable({
               </div>
             ) : null}
             <p className="mt-2 text-xs text-muted-foreground">操作人 {entry.operatorName}</p>
+            {onVoid ? (
+              <div className="mt-3 flex justify-end">
+                {(() => {
+                  const target = resolveVoidTarget?.(entry) ?? null;
+                  if (!target) return null;
+                  return (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs text-destructive hover:text-destructive"
+                      onClick={() => onVoid(entry, target)}
+                    >
+                      {target.label}
+                    </Button>
+                  );
+                })()}
+              </div>
+            ) : null}
           </article>
         );
         })}

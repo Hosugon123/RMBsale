@@ -1,4 +1,4 @@
-import { receivable, twd } from "../lib/currencyStyles";
+import { twd } from "../lib/currencyStyles";
 import Decimal from "decimal.js";
 import { d, fmtMoney } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -58,7 +58,7 @@ export function PayPurchaseConfirmModal({
             </p>
             <p>
               <span className="text-muted-foreground">付款後待付餘額：</span>
-              <span className={receivable.text}>{fmtMoney(afterRemaining)}</span>
+              <span className={twd.text}>{fmtMoney(afterRemaining)}</span>
             </p>
           </div>
           <div className="flex gap-2">

@@ -256,7 +256,41 @@ export async function createSettlement(input: {
     const description = input.note?.trim()
       ? `收帳：${customerName}（${input.note.trim()}）`
       : `收帳：${customerName}`;
-    await addAccountDelta(tx, input.accountId, "TWD", input.amountTwd, "in", "settlement", settlement.id, actor.id, description);
+
+    await tx.insert(ledgerEntries).values({
+      entryType: "收帳",
+      customerId: input.customerId,
+      relatedTable: "settlements",
+      relatedId: settlement.id,
+      direction: "out",
+      currency: "TWD",
+      amount: toDbMoney(input.amountTwd),
+      description,
+      operatorId: actor.id
+    });
+
+    await addAccountDelta(
+      tx,
+      input.accountId,
+      "TWD",
+      input.amountTwd,
+      "in",
+      "settlements",
+      settlement.id,
+      actor.id,
+      description,
+      "收帳"
+    );
+
+    const [customerAfter] = await tx
+      .select({ receivableTwd: customers.receivableTwd })
+      .from(customers)
+      .where(eq(customers.id, input.customerId));
+    const settlementStatus = Number(customerAfter?.receivableTwd ?? 0) === 0 ? "settled" : "partial";
+    await tx
+      .update(sales)
+      .set({ settlementStatus })
+      .where(and(eq(sales.customerId, input.customerId), eq(sales.status, "active")));
 
     await writeAudit(tx, {
       action: AuditAction.CREATE_SETTLEMENT,

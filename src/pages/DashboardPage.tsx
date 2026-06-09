@@ -125,7 +125,7 @@ export function DashboardPage() {
             </p>
           ) : null}
           <Button className="w-full" onClick={() => navigate("/receivables")}>
-            進入收帳
+            客戶收帳
           </Button>
         </CardContent>
       </Card>

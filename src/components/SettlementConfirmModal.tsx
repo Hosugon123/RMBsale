@@ -12,6 +12,7 @@ type SettlementConfirmModalProps = {
   accountLabel: string;
   amountTwd: string;
   receivableBefore: string;
+  overPay?: boolean;
   isMutating?: boolean;
   overlayClassName?: string;
 };
@@ -24,6 +25,7 @@ export function SettlementConfirmModal({
   accountLabel,
   amountTwd,
   receivableBefore,
+  overPay = false,
   isMutating = false,
   overlayClassName = "z-[70]"
 }: SettlementConfirmModalProps) {
@@ -63,11 +65,12 @@ export function SettlementConfirmModal({
               <span className={receivable.text}>{fmtMoney(afterReceivable)}</span>
             </p>
           </div>
+          {overPay ? <p className="text-sm text-destructive">收款金額超過應收餘額</p> : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="flex-1" disabled={isMutating} onClick={onClose}>
               取消
             </Button>
-            <Button type="button" className="flex-1" disabled={isMutating} onClick={onConfirm}>
+            <Button type="button" className="flex-1" disabled={isMutating || overPay} onClick={onConfirm}>
               {isMutating ? "處理中…" : "確認收帳"}
             </Button>
           </div>

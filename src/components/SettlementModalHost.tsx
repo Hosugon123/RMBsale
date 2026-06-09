@@ -2,7 +2,8 @@ import * as React from "react";
 import { CheckCircle2, X } from "lucide-react";
 import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
-import { fmtMoney } from "../lib/utils";
+import Decimal from "decimal.js";
+import { d, fmtMoney } from "../lib/utils";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -58,6 +59,16 @@ export function SettlementModalHost() {
   );
   const selectedCustomer = state.customers.find((customer) => customer.id === Number(form.customerId));
   const selectedAccount = twdAccounts.find((account) => account.id === Number(form.accountId));
+  const settlementPreview = React.useMemo(() => {
+    if (!selectedCustomer) return { overPay: false, payment: d(0), afterReceivable: d(0) };
+    const remaining = d(selectedCustomer.receivableTwd);
+    const payment = form.amountTwd.trim() ? d(form.amountTwd) : d(0);
+    return {
+      payment,
+      afterReceivable: Decimal.max(0, remaining.sub(payment)),
+      overPay: payment.gt(remaining)
+    };
+  }, [form.amountTwd, selectedCustomer]);
 
   const openModal = React.useCallback((event?: Event) => {
     setError("");
@@ -82,6 +93,14 @@ export function SettlementModalHost() {
   const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedCustomer || !form.accountId || !form.amountTwd.trim()) return;
+    if (settlementPreview.overPay) {
+      setError("收款金額超過應收餘額");
+      return;
+    }
+    if (settlementPreview.payment.lte(0)) {
+      setError("收款金額須大於 0");
+      return;
+    }
     setError("");
     setConfirmOpen(true);
   };
@@ -118,6 +137,8 @@ export function SettlementModalHost() {
         <CardContent className="p-4">
           {receivables.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">目前無待收帳款</p>
+          ) : twdAccounts.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">請先至帳務管理建立台幣帳戶</p>
           ) : (
             <form className="space-y-4" onSubmit={openConfirm}>
               <label className="block min-w-0 space-y-1 text-sm font-medium">
@@ -168,10 +189,20 @@ export function SettlementModalHost() {
                   required
                 />
               </label>
+              {settlementPreview.overPay ? (
+                <p className="text-sm text-destructive">收款金額超過應收餘額</p>
+              ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
               <Button
                 className="h-10 w-full"
-                disabled={!selectedCustomer || !form.accountId || !form.amountTwd.trim() || isMutating}
+                disabled={
+                  !selectedCustomer ||
+                  !form.accountId ||
+                  !form.amountTwd.trim() ||
+                  settlementPreview.overPay ||
+                  settlementPreview.payment.lte(0) ||
+                  isMutating
+                }
                 type="submit"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -192,6 +223,7 @@ export function SettlementModalHost() {
         }
         amountTwd={form.amountTwd}
         receivableBefore={selectedCustomer?.receivableTwd ?? "0.00"}
+        overPay={settlementPreview.overPay}
         isMutating={isMutating}
       />
     </div>

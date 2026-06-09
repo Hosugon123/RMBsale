@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
+import { NumberPagination } from "../components/NumberPagination";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { validatePurchaseForm, type PaymentStatusChoice } from "../lib/formValidation";
 import { runMutation, useIsMutating } from "../lib/runMutation";
@@ -17,6 +18,7 @@ const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const sectionBoxClass = "min-w-0 space-y-2.5 rounded-lg border bg-muted/20 p-3 sm:space-y-3 sm:p-4";
 const sectionTitleClass = "text-base font-semibold leading-tight sm:text-[1.1375rem]";
+const PURCHASE_PAGE_SIZE = 20;
 
 function accountOptionLabel(holderName: string, name: string, balance: string, currency?: "RMB") {
   const money = fmtMoney(balance, currency);
@@ -59,6 +61,21 @@ export function PurchasePage() {
   const hasCustomSource = sourceCustom.length > 0;
   const channelName = sourceCustom.trim() || presetChannelName;
   const cost = form.rmbAmount && form.exchangeRate ? d(form.rmbAmount).mul(form.exchangeRate).toFixed(2) : "0";
+  const [purchasePage, setPurchasePage] = React.useState(1);
+  const purchasePageCount = Math.max(1, Math.ceil(state.purchases.length / PURCHASE_PAGE_SIZE));
+
+  React.useEffect(() => {
+    if (purchasePage > purchasePageCount) setPurchasePage(purchasePageCount);
+  }, [purchasePage, purchasePageCount]);
+
+  React.useEffect(() => {
+    setPurchasePage(1);
+  }, [state.purchases.length]);
+
+  const pagedPurchases = React.useMemo(
+    () => state.purchases.slice((purchasePage - 1) * PURCHASE_PAGE_SIZE, purchasePage * PURCHASE_PAGE_SIZE),
+    [state.purchases, purchasePage]
+  );
 
   const clearError = () => {
     if (formError) setFormError("");
@@ -291,7 +308,7 @@ export function PurchasePage() {
         <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-0">
           <CardTitle>買入紀錄</CardTitle>
         </CardHeader>
-        <CardContent className="min-w-0 p-3 pt-0 sm:p-4">
+        <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-4">
           <Table>
             <THead>
               <TR>
@@ -305,7 +322,14 @@ export function PurchasePage() {
               </TR>
             </THead>
             <TBody>
-              {state.purchases.map((item) => (
+              {pagedPurchases.length === 0 ? (
+                <TR>
+                  <TD colSpan={7} className="py-6 text-center text-muted-foreground">
+                    尚無買入紀錄
+                  </TD>
+                </TR>
+              ) : null}
+              {pagedPurchases.map((item) => (
                 <TR key={item.id}>
                   <TD className="text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("zh-TW")}</TD>
                   <TD>{item.channelName}</TD>
@@ -318,6 +342,7 @@ export function PurchasePage() {
               ))}
             </TBody>
           </Table>
+          <NumberPagination page={purchasePage} pageCount={purchasePageCount} onPageChange={setPurchasePage} />
         </CardContent>
       </Card>
 

@@ -7,8 +7,19 @@ import { ALL_PERMISSIONS, presetForRole, serializePermissions } from "../api/_li
 
 const db = getDb();
 
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_PRODUCTION_SEED !== "1") {
+  console.error(
+    "拒絕在 production 執行 seed（會覆寫管理員密碼）。若確定要執行，請設定 ALLOW_PRODUCTION_SEED=1。"
+  );
+  process.exit(1);
+}
+
 const username = process.env.ADMIN_USERNAME ?? "ds001";
 const password = process.env.ADMIN_PASSWORD ?? "1234";
+
+if (password === "1234" || password === "operator123") {
+  console.warn("警告：正在使用預設弱密碼，正式環境請設定 ADMIN_PASSWORD / OPERATOR_PASSWORD。");
+}
 
 const passwordHash = await bcrypt.hash(password, 12);
 let [admin] = await db.select().from(users).where(eq(users.username, username));

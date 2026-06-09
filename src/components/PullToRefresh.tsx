@@ -55,6 +55,8 @@ export function PullToRefresh({ onRefresh, children, disabled = false }: PullToR
 
     const onTouchStart = (event: TouchEvent) => {
       if (refreshingRef.current || !isAtScrollTop() || event.touches.length !== 1) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest(".fixed.inset-0")) return;
       startYRef.current = event.touches[0].clientY;
       startXRef.current = event.touches[0].clientX;
       pullingRef.current = true;

@@ -51,6 +51,7 @@ export function TransferModalHost() {
   const isMutating = useIsMutating();
   const location = useLocation();
   const [open, setOpen] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [error, setError] = React.useState("");
 
   const activeAccounts = React.useMemo(
@@ -81,25 +82,36 @@ export function TransferModalHost() {
   }, [location.hash, openModal]);
 
   const close = () => {
+    setConfirmOpen(false);
     setOpen(false);
     setError("");
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!form.toAccountId || !form.amount.trim()) return;
+    setError("");
+    setConfirmOpen(true);
+  };
+
+  const confirmTransfer = async () => {
     try {
       await runMutation(() =>
-      createTransfer({
-        fromAccountId: Number(form.fromAccountId),
-        toAccountId: Number(form.toAccountId),
-        amount: form.amount
-      }));
+        createTransfer({
+          fromAccountId: Number(form.fromAccountId),
+          toAccountId: Number(form.toAccountId),
+          amount: form.amount
+        })
+      );
       setForm((current) => ({ ...current, amount: "" }));
       close();
     } catch (err) {
+      setConfirmOpen(false);
       setError(err instanceof Error ? err.message : "轉帳失敗");
     }
   };
+
+  const toAccount = compatibleAccounts.find((account) => account.id === Number(form.toAccountId));
 
   if (!open) return null;
 
@@ -113,7 +125,7 @@ export function TransferModalHost() {
           </Button>
         </CardHeader>
         <CardContent className="p-4">
-          <form className="grid gap-3" onSubmit={submit}>
+          <form className="grid gap-3" onSubmit={openConfirm}>
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">轉出帳戶</span>
               <Select
@@ -155,11 +167,48 @@ export function TransferModalHost() {
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             <Button className="w-full" disabled={!form.toAccountId || isMutating} type="submit">
               <ArrowLeftRight className="h-4 w-4" />
-              {isMutating ? "處理中…" : "確認轉帳"}
+              下一步
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      {confirmOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => !isMutating && setConfirmOpen(false)}
+        >
+          <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="border-b p-4">
+              <CardTitle>確認轉帳</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 p-4 text-sm">
+              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                <p>
+                  <span className="text-muted-foreground">轉出：</span>
+                  {fromAccount ? `${fromAccount.holderName} / ${fromAccount.name}` : "—"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">轉入：</span>
+                  {toAccount ? `${toAccount.holderName} / ${toAccount.name}` : "—"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">金額：</span>
+                  {form.amount} {fromAccount?.currency ?? ""}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" disabled={isMutating} onClick={() => setConfirmOpen(false)}>
+                  取消
+                </Button>
+                <Button type="button" className="flex-1" disabled={isMutating} onClick={() => void confirmTransfer()}>
+                  {isMutating ? "處理中…" : "確認轉帳"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

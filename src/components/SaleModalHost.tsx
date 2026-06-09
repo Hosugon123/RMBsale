@@ -4,7 +4,7 @@ import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
 import { useSaleCustomerSource } from "../hooks/useSaleCustomerSource";
 import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
-import { runMutation } from "../lib/runMutation";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb } from "../lib/currencyStyles";
 import { fmtMoney } from "../lib/utils";
 import { CustomerManagerModal } from "./CustomerManagerModal";
@@ -41,6 +41,7 @@ export function openSaleModal() {
 
 export function SaleModalHost() {
   const { state, createSale } = useAppStore();
+  const isMutating = useIsMutating();
   const [open, setOpen] = React.useState(false);
   const [customerManagerOpen, setCustomerManagerOpen] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -224,7 +225,8 @@ export function SaleModalHost() {
         open={confirmOpen}
         overlayClassName="z-[60]"
         onClose={() => setConfirmOpen(false)}
-        onConfirm={submitSale}
+        onConfirm={() => void submitSale()}
+        isMutating={isMutating}
         customerName={customerName}
         accountLabel={rmbAccount ? `${rmbAccount.holderName} / ${rmbAccount.name}` : "—"}
         rmbAmount={form.rmbAmount}

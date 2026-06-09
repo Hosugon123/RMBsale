@@ -649,7 +649,9 @@ export function isReceivableLedgerEntry(
   if (
     entry.entryType === "收帳" &&
     entry.accountId !== undefined &&
-    (entry.relatedTable === "settlements" || entry.relatedTable === "收帳")
+    (entry.relatedTable === "settlements" ||
+      entry.relatedTable === "settlement" ||
+      entry.relatedTable === "收帳")
   ) {
     return true;
   }
@@ -829,7 +831,7 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
   const customer = getOrCreateByName(state.customers, input.customerName, { receivableTwd: "0.00" });
   const twdAmount = money(d(input.rmbAmount).mul(input.exchangeRate));
   const saleId = nextId(state.sales);
-  const allocation = allocateLocalFifo(state, input.rmbAccountId, input.rmbAmount);
+  const allocation = consumeRmbLotsStrict(state, input.rmbAccountId, input.rmbAmount);
   const profitTwd = money(d(twdAmount).sub(allocation.costTwd));
   const sale = {
     id: saleId,
@@ -1459,14 +1461,18 @@ export function previewSaleProfit(
 
   const twdAmount = money(d(rmbAmount).mul(exchangeRate));
   const { costTwd, shortfallRmb } = allocateFifoPreview(state, input.rmbAccountId, rmbAmount);
-  const profitWarning =
-    d(shortfallRmb).gt(0)
-      ? `庫存不足 ${shortfallRmb} RMB，將以帳戶負餘額記帳（待買入入帳自動對沖）`
-      : null;
+  if (d(shortfallRmb).gt(0)) {
+    return {
+      twdAmount,
+      profitTwd: null,
+      profitWarning: null,
+      profitError: `RMB 庫存不足，尚缺 ${shortfallRmb} RMB`
+    };
+  }
   return {
     twdAmount,
     profitTwd: money(d(twdAmount).sub(costTwd)),
-    profitWarning,
+    profitWarning: null,
     profitError: null as string | null
   };
 }
