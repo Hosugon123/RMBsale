@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 let mutating = false;
 const listeners = new Set<() => void>();
+const idleListeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
@@ -14,6 +15,19 @@ function getSnapshot() {
 
 function emit() {
   listeners.forEach((listener) => listener());
+}
+
+function emitIdle() {
+  idleListeners.forEach((listener) => listener());
+}
+
+export function isMutationInFlight() {
+  return mutating;
+}
+
+export function onMutationIdle(listener: () => void) {
+  idleListeners.add(listener);
+  return () => idleListeners.delete(listener);
 }
 
 export function useIsMutating() {
@@ -37,5 +51,6 @@ export async function runMutation<T>(action: () => T | Promise<T>): Promise<T> {
   } finally {
     mutating = false;
     emit();
+    emitIdle();
   }
 }

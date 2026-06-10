@@ -1,6 +1,7 @@
 import "./loadEnv.js";
 import compression from "compression";
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "../api/_lib/ensureAuditBackupSchema.js";
@@ -48,6 +49,23 @@ async function createApp() {
     }
   });
 
+  let cachedBuildId: string | null = null;
+  const readBuildId = () => {
+    if (cachedBuildId) return cachedBuildId;
+    try {
+      const raw = fs.readFileSync(path.join(distDir, "build-meta.json"), "utf8");
+      cachedBuildId = (JSON.parse(raw) as { buildId?: string }).buildId ?? "unknown";
+    } catch {
+      cachedBuildId = process.env.BUILD_ID || "unknown";
+    }
+    return cachedBuildId;
+  };
+
+  app.get("/api/app-meta", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({ buildId: readBuildId() });
+  });
+
   app.use("/api", createApiRouter());
 
   if (useViteDev) {
@@ -60,8 +78,27 @@ async function createApp() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(distDir, { index: false }));
+    app.use(
+      express.static(distDir, {
+        index: false,
+        setHeaders(res, filePath) {
+          const base = path.basename(filePath);
+          if (base === "index.html" || base === "manifest.webmanifest" || base.endsWith(".webmanifest")) {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            return;
+          }
+          if (base.startsWith("sw") || base.startsWith("workbox-")) {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            return;
+          }
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        }
+      })
+    );
     app.get(/^\/(?!api\/).*/, (_req, res) => {
+      res.set("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(path.join(distDir, "index.html"));
     });
   }

@@ -116,19 +116,26 @@ export function TransferModalHost() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={close}>
-      <Card className="w-full max-w-lg overflow-hidden" onClick={(event) => event.stopPropagation()}>
-        <CardHeader className="flex-row items-start justify-between gap-4 border-b">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4"
+      onClick={close}
+    >
+      <Card
+        className="flex max-h-[min(90dvh,100%)] w-full max-w-lg flex-col overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-4 border-b p-4">
           <CardTitle>帳戶轉帳</CardTitle>
           <Button aria-label="關閉" onClick={close} size="icon" variant="ghost">
             <X className="h-5 w-5" />
           </Button>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent className="overflow-y-auto p-4">
           <form className="grid gap-3" onSubmit={openConfirm}>
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">轉出帳戶</span>
               <Select
+                className="min-w-0 max-w-full"
                 value={form.fromAccountId}
                 onChange={(event) => {
                   const selected = activeAccounts.find((account) => account.id === Number(event.target.value));
@@ -146,6 +153,7 @@ export function TransferModalHost() {
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">轉入帳戶</span>
               <Select
+                className="min-w-0 max-w-full"
                 value={form.toAccountId}
                 disabled={compatibleAccounts.length === 0}
                 onChange={(event) => setForm({ ...form, toAccountId: event.target.value })}
@@ -156,12 +164,12 @@ export function TransferModalHost() {
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">金額</span>
               <Input
+                className="min-w-0 max-w-full"
                 inputMode="decimal"
                 placeholder="金額"
                 value={form.amount}
                 onChange={(event) => setForm({ ...form, amount: event.target.value })}
                 required
-                autoFocus
               />
             </label>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -175,10 +183,13 @@ export function TransferModalHost() {
 
       {confirmOpen ? (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4"
           onClick={() => !isMutating && setConfirmOpen(false)}
         >
-          <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
+          <Card
+            className="max-h-[min(90dvh,100%)] w-full max-w-md overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
             <CardHeader className="border-b p-4">
               <CardTitle>確認轉帳</CardTitle>
             </CardHeader>

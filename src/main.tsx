@@ -22,6 +22,7 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { AdminPage } from "./pages/AdminPage";
 import { BackupAuditPage } from "./pages/BackupAuditPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PwaUpdateHost } from "./components/PwaUpdateHost";
 import "./styles/globals.css";
 
 initTheme();
@@ -80,6 +81,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <AuthProvider>
           <BrowserRouter>
             <AppRoutes />
+            <PwaUpdateHost />
           </BrowserRouter>
         </AuthProvider>
       </ThemeProvider>
