@@ -8,11 +8,17 @@ import { useAppStore } from "../features/AppStore";
 import { profit, rmb, twd } from "../lib/currencyStyles";
 import { fmtMoney, fmtRate } from "../lib/utils";
 
-const INVENTORY_PAGE_SIZE = 20;
+const INVENTORY_PAGE_SIZE = 8;
 
 export function InventoryPage() {
   const { state } = useAppStore();
-  const lots = state.rmbLots.filter((lot) => Number(lot.remainingRmb) > 0);
+  const lots = React.useMemo(
+    () =>
+      state.rmbLots
+        .filter((lot) => Number(lot.remainingRmb) > 0)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id),
+    [state.rmbLots]
+  );
   const allocations = React.useMemo(
     () =>
       state.saleAllocations
@@ -23,16 +29,31 @@ export function InventoryPage() {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [state.saleAllocations, state.sales]
   );
+  const [lotPage, setLotPage] = React.useState(1);
   const [allocationPage, setAllocationPage] = React.useState(1);
+  const lotPageCount = Math.max(1, Math.ceil(lots.length / INVENTORY_PAGE_SIZE));
   const allocationPageCount = Math.max(1, Math.ceil(allocations.length / INVENTORY_PAGE_SIZE));
+
+  React.useEffect(() => {
+    if (lotPage > lotPageCount) setLotPage(lotPageCount);
+  }, [lotPage, lotPageCount]);
 
   React.useEffect(() => {
     if (allocationPage > allocationPageCount) setAllocationPage(allocationPageCount);
   }, [allocationPage, allocationPageCount]);
 
   React.useEffect(() => {
+    setLotPage(1);
+  }, [lots.length]);
+
+  React.useEffect(() => {
     setAllocationPage(1);
   }, [allocations.length]);
+
+  const pagedLots = React.useMemo(
+    () => lots.slice((lotPage - 1) * INVENTORY_PAGE_SIZE, lotPage * INVENTORY_PAGE_SIZE),
+    [lots, lotPage]
+  );
 
   const pagedAllocations = React.useMemo(
     () => allocations.slice((allocationPage - 1) * INVENTORY_PAGE_SIZE, allocationPage * INVENTORY_PAGE_SIZE),
@@ -43,37 +64,40 @@ export function InventoryPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader><CardTitle>FIFO RMB 庫存</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="space-y-3 overflow-x-auto sm:space-y-4">
           {lots.length === 0 ? <EmptyState icon={Boxes} title="目前沒有 RMB 庫存" /> : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>買入日期</TH>
-                  <TH>渠道</TH>
-                  <TH className="text-right">原始 RMB</TH>
-                  <TH className="text-right">已售 RMB</TH>
-                  <TH className="text-right">剩餘 RMB</TH>
-                  <TH className="text-right">成本匯率</TH>
-                  <TH className="text-right">庫存價值</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {lots.map((lot) => {
-                  const soldRmb = Number(lot.originalRmb) - Number(lot.remainingRmb);
-                  return (
-                    <TR key={lot.id}>
-                      <TD>{new Date(lot.createdAt).toLocaleDateString("zh-TW")}</TD>
-                      <TD>{lot.channelName}</TD>
-                      <TD className={rmb.moneyCell}>{fmtMoney(lot.originalRmb, "RMB")}</TD>
-                      <TD className="text-right text-muted-foreground">{fmtMoney(soldRmb, "RMB")}</TD>
-                      <TD className={rmb.moneyCell}>{fmtMoney(lot.remainingRmb, "RMB")}</TD>
-                      <TD className="text-right">{fmtRate(lot.unitCostTwd)}</TD>
-                      <TD className={twd.moneyCell}>{fmtMoney(Number(lot.remainingRmb) * Number(lot.unitCostTwd))}</TD>
-                    </TR>
-                  );
-                })}
-              </TBody>
-            </Table>
+            <>
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>買入日期</TH>
+                    <TH>渠道</TH>
+                    <TH className="text-right">原始 RMB</TH>
+                    <TH className="text-right">已售 RMB</TH>
+                    <TH className="text-right">剩餘 RMB</TH>
+                    <TH className="text-right">成本匯率</TH>
+                    <TH className="text-right">庫存價值</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {pagedLots.map((lot) => {
+                    const soldRmb = Number(lot.originalRmb) - Number(lot.remainingRmb);
+                    return (
+                      <TR key={lot.id}>
+                        <TD>{new Date(lot.createdAt).toLocaleDateString("zh-TW")}</TD>
+                        <TD>{lot.channelName}</TD>
+                        <TD className={rmb.moneyCell}>{fmtMoney(lot.originalRmb, "RMB")}</TD>
+                        <TD className="text-right text-muted-foreground">{fmtMoney(soldRmb, "RMB")}</TD>
+                        <TD className={rmb.moneyCell}>{fmtMoney(lot.remainingRmb, "RMB")}</TD>
+                        <TD className="text-right">{fmtRate(lot.unitCostTwd)}</TD>
+                        <TD className={twd.moneyCell}>{fmtMoney(Number(lot.remainingRmb) * Number(lot.unitCostTwd))}</TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+              <NumberPagination page={lotPage} pageCount={lotPageCount} onPageChange={setLotPage} />
+            </>
           )}
         </CardContent>
       </Card>

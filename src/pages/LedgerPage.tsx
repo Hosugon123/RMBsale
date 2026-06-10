@@ -19,7 +19,8 @@ export function LedgerPage() {
   const { resolveVoidTarget, requestVoid, pending, error, cancelVoid, confirmVoid } = useLedgerVoid();
   const voidProps = {
     resolveVoidTarget,
-    onVoid: requestVoid
+    onVoid: requestVoid,
+    showBalances: true
   };
   const overviewRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
   const cashLedgerRows = React.useMemo(() => sortedCashLedgerWithBalances(state), [state]);

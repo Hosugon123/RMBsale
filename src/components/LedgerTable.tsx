@@ -35,6 +35,8 @@ type LedgerTableProps = {
   emptyMessage?: string;
   /** 小螢幕改卡片、md 以上維持表格 */
   layout?: "table" | "responsive";
+  /** 顯示異動前／異動後餘額（流水頁等完整記帳用） */
+  showBalances?: boolean;
   resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
   onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
@@ -93,11 +95,34 @@ function responsiveHead(layout: "table" | "responsive", className?: string) {
   );
 }
 
+function balanceColClass(compact: boolean, showBalances: boolean) {
+  if (!compact) return undefined;
+  return showBalances ? "hidden md:table-cell" : "hidden xl:table-cell";
+}
+
+function balanceMobileColClass(compact: boolean, showBalances: boolean) {
+  if (!compact || !showBalances) return "hidden";
+  return "table-cell md:hidden";
+}
+
+function formatBalanceRange(entry: LedgerTableRow) {
+  const balanceCurrency = entry.balanceCurrency ?? entry.currency;
+  if (entry.balanceBefore === undefined || entry.balanceAfter === undefined) return "-";
+  return (
+    <>
+      {fmtMoney(entry.balanceBefore, balanceCurrency)}
+      <span className="text-muted-foreground"> → </span>
+      {fmtMoney(entry.balanceAfter, balanceCurrency)}
+    </>
+  );
+}
+
 export function LedgerTable({
   entries,
   limit,
   emptyMessage = "尚無流水紀錄",
   layout = "table",
+  showBalances = false,
   resolveVoidTarget,
   onVoid
 }: LedgerTableProps) {
@@ -141,10 +166,15 @@ export function LedgerTable({
             <TH className={responsiveHead(layout, compact ? "hidden sm:table-cell" : undefined)}>異動</TH>
             <TH className={responsiveHead(layout, compact ? "hidden md:table-cell" : undefined)}>說明</TH>
             <TH className={responsiveHead(layout, compact ? "hidden lg:table-cell" : undefined)}>操作人</TH>
-            <TH className={responsiveHead(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+            {showBalances && compact ? (
+              <TH className={responsiveHead(layout, cn("text-right", balanceMobileColClass(compact, showBalances)))}>
+                異動餘額
+              </TH>
+            ) : null}
+            <TH className={responsiveHead(layout, cn("text-right", balanceColClass(compact, showBalances)))}>
               異動前
             </TH>
-            <TH className={responsiveHead(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+            <TH className={responsiveHead(layout, cn("text-right", balanceColClass(compact, showBalances)))}>
               異動後
             </TH>
             <TH className={responsiveHead(layout, "text-right")}>金額</TH>
@@ -171,15 +201,29 @@ export function LedgerTable({
                 <TD
                   className={responsiveCell(
                     layout,
-                    cn(compact ? "hidden md:table-cell" : undefined, "max-w-[8rem] truncate")
+                    cn(
+                      compact ? "hidden md:table-cell" : undefined,
+                      "max-w-[11rem] whitespace-normal break-words align-top sm:max-w-[14rem] lg:max-w-[18rem]"
+                    )
                   )}
+                  title={entry.description}
                 >
                   {entry.description}
                 </TD>
                 <TD className={responsiveCell(layout, compact ? "hidden lg:table-cell" : undefined)}>
                   {entry.operatorName}
                 </TD>
-                <TD className={responsiveCell(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+                {showBalances && compact ? (
+                  <TD
+                    className={responsiveCell(
+                      layout,
+                      cn("text-right tabular-nums", balanceMobileColClass(compact, showBalances))
+                    )}
+                  >
+                    {formatBalanceRange(entry)}
+                  </TD>
+                ) : null}
+                <TD className={responsiveCell(layout, cn("text-right tabular-nums", balanceColClass(compact, showBalances)))}>
                   {entry.balanceBefore !== undefined
                     ? fmtMoney(entry.balanceBefore, balanceCurrency)
                     : "-"}
@@ -187,7 +231,7 @@ export function LedgerTable({
                 <TD
                   className={responsiveCell(
                     layout,
-                    cn("text-right font-medium", compact ? "hidden xl:table-cell" : undefined)
+                    cn("text-right font-medium tabular-nums", balanceColClass(compact, showBalances))
                   )}
                 >
                   {entry.balanceAfter !== undefined

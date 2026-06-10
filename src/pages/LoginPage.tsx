@@ -43,14 +43,15 @@ export function LoginPage() {
         </CardHeader>
         <CardContent>
           {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
-          <form className="grid gap-3" onSubmit={onSubmit}>
+          <form className="grid gap-3" onSubmit={onSubmit} autoComplete="off">
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">帳號</span>
               <Input
+                name="rmb-login-username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="ds001"
-                autoComplete="username"
+                autoComplete="off"
+                placeholder=""
                 required
                 autoFocus
               />
@@ -59,9 +60,11 @@ export function LoginPage() {
               <span className="text-muted-foreground">密碼</span>
               <Input
                 type="password"
+                name="rmb-login-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                autoComplete="new-password"
+                placeholder=""
                 required
               />
             </label>

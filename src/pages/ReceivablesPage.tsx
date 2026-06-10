@@ -1,7 +1,7 @@
 import * as React from "react";
 import { CheckCircle2, History, X } from "lucide-react";
 import { useAppStore } from "../features/AppStore";
-import { runMutation } from "../lib/runMutation";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -269,6 +269,7 @@ function PayablePurchaseCards({
 
 export function ReceivablesPage() {
   const { state, payPurchase } = useAppStore();
+  const isMutating = useIsMutating();
   const twdAccounts = state.accounts.filter((a) => a.currency === "TWD" && a.isActive);
   const receivables = state.customers.filter((c) => Number(c.receivableTwd) > 0);
   const payables = state.purchases.filter(isPurchasePayable);
@@ -513,7 +514,7 @@ export function ReceivablesPage() {
       <PayPurchaseConfirmModal
         open={payConfirmOpen}
         onClose={() => setPayConfirmOpen(false)}
-        onConfirm={confirmPayPurchase}
+        onConfirm={() => void confirmPayPurchase()}
         channelName={selectedPayable?.channelName ?? ""}
         accountLabel={
           selectedPaymentAccount
@@ -522,6 +523,7 @@ export function ReceivablesPage() {
         }
         amountTwd={payForm.amountTwd}
         payableRemaining={selectedPayableRemaining}
+        isMutating={isMutating}
         overlayClassName="z-[60]"
       />
 

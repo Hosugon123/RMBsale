@@ -4,7 +4,7 @@ import { LedgerTable, type LedgerTableRow } from "./LedgerTable";
 import { NumberPagination } from "./NumberPagination";
 import { cn } from "../lib/utils";
 
-export const LEDGER_PAGE_SIZE = 20;
+export const LEDGER_PAGE_SIZE = 10;
 
 type PaginatedLedgerTableProps = {
   entries: LedgerTableRow[];
@@ -12,6 +12,7 @@ type PaginatedLedgerTableProps = {
   pageSize?: number;
   className?: string;
   layout?: "table" | "responsive";
+  showBalances?: boolean;
   resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
   onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
@@ -22,6 +23,7 @@ export function PaginatedLedgerTable({
   pageSize = LEDGER_PAGE_SIZE,
   className = "space-y-4",
   layout = "responsive",
+  showBalances = false,
   resolveVoidTarget,
   onVoid
 }: PaginatedLedgerTableProps) {
@@ -47,6 +49,7 @@ export function PaginatedLedgerTable({
         entries={pagedEntries}
         emptyMessage={emptyMessage}
         layout={layout}
+        showBalances={showBalances}
         resolveVoidTarget={resolveVoidTarget}
         onVoid={onVoid}
       />

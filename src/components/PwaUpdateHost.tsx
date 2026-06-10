@@ -4,8 +4,8 @@ import { applyPendingPwaUpdate, setupPwaUpdate, type PwaUpdateStatus } from "../
 import { Button } from "./ui/button";
 
 const STATUS_MESSAGE: Record<Exclude<PwaUpdateStatus, "hidden">, string> = {
-  pending: "有新版本可用，即將自動更新…",
-  waiting_mutation: "新版本已就緒，目前操作完成後將自動更新",
+  pending: "有新版本可用，請點「立即更新」",
+  waiting_mutation: "新版本已就緒，請先完成目前操作再更新",
   updating: "正在更新，請稍候…"
 };
 

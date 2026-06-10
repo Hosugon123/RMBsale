@@ -49,16 +49,13 @@ async function createApp() {
     }
   });
 
-  let cachedBuildId: string | null = null;
   const readBuildId = () => {
-    if (cachedBuildId) return cachedBuildId;
     try {
       const raw = fs.readFileSync(path.join(distDir, "build-meta.json"), "utf8");
-      cachedBuildId = (JSON.parse(raw) as { buildId?: string }).buildId ?? "unknown";
+      return (JSON.parse(raw) as { buildId?: string }).buildId ?? "unknown";
     } catch {
-      cachedBuildId = process.env.BUILD_ID || "unknown";
+      return process.env.BUILD_ID || "unknown";
     }
-    return cachedBuildId;
   };
 
   app.get("/api/app-meta", (_req, res) => {

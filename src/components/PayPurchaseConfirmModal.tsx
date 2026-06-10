@@ -12,6 +12,7 @@ type PayPurchaseConfirmModalProps = {
   accountLabel: string;
   amountTwd: string;
   payableRemaining: string;
+  isMutating?: boolean;
   overlayClassName?: string;
 };
 
@@ -23,6 +24,7 @@ export function PayPurchaseConfirmModal({
   accountLabel,
   amountTwd,
   payableRemaining,
+  isMutating = false,
   overlayClassName = "z-50"
 }: PayPurchaseConfirmModalProps) {
   if (!open) return null;
@@ -32,7 +34,7 @@ export function PayPurchaseConfirmModal({
   return (
     <div
       className={`fixed inset-0 flex items-center justify-center bg-black/70 p-4 ${overlayClassName}`}
-      onClick={onClose}
+      onClick={isMutating ? undefined : onClose}
     >
       <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
         <CardHeader className="border-b p-4">
@@ -62,11 +64,11 @@ export function PayPurchaseConfirmModal({
             </p>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            <Button type="button" variant="outline" className="flex-1" disabled={isMutating} onClick={onClose}>
               取消
             </Button>
-            <Button type="button" className="flex-1" onClick={onConfirm}>
-              確認付款
+            <Button type="button" className="flex-1" disabled={isMutating} onClick={onConfirm}>
+              {isMutating ? "付款中" : "確認付款"}
             </Button>
           </div>
         </CardContent>

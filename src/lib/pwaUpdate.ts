@@ -1,6 +1,9 @@
 import { isMutationInFlight, onMutationIdle } from "./runMutation";
 
 const CLIENT_BUILD_ID = import.meta.env.VITE_BUILD_ID;
+const RELOAD_TS_KEY = "rmbsale-last-reload-ts";
+const BLOCKED_BUILD_KEY = "rmbsale-blocked-reload-build";
+const RELOAD_COOLDOWN_MS = 10_000;
 
 export type PwaUpdateStatus = "hidden" | "pending" | "waiting_mutation" | "updating";
 
@@ -9,9 +12,29 @@ type StatusListener = (status: PwaUpdateStatus) => void;
 let statusListener: StatusListener | null = null;
 let pendingApply: (() => void) | null = null;
 let applying = false;
+let notifiedBuildId: string | null = null;
 
 function setStatus(status: PwaUpdateStatus) {
   statusListener?.(status);
+}
+
+function clearReloadGuards() {
+  sessionStorage.removeItem(RELOAD_TS_KEY);
+  sessionStorage.removeItem(BLOCKED_BUILD_KEY);
+  notifiedBuildId = null;
+}
+
+function safeReload(serverBuildId?: string) {
+  const now = Date.now();
+  const last = Number(sessionStorage.getItem(RELOAD_TS_KEY) || 0);
+  if (now - last < RELOAD_COOLDOWN_MS) {
+    if (serverBuildId) sessionStorage.setItem(BLOCKED_BUILD_KEY, serverBuildId);
+    setStatus("pending");
+    return false;
+  }
+  sessionStorage.setItem(RELOAD_TS_KEY, String(now));
+  window.location.reload();
+  return true;
 }
 
 function tryApplyPending() {
@@ -25,35 +48,57 @@ function tryApplyPending() {
 
   applying = true;
   setStatus("updating");
-  pendingApply = null;
 
   window.setTimeout(() => {
     if (isMutationInFlight()) {
       applying = false;
-      pendingApply = apply;
       setStatus("waiting_mutation");
       return;
     }
+    pendingApply = null;
     apply();
-  }, 600);
+    window.setTimeout(() => {
+      applying = false;
+      if (pendingApply) setStatus("pending");
+    }, 2000);
+  }, 300);
 }
 
-function queueUpdate(apply: () => void) {
+function notifyUpdateAvailable(apply: () => void, buildId?: string) {
+  if (buildId && notifiedBuildId === buildId) return;
+  if (buildId) notifiedBuildId = buildId;
   pendingApply = apply;
   setStatus(isMutationInFlight() ? "waiting_mutation" : "pending");
-  tryApplyPending();
 }
 
 async function checkServerBuildId() {
+  if (!CLIENT_BUILD_ID) return;
+
   try {
     const res = await fetch("/api/app-meta", { cache: "no-store", credentials: "include" });
     if (!res.ok) return;
     const data = (await res.json()) as { buildId?: string };
-    if (data.buildId && data.buildId !== CLIENT_BUILD_ID) {
-      queueUpdate(() => {
-        window.location.reload();
-      });
+    const serverBuildId = data.buildId?.trim();
+    if (!serverBuildId) return;
+
+    if (serverBuildId === CLIENT_BUILD_ID) {
+      clearReloadGuards();
+      if (!pendingApply) setStatus("hidden");
+      return;
     }
+
+    const blocked = sessionStorage.getItem(BLOCKED_BUILD_KEY);
+    if (blocked === serverBuildId) {
+      notifyUpdateAvailable(() => {
+        sessionStorage.removeItem(BLOCKED_BUILD_KEY);
+        safeReload(serverBuildId);
+      }, serverBuildId);
+      return;
+    }
+
+    notifyUpdateAvailable(() => {
+      safeReload(serverBuildId);
+    }, serverBuildId);
   } catch {
     // 離線或暫時性錯誤時略過
   }
@@ -69,7 +114,9 @@ export function setupPwaUpdate(listener: StatusListener) {
 
   cleanups.push(
     onMutationIdle(() => {
-      if (pendingApply) tryApplyPending();
+      if (pendingApply && !applying) {
+        setStatus("pending");
+      }
     })
   );
 
@@ -78,12 +125,12 @@ export function setupPwaUpdate(listener: StatusListener) {
       const updateSW = registerSW({
         immediate: true,
         onOfflineReady() {
-          // 僅靜態資源快取就緒，不觸發換版
+          // 僅靜態資源快取就緒
         },
         onNeedRefresh() {
-          queueUpdate(() => {
+          notifyUpdateAvailable(() => {
             void updateSW(true);
-          });
+          }, "service-worker");
         }
       });
     });
@@ -107,5 +154,6 @@ export function setupPwaUpdate(listener: StatusListener) {
     statusListener = null;
     pendingApply = null;
     applying = false;
+    notifiedBuildId = null;
   };
 }
