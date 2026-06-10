@@ -59,7 +59,7 @@ export function LedgerPage() {
           </div>
           <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={exportCsv}><Download className="h-4 w-4" />CSV</Button>
         </CardHeader>
-        <CardContent className="min-w-0 overflow-x-auto p-2 pt-0 sm:p-6 sm:pt-0">
+        <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
           <PaginatedLedgerTable entries={overviewRows} pageSize={LEDGER_PAGE_SIZE} className="min-w-0" {...voidProps} />
         </CardContent>
       </Card>
@@ -73,7 +73,7 @@ export function LedgerPage() {
               總餘額 {fmtMoney(summary.twd, "TWD")}
             </p>
           </CardHeader>
-          <CardContent className="min-w-0 overflow-x-auto">
+          <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
             <PaginatedLedgerTable
               entries={twdLedgerRows}
               pageSize={LEDGER_PAGE_SIZE}
@@ -92,7 +92,7 @@ export function LedgerPage() {
               總餘額 {fmtMoney(summary.rmb, "RMB")}
             </p>
           </CardHeader>
-          <CardContent className="min-w-0 overflow-x-auto">
+          <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
             <PaginatedLedgerTable
               entries={rmbLedgerRows}
               pageSize={LEDGER_PAGE_SIZE}
@@ -123,7 +123,7 @@ export function LedgerPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="min-w-0 overflow-x-auto">
+        <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
           <PaginatedLedgerTable
             entries={profitLedgerRows}
             pageSize={LEDGER_PAGE_SIZE}

@@ -4,8 +4,7 @@ import { LedgerTable, type LedgerTableRow } from "./LedgerTable";
 import { NumberPagination } from "./NumberPagination";
 import { cn } from "../lib/utils";
 
-export const LEDGER_PAGE_SIZE = 10;
-export const LEDGER_MOBILE_PAGE_SIZE = 20;
+export const LEDGER_PAGE_SIZE = 20;
 
 type PaginatedLedgerTableProps = {
   entries: LedgerTableRow[];
@@ -27,20 +26,7 @@ export function PaginatedLedgerTable({
   onVoid
 }: PaginatedLedgerTableProps) {
   const [page, setPage] = React.useState(1);
-  const [isMobile, setIsMobile] = React.useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
-  );
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const onChange = () => setIsMobile(mq.matches);
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const effectivePageSize = isMobile && layout === "responsive" ? LEDGER_MOBILE_PAGE_SIZE : pageSize;
-  const pageCount = Math.max(1, Math.ceil(entries.length / effectivePageSize));
+  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
 
   React.useEffect(() => {
     if (page > pageCount) setPage(pageCount);
@@ -51,8 +37,8 @@ export function PaginatedLedgerTable({
   }, [entries.length]);
 
   const pagedEntries = React.useMemo(
-    () => entries.slice((page - 1) * effectivePageSize, page * effectivePageSize),
-    [entries, page, effectivePageSize]
+    () => entries.slice((page - 1) * pageSize, page * pageSize),
+    [entries, page, pageSize]
   );
 
   return (

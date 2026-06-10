@@ -75,6 +75,12 @@ const ACCOUNT_ROW = {
   menuText: "text-[13.2px]"
 } as const;
 
+function accountCardSurface(currency: Currency) {
+  return currency === "RMB"
+    ? "border-rmb/35 bg-rmb/15 shadow-sm shadow-rmb/10"
+    : "border-twd/35 bg-twd/15 shadow-sm shadow-twd/10";
+}
+
 type GearActionsMenuProps = {
   title: string;
   size?: "sm" | "md";
@@ -444,9 +450,9 @@ export function AccountsPage() {
                 <p className={cn("text-[1.05rem]", rmb.text)}>{fmtMoney(group.rmbTotal, "RMB")}</p>
               </div>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 p-4 min-[520px]:grid-cols-2">
+            <CardContent className="grid grid-cols-1 gap-3 bg-muted/10 p-4 min-[520px]:grid-cols-2">
               {group.accounts.map((account) => (
-                <div key={account.id} className="min-w-0 rounded-lg border bg-muted/20 p-3">
+                <div key={account.id} className={cn("min-w-0 rounded-lg border p-3", accountCardSurface(account.currency))}>
                   <p className={cn("truncate font-medium leading-snug", ACCOUNT_ROW.name)} title={account.name}>
                     {account.name}
                   </p>

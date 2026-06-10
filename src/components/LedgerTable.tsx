@@ -79,24 +79,18 @@ function rowGroupClasses(
   };
 }
 
-function formatLedgerMobileTime(createdAt: string) {
-  return new Date(createdAt).toLocaleString("zh-TW", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true
-  });
+function responsiveCell(layout: "table" | "responsive", className?: string) {
+  return cn(
+    layout === "responsive" && "px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm",
+    className
+  );
 }
 
-function mobileDescriptionVisible(entry: LedgerTableRow) {
-  const subject = entry.subjectLabel?.trim() ?? "";
-  const description = entry.description.trim();
-  if (!description) return false;
-  if (!subject) return true;
-  if (description === subject) return false;
-  if (description.startsWith(subject)) return description.length > subject.length + 2;
-  return true;
+function responsiveHead(layout: "table" | "responsive", className?: string) {
+  return cn(
+    layout === "responsive" && "h-8 px-2 text-[11px] sm:h-10 sm:px-3 sm:text-xs",
+    className
+  );
 }
 
 export function LedgerTable({
@@ -134,150 +128,100 @@ export function LedgerTable({
     return <p className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
-  const tableView = (
-    <div className={cn("min-w-0 max-w-full", layout === "responsive" ? "hidden md:block" : undefined)}>
-    <Table>
-      <THead>
-        <TR>
-          <TH>時間</TH>
-          <TH>戶名</TH>
-          <TH>類型</TH>
-          <TH>異動</TH>
-          <TH>說明</TH>
-          <TH>操作人</TH>
-          <TH className="text-right">異動前餘額</TH>
-          <TH className="text-right">異動後餘額</TH>
-          <TH className="text-right">金額</TH>
-          {onVoid ? <TH className="text-right">操作</TH> : null}
-        </TR>
-      </THead>
-      <TBody>
-        {rows.map((entry) => {
-          const group = rowGroupClasses(entry, groupCounts, groupToneByKey);
-          return (
-          <TR key={entry.id} className={group.row}>
-            <TD className={cn("text-muted-foreground", group.firstCell)}>{new Date(entry.createdAt).toLocaleString("zh-TW")}</TD>
-            <TD>{entry.subjectLabel ?? "-"}</TD>
-            <TD>{entry.entryType}</TD>
-            <TD>{ledgerDirectionLabel(entry)}</TD>
-            <TD>{entry.description}</TD>
-            <TD>{entry.operatorName}</TD>
-            <TD className="text-right">
-              {entry.balanceBefore !== undefined
-                ? fmtMoney(entry.balanceBefore, entry.balanceCurrency ?? entry.currency)
-                : "-"}
-            </TD>
-            <TD className="text-right font-medium">
-              {entry.balanceAfter !== undefined
-                ? fmtMoney(entry.balanceAfter, entry.balanceCurrency ?? entry.currency)
-                : "-"}
-            </TD>
-            <TD className={cn("text-right font-medium", ledgerAmountClass(entry))}>
-              {fmtDirectionalMoney(entry.amount, entry.currency, entry.direction)}
-            </TD>
-            {onVoid ? (
-              <TD className="text-right">
-                {(() => {
-                  const target = resolveVoidTarget?.(entry) ?? null;
-                  if (!target) return <span className="text-muted-foreground">-</span>;
-                  return (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs text-destructive hover:text-destructive"
-                      onClick={() => onVoid(entry, target)}
-                    >
-                      {target.label}
-                    </Button>
-                  );
-                })()}
-              </TD>
-            ) : null}
-          </TR>
-        );
-        })}
-      </TBody>
-    </Table>
-    </div>
-  );
-
-  if (layout !== "responsive") {
-    return tableView;
-  }
+  const compact = layout === "responsive";
 
   return (
-    <>
-      <div className="divide-y divide-border/60 rounded-md border border-border/60 md:hidden">
-        {rows.map((entry) => {
-          const group = rowGroupClasses(entry, groupCounts, groupToneByKey);
-          const voidTarget = onVoid ? resolveVoidTarget?.(entry) ?? null : null;
-          const balanceCurrency = entry.balanceCurrency ?? entry.currency;
-          const showDescription = mobileDescriptionVisible(entry);
-          return (
-            <article
-              key={entry.id}
-              className={cn("bg-background px-2.5 py-2", group.card)}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                      {formatLedgerMobileTime(entry.createdAt)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground/80">
-                      {entry.entryType}·{ledgerDirectionLabel(entry)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 truncate text-xs font-medium leading-tight">
-                    {entry.subjectLabel ?? "-"}
-                  </p>
-                  {showDescription ? (
-                    <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                      {entry.description}
-                    </p>
-                  ) : null}
-                </div>
-                <p
-                  className={cn(
-                    "shrink-0 text-right text-xs font-semibold leading-tight tabular-nums",
-                    ledgerAmountClass(entry)
+    <div className="min-w-0 max-w-full">
+      <Table>
+        <THead>
+          <TR>
+            <TH className={responsiveHead(layout)}>日期</TH>
+            <TH className={responsiveHead(layout)}>戶名</TH>
+            <TH className={responsiveHead(layout)}>類型</TH>
+            <TH className={responsiveHead(layout, compact ? "hidden sm:table-cell" : undefined)}>異動</TH>
+            <TH className={responsiveHead(layout, compact ? "hidden md:table-cell" : undefined)}>說明</TH>
+            <TH className={responsiveHead(layout, compact ? "hidden lg:table-cell" : undefined)}>操作人</TH>
+            <TH className={responsiveHead(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+              異動前
+            </TH>
+            <TH className={responsiveHead(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+              異動後
+            </TH>
+            <TH className={responsiveHead(layout, "text-right")}>金額</TH>
+            {onVoid ? <TH className={responsiveHead(layout, "text-right")}>操作</TH> : null}
+          </TR>
+        </THead>
+        <TBody>
+          {rows.map((entry) => {
+            const group = rowGroupClasses(entry, groupCounts, groupToneByKey);
+            const balanceCurrency = entry.balanceCurrency ?? entry.currency;
+            const voidTarget = onVoid ? resolveVoidTarget?.(entry) ?? null : null;
+            return (
+              <TR key={entry.id} className={group.row}>
+                <TD className={responsiveCell(layout, cn("text-muted-foreground", group.firstCell))}>
+                  {new Date(entry.createdAt).toLocaleDateString("zh-TW")}
+                </TD>
+                <TD className={responsiveCell(layout, "max-w-[5rem] truncate sm:max-w-none")}>
+                  {entry.subjectLabel ?? "-"}
+                </TD>
+                <TD className={responsiveCell(layout)}>{entry.entryType}</TD>
+                <TD className={responsiveCell(layout, compact ? "hidden sm:table-cell" : undefined)}>
+                  {ledgerDirectionLabel(entry)}
+                </TD>
+                <TD
+                  className={responsiveCell(
+                    layout,
+                    cn(compact ? "hidden md:table-cell" : undefined, "max-w-[8rem] truncate")
                   )}
                 >
+                  {entry.description}
+                </TD>
+                <TD className={responsiveCell(layout, compact ? "hidden lg:table-cell" : undefined)}>
+                  {entry.operatorName}
+                </TD>
+                <TD className={responsiveCell(layout, cn("text-right", compact ? "hidden xl:table-cell" : undefined))}>
+                  {entry.balanceBefore !== undefined
+                    ? fmtMoney(entry.balanceBefore, balanceCurrency)
+                    : "-"}
+                </TD>
+                <TD
+                  className={responsiveCell(
+                    layout,
+                    cn("text-right font-medium", compact ? "hidden xl:table-cell" : undefined)
+                  )}
+                >
+                  {entry.balanceAfter !== undefined
+                    ? fmtMoney(entry.balanceAfter, balanceCurrency)
+                    : "-"}
+                </TD>
+                <TD className={responsiveCell(layout, cn("text-right font-medium", ledgerAmountClass(entry)))}>
                   {fmtDirectionalMoney(entry.amount, entry.currency, entry.direction)}
-                </p>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                {entry.balanceBefore !== undefined ? (
-                  <p className="min-w-0 truncate text-[10px] tabular-nums text-muted-foreground">
-                    {fmtMoney(entry.balanceBefore, balanceCurrency)} →{" "}
-                    {fmtMoney(entry.balanceAfter!, balanceCurrency)}
-                  </p>
-                ) : (
-                  <span />
-                )}
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="max-w-[5.5rem] truncate text-[10px] text-muted-foreground">
-                    {entry.operatorName}
-                  </span>
-                  {voidTarget ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-1.5 text-[10px] text-destructive hover:text-destructive"
-                      onClick={() => onVoid!(entry, voidTarget)}
-                    >
-                      {voidTarget.label}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-      {tableView}
-    </>
+                </TD>
+                {onVoid ? (
+                  <TD className={responsiveCell(layout, "text-right")}>
+                    {voidTarget ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "text-destructive hover:text-destructive",
+                          compact ? "h-6 px-1.5 text-[10px] sm:h-7 sm:px-2 sm:text-xs" : "h-7 text-xs"
+                        )}
+                        onClick={() => onVoid(entry, voidTarget)}
+                      >
+                        {voidTarget.label}
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TD>
+                ) : null}
+              </TR>
+            );
+          })}
+        </TBody>
+      </Table>
+    </div>
   );
 }
