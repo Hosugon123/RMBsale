@@ -52,14 +52,14 @@ export function LedgerPage() {
   return (
     <div className="min-w-0 max-w-full space-y-4">
       <Card className="min-w-0">
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle>流水總覽</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">台幣、人民幣與利潤流水完整彙整</p>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 p-3 pb-2 sm:p-6 sm:pb-0">
+          <div className="min-w-0">
+            <CardTitle className="text-base sm:text-lg">流水總覽</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground sm:mt-1 sm:text-sm">台幣、人民幣與利潤流水完整彙整</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />CSV</Button>
+          <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={exportCsv}><Download className="h-4 w-4" />CSV</Button>
         </CardHeader>
-        <CardContent className="min-w-0 overflow-x-auto">
+        <CardContent className="min-w-0 overflow-x-auto p-2 pt-0 sm:p-6 sm:pt-0">
           <PaginatedLedgerTable entries={overviewRows} pageSize={LEDGER_PAGE_SIZE} className="min-w-0" {...voidProps} />
         </CardContent>
       </Card>

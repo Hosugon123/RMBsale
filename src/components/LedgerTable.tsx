@@ -79,6 +79,26 @@ function rowGroupClasses(
   };
 }
 
+function formatLedgerMobileTime(createdAt: string) {
+  return new Date(createdAt).toLocaleString("zh-TW", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+function mobileDescriptionVisible(entry: LedgerTableRow) {
+  const subject = entry.subjectLabel?.trim() ?? "";
+  const description = entry.description.trim();
+  if (!description) return false;
+  if (!subject) return true;
+  if (description === subject) return false;
+  if (description.startsWith(subject)) return description.length > subject.length + 2;
+  return true;
+}
+
 export function LedgerTable({
   entries,
   limit,
@@ -188,69 +208,73 @@ export function LedgerTable({
 
   return (
     <>
-      <div className="space-y-3 md:hidden">
+      <div className="divide-y divide-border/60 rounded-md border border-border/60 md:hidden">
         {rows.map((entry) => {
           const group = rowGroupClasses(entry, groupCounts, groupToneByKey);
+          const voidTarget = onVoid ? resolveVoidTarget?.(entry) ?? null : null;
+          const balanceCurrency = entry.balanceCurrency ?? entry.currency;
+          const showDescription = mobileDescriptionVisible(entry);
           return (
-          <article
-            key={entry.id}
-            className={cn(
-              "rounded-lg border border-border/80 bg-muted/15 p-3 shadow-sm",
-              group.card
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-xs leading-snug text-muted-foreground">
-                {new Date(entry.createdAt).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </p>
-              <p className={cn("shrink-0 text-base font-semibold tabular-nums", ledgerAmountClass(entry))}>
-                {fmtDirectionalMoney(entry.amount, entry.currency, entry.direction)}
-              </p>
-            </div>
-            <p className="mt-2 font-medium leading-snug">{entry.subjectLabel ?? "-"}</p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <span className="rounded-md bg-muted/60 px-2 py-0.5">{entry.entryType}</span>
-              <span className="rounded-md bg-muted/60 px-2 py-0.5">{ledgerDirectionLabel(entry)}</span>
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">{entry.description}</p>
-            {entry.balanceBefore !== undefined ? (
-              <div className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-background/50 px-2 py-2 text-xs">
-                <div>
-                  <p className="text-muted-foreground">異動前</p>
-                  <p className="mt-0.5 font-medium tabular-nums">
-                    {fmtMoney(entry.balanceBefore, entry.balanceCurrency ?? entry.currency)}
+            <article
+              key={entry.id}
+              className={cn("bg-background px-2.5 py-2", group.card)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {formatLedgerMobileTime(entry.createdAt)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/80">
+                      {entry.entryType}·{ledgerDirectionLabel(entry)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs font-medium leading-tight">
+                    {entry.subjectLabel ?? "-"}
                   </p>
+                  {showDescription ? (
+                    <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                      {entry.description}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground">異動後</p>
-                  <p className="mt-0.5 font-medium tabular-nums">
-                    {fmtMoney(entry.balanceAfter!, entry.balanceCurrency ?? entry.currency)}
-                  </p>
-                </div>
+                <p
+                  className={cn(
+                    "shrink-0 text-right text-xs font-semibold leading-tight tabular-nums",
+                    ledgerAmountClass(entry)
+                  )}
+                >
+                  {fmtDirectionalMoney(entry.amount, entry.currency, entry.direction)}
+                </p>
               </div>
-            ) : null}
-            <p className="mt-2 text-xs text-muted-foreground">操作人 {entry.operatorName}</p>
-            {onVoid ? (
-              <div className="mt-3 flex justify-end">
-                {(() => {
-                  const target = resolveVoidTarget?.(entry) ?? null;
-                  if (!target) return null;
-                  return (
+              <div className="mt-1 flex items-center justify-between gap-2">
+                {entry.balanceBefore !== undefined ? (
+                  <p className="min-w-0 truncate text-[10px] tabular-nums text-muted-foreground">
+                    {fmtMoney(entry.balanceBefore, balanceCurrency)} →{" "}
+                    {fmtMoney(entry.balanceAfter!, balanceCurrency)}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="max-w-[5.5rem] truncate text-[10px] text-muted-foreground">
+                    {entry.operatorName}
+                  </span>
+                  {voidTarget ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 text-xs text-destructive hover:text-destructive"
-                      onClick={() => onVoid(entry, target)}
+                      className="h-6 px-1.5 text-[10px] text-destructive hover:text-destructive"
+                      onClick={() => onVoid!(entry, voidTarget)}
                     >
-                      {target.label}
+                      {voidTarget.label}
                     </Button>
-                  );
-                })()}
+                  ) : null}
+                </div>
               </div>
-            ) : null}
-          </article>
-        );
+            </article>
+          );
         })}
       </div>
       {tableView}
