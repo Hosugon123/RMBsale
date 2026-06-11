@@ -5,6 +5,7 @@ import { AuditAction, writeAudit } from "./audit.js";
 import { reverseRmbLotTransfer, transferRmbLots } from "./rmbInventory.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
+import { getAvailableProfitTwd, insertSaleProfitLedger } from "./profitLedger.js";
 import {
   accounts,
   channels,
@@ -216,6 +217,14 @@ export async function createSale(input: {
       currency: "TWD",
       amount: toDbMoney(twdAmount),
       description: `${customerName} 應收增加`,
+      operatorId: actor.id
+    });
+
+    await insertSaleProfitLedger(tx, {
+      saleId: sale.id,
+      customerId,
+      customerName,
+      profitTwd,
       operatorId: actor.id
     });
 
@@ -497,6 +506,12 @@ export async function createAccountAdjustment(
     if (Number(input.amount) <= 0) throw new Error("金額必須大於 0");
     if (input.direction === "out" && input.withdrawType === "profit" && account.currency !== "TWD") {
       throw new Error("分潤只能從台幣帳戶提取");
+    }
+    if (input.direction === "out" && input.withdrawType === "profit") {
+      const available = await getAvailableProfitTwd(tx);
+      if (available.lt(input.amount)) {
+        throw new Error("可提取利潤不足");
+      }
     }
 
     const note = input.note?.trim();

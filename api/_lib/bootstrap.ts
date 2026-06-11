@@ -22,6 +22,7 @@ const ENTRY_LABELS: Record<string, string> = {
   settlement: "收帳",
   receivable: "應收",
   profit: "分潤",
+  "利潤": "利潤",
   "入金": "入金",
   "撤資": "撤資",
   "分潤": "分潤",
