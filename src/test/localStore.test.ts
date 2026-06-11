@@ -13,6 +13,7 @@ import {
   addSale,
   updateSaleProfit,
   addSettlement,
+  createOpeningReceivable,
   payPurchase,
   purchasePayableTwd,
   addTransfer,
@@ -224,6 +225,36 @@ describe("local demo store", () => {
       balanceCurrency: "TWD"
     });
     expect(receivableRow?.balanceAfter).toBe(customer.receivableTwd);
+  });
+
+  it("creates opening receivable without changing cash accounts", () => {
+    const state = createSeedState();
+    const twdBefore = state.accounts
+      .filter((account) => account.currency === "TWD")
+      .map((account) => [account.id, account.balance]);
+
+    createOpeningReceivable(state, {
+      customerName: "期初客戶",
+      amountTwd: "12345",
+      note: "試算表匯入"
+    });
+
+    const customer = state.customers.find((item) => item.name === "期初客戶");
+    expect(customer?.receivableTwd).toBe("12345.00");
+    expect(
+      state.accounts.filter((account) => account.currency === "TWD").map((account) => [account.id, account.balance])
+    ).toEqual(twdBefore);
+
+    const row = sortedReceivableLedgerWithBalances(state).find(
+      (entry) => entry.relatedTable === "opening_receivable" && entry.customerId === customer?.id
+    );
+    expect(row).toMatchObject({
+      entryType: "應收",
+      direction: "in",
+      amount: "12345.00",
+      subjectLabel: "期初客戶",
+      balanceAfter: "12345.00"
+    });
   });
 
   it("supports partial purchase payments", () => {

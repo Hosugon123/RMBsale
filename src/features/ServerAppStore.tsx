@@ -270,6 +270,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
         throw err instanceof Error ? err : new Error("收帳失敗，已復原畫面資料");
       }
     },
+    createOpeningReceivable: async (input) => {
+      await serverApi.createOpeningReceivable(input);
+      afterMutation("settlement");
+    },
     payPurchase: async (input) => {
       await serverApi.payPurchase(input as Record<string, unknown>);
       afterMutation("purchasePay");

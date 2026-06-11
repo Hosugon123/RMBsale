@@ -365,6 +365,66 @@ export async function createSettlement(input: {
   });
 }
 
+export async function createOpeningReceivable(input: {
+  customerName: string;
+  amountTwd: string;
+  note?: string;
+}, actor: Actor) {
+  const db = getDb();
+  const customerName = input.customerName.trim();
+  if (!customerName) throw new Error("請輸入客戶名稱");
+  if (!input.amountTwd.trim()) throw new Error("請輸入待收金額");
+  const amount = money(input.amountTwd);
+  if (amount.lte(0)) throw new Error("待收金額必須大於 0");
+  const amountTwd = toDbMoney(amount);
+
+  return db.transaction(async (tx) => {
+    const [customer] = await tx
+      .insert(customers)
+      .values({ name: customerName, receivableTwd: "0.00" })
+      .onConflictDoUpdate({
+        target: customers.name,
+        set: { isActive: true }
+      })
+      .returning();
+
+    await tx
+      .update(customers)
+      .set({ receivableTwd: sql`${customers.receivableTwd} + ${amountTwd}` })
+      .where(eq(customers.id, customer.id));
+
+    const note = input.note?.trim();
+    const description = note ? `期初待收：${customer.name}（${note}）` : `期初待收：${customer.name}`;
+    const [entry] = await tx
+      .insert(ledgerEntries)
+      .values({
+        entryType: "receivable",
+        customerId: customer.id,
+        relatedTable: "opening_receivable",
+        direction: "in",
+        currency: "TWD",
+        amount: amountTwd,
+        description,
+        operatorId: actor.id
+      })
+      .returning();
+
+    await tx.update(ledgerEntries).set({ relatedId: entry.id }).where(eq(ledgerEntries.id, entry.id));
+
+    const [customerAfter] = await tx.select().from(customers).where(eq(customers.id, customer.id));
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_OPENING_RECEIVABLE,
+      targetType: "opening_receivable",
+      targetId: entry.id,
+      after: { customer: customerAfter, ledgerEntry: { ...entry, relatedId: entry.id } },
+      actor
+    });
+
+    return { customer: customerAfter, ledgerEntry: { ...entry, relatedId: entry.id } };
+  });
+}
+
 export async function createTransfer(input: {
   fromAccountId: number;
   toAccountId: number;

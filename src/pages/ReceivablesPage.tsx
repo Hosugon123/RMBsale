@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CheckCircle2, History, X } from "lucide-react";
+import { CheckCircle2, History, Plus, X } from "lucide-react";
 import { useAppStore } from "../features/AppStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { Button } from "../components/ui/button";
@@ -268,7 +268,7 @@ function PayablePurchaseCards({
 }
 
 export function ReceivablesPage() {
-  const { state, payPurchase } = useAppStore();
+  const { state, payPurchase, createOpeningReceivable } = useAppStore();
   const isMutating = useIsMutating();
   const twdAccounts = state.accounts.filter((a) => a.currency === "TWD" && a.isActive);
   const receivables = state.customers.filter((c) => Number(c.receivableTwd) > 0);
@@ -282,6 +282,9 @@ export function ReceivablesPage() {
   const [ledgerCustomerId, setLedgerCustomerId] = React.useState<number | null>(null);
   const [historicalOpen, setHistoricalOpen] = React.useState(false);
   const [ledgerChannelId, setLedgerChannelId] = React.useState<number | null>(null);
+  const [openingModalOpen, setOpeningModalOpen] = React.useState(false);
+  const [openingForm, setOpeningForm] = React.useState({ customerName: "", amountTwd: "", note: "" });
+  const [openingError, setOpeningError] = React.useState("");
   const [payModalOpen, setPayModalOpen] = React.useState(false);
   const [payConfirmOpen, setPayConfirmOpen] = React.useState(false);
   const [payError, setPayError] = React.useState("");
@@ -305,6 +308,32 @@ export function ReceivablesPage() {
   const openPayConfirm = () => {
     setPayError("");
     setPayConfirmOpen(true);
+  };
+
+  const openOpeningModal = () => {
+    setOpeningError("");
+    setOpeningForm({ customerName: "", amountTwd: "", note: "" });
+    setOpeningModalOpen(true);
+  };
+
+  const submitOpeningReceivable = async () => {
+    try {
+      if (!openingForm.customerName.trim()) throw new Error("請輸入客戶名稱");
+      if (!openingForm.amountTwd.trim()) throw new Error("請輸入待收金額");
+      if (d(openingForm.amountTwd).lte(0)) throw new Error("待收金額必須大於 0");
+      await runMutation(() =>
+        createOpeningReceivable({
+          customerName: openingForm.customerName,
+          amountTwd: openingForm.amountTwd,
+          note: openingForm.note
+        })
+      );
+      setOpeningModalOpen(false);
+      setOpeningForm({ customerName: "", amountTwd: "", note: "" });
+      setOpeningError("");
+    } catch (err) {
+      setOpeningError(err instanceof Error ? err.message : "新增待收帳款失敗");
+    }
   };
 
   const confirmPayPurchase = async () => {
@@ -363,6 +392,16 @@ export function ReceivablesPage() {
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9"
+                onClick={openOpeningModal}
+              >
+                <Plus className="h-4 w-4" />
+                新增待收
+              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -481,6 +520,97 @@ export function ReceivablesPage() {
       />
       <CustomerLedgerModal customerId={ledgerCustomerId} onClose={() => setLedgerCustomerId(null)} />
       <ChannelLedgerModal channelId={ledgerChannelId} onClose={() => setLedgerChannelId(null)} />
+
+      {openingModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={isMutating ? undefined : () => setOpeningModalOpen(false)}
+        >
+          <Card className="max-h-[90vh] w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">新增待收帳款</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">僅建立客戶應收，不會異動現金帳戶。</p>
+              </div>
+              <Button
+                aria-label="關閉"
+                disabled={isMutating}
+                onClick={() => setOpeningModalOpen(false)}
+                size="icon"
+                variant="ghost"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="max-h-[calc(90vh-4rem)] space-y-3 overflow-y-auto p-3 sm:p-4">
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <span>客戶名稱</span>
+                <Input
+                  className={fieldInputClass}
+                  list="opening-receivable-customers"
+                  value={openingForm.customerName}
+                  onChange={(event) => {
+                    setOpeningForm({ ...openingForm, customerName: event.target.value });
+                    if (openingError) setOpeningError("");
+                  }}
+                />
+                <datalist id="opening-receivable-customers">
+                  {state.customers.map((customer) => (
+                    <option key={customer.id} value={customer.name} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <span>待收金額</span>
+                <Input
+                  className={fieldInputClass}
+                  inputMode="decimal"
+                  value={openingForm.amountTwd}
+                  onChange={(event) => {
+                    setOpeningForm({ ...openingForm, amountTwd: event.target.value });
+                    if (openingError) setOpeningError("");
+                  }}
+                />
+              </label>
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <span>備註</span>
+                <Input
+                  className={fieldInputClass}
+                  value={openingForm.note}
+                  onChange={(event) => setOpeningForm({ ...openingForm, note: event.target.value })}
+                  placeholder="例如：試算表期初匯入"
+                />
+              </label>
+              <div className={cn(receivable.surface, "text-sm")}>
+                <p className={receivable.surfaceLabel}>新增後客戶待收會增加</p>
+                <p className={cn("mt-1 text-xl font-semibold tabular-nums", receivable.text)}>
+                  {fmtMoney(openingForm.amountTwd || 0)}
+                </p>
+              </div>
+              {openingError ? <p className="text-sm text-destructive">{openingError}</p> : null}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isMutating}
+                  onClick={() => setOpeningModalOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1"
+                  disabled={isMutating}
+                  onClick={() => void submitOpeningReceivable()}
+                >
+                  {isMutating ? "處理中…" : "建立待收"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {payModalOpen ? (
         <div

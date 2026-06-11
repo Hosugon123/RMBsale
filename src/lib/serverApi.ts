@@ -52,6 +52,9 @@ export const serverApi = {
   createSettlement: (body: Record<string, unknown>) =>
     request("settlements", { method: "POST", body: JSON.stringify(body) }),
 
+  createOpeningReceivable: (body: { customerName: string; amountTwd: string; note?: string }) =>
+    request("receivables", { method: "POST", body: JSON.stringify(body) }),
+
   payPurchase: (body: Record<string, unknown>) =>
     request("purchases/pay", { method: "POST", body: JSON.stringify(body) }),
 

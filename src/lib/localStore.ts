@@ -946,6 +946,36 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
   return state;
 }
 
+export function createOpeningReceivable(state: AppState, input: { customerName: string; amountTwd: string; note?: string }) {
+  const customerName = input.customerName.trim();
+  if (!customerName) throw new Error("請輸入客戶名稱");
+  if (!input.amountTwd.trim()) throw new Error("請輸入待收金額");
+  if (d(input.amountTwd).lte(0)) throw new Error("待收金額必須大於 0");
+
+  const customer = getOrCreateByName(state.customers, customerName, { receivableTwd: "0.00" });
+  const amountTwd = money(input.amountTwd);
+  const ledgerId = nextId(state.ledger);
+  const note = input.note?.trim();
+
+  customer.isActive = true;
+  customer.receivableTwd = money(d(customer.receivableTwd).add(amountTwd));
+  state.ledger.unshift({
+    id: ledgerId,
+    createdAt: txNow(),
+    entryType: "應收",
+    customerId: customer.id,
+    direction: "in",
+    currency: "TWD",
+    amount: amountTwd,
+    description: note ? `期初待收：${customer.name}（${note}）` : `期初待收：${customer.name}`,
+    operatorName: currentOperator(state),
+    relatedTable: "opening_receivable",
+    relatedId: ledgerId
+  });
+
+  return state;
+}
+
 export function payPurchase(state: AppState, input: { purchaseId: number; accountId: number; amountTwd: string }) {
   const purchase = state.purchases.find((item) => item.id === input.purchaseId);
   if (!purchase) throw new Error("找不到買入紀錄");
