@@ -46,6 +46,9 @@ export const serverApi = {
   createSale: (body: Record<string, unknown>) =>
     request("sales", { method: "POST", body: JSON.stringify(body) }),
 
+  updateSaleProfit: (body: { saleId: number; profitTwd: string }) =>
+    request("sales", { method: "PATCH", body: JSON.stringify({ id: body.saleId, profitTwd: body.profitTwd }) }),
+
   createSettlement: (body: Record<string, unknown>) =>
     request("settlements", { method: "POST", body: JSON.stringify(body) }),
 

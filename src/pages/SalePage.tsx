@@ -1,5 +1,5 @@
 import * as React from "react";
-import { HandCoins } from "lucide-react";
+import { HandCoins, Pencil, X } from "lucide-react";
 import { CustomerManagerModal } from "../components/CustomerManagerModal";
 import { SaleAmountSummary } from "../components/SaleAmountSummary";
 import { SaleExchangeRateField } from "../components/SaleExchangeRateField";
@@ -17,7 +17,8 @@ import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
-import { cn, fmtMoney, fmtRate } from "../lib/utils";
+import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
+import type { Sale } from "../lib/types";
 
 const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
@@ -36,7 +37,7 @@ function settlementLabel(status: string) {
 }
 
 export function SalePage() {
-  const { state, createSale } = useAppStore();
+  const { state, createSale, updateSaleProfit } = useAppStore();
   const isMutating = useIsMutating();
   const rmbAccounts = state.accounts.filter((account) => account.currency === "RMB" && account.isActive);
   const activeCustomers = state.customers.filter((customer) => customer.isActive);
@@ -58,6 +59,9 @@ export function SalePage() {
   });
   const [formError, setFormError] = React.useState("");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [editingSale, setEditingSale] = React.useState<Sale | null>(null);
+  const [profitForm, setProfitForm] = React.useState("");
+  const [profitError, setProfitError] = React.useState("");
 
   const amountPreview = React.useMemo(
     () =>
@@ -102,6 +106,26 @@ export function SalePage() {
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "建立售出失敗");
       setConfirmOpen(false);
+    }
+  };
+
+  const openProfitEditor = (sale: Sale) => {
+    setEditingSale(sale);
+    setProfitForm(sale.profitTwd);
+    setProfitError("");
+  };
+
+  const submitProfitEdit = async () => {
+    if (!editingSale) return;
+    try {
+      if (!profitForm.trim()) throw new Error("請輸入利潤");
+      if (d(profitForm).lt(0)) throw new Error("利潤不可小於 0");
+      await runMutation(() => updateSaleProfit({ saleId: editingSale.id, profitTwd: profitForm }));
+      setEditingSale(null);
+      setProfitForm("");
+      setProfitError("");
+    } catch (err) {
+      setProfitError(err instanceof Error ? err.message : "更新利潤失敗");
     }
   };
 
@@ -221,12 +245,13 @@ export function SalePage() {
                 <TH className="hidden text-right md:table-cell">利潤</TH>
                 <TH>狀態</TH>
                 <TH className="hidden lg:table-cell">負責</TH>
+                <TH className="text-right">操作</TH>
               </TR>
             </THead>
             <TBody>
               {pagedSales.length === 0 ? (
                 <TR>
-                  <TD colSpan={8} className="py-6 text-center text-muted-foreground">
+                  <TD colSpan={9} className="py-6 text-center text-muted-foreground">
                     尚無售出紀錄
                   </TD>
                 </TR>
@@ -241,6 +266,19 @@ export function SalePage() {
                   <TD className={cn("hidden text-right md:table-cell", profit.moneyCell)}>{fmtMoney(item.profitTwd)}</TD>
                   <TD>{settlementLabel(item.settlementStatus)}</TD>
                   <TD className="hidden lg:table-cell">{item.operatorName}</TD>
+                  <TD className="text-right">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 whitespace-nowrap px-2 text-xs"
+                      disabled={isMutating}
+                      onClick={() => openProfitEditor(item)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      編輯
+                    </Button>
+                  </TD>
                 </TR>
               ))}
             </TBody>
@@ -250,6 +288,78 @@ export function SalePage() {
       </Card>
 
       <CustomerManagerModal open={customerManagerOpen} onClose={() => setCustomerManagerOpen(false)} />
+
+      {editingSale ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={isMutating ? undefined : () => setEditingSale(null)}
+        >
+          <Card className="w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="flex-row items-start justify-between gap-4 border-b p-4">
+              <div>
+                <CardTitle>編輯利潤</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">{editingSale.customerName}</p>
+              </div>
+              <Button
+                aria-label="關閉"
+                disabled={isMutating}
+                onClick={() => setEditingSale(null)}
+                size="icon"
+                variant="ghost"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 p-4 text-sm">
+              <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted/20 p-3">
+                <p>
+                  <span className="text-muted-foreground">RMB：</span>
+                  <span className={rmb.text}>{fmtMoney(editingSale.rmbAmount, "RMB")}</span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">應收：</span>
+                  <span className={receivable.text}>{fmtMoney(editingSale.twdAmount)}</span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">成本：</span>
+                  {fmtMoney(editingSale.costTwd)}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">原利潤：</span>
+                  <span className={profit.text}>{fmtMoney(editingSale.profitTwd)}</span>
+                </p>
+              </div>
+              <label className="block space-y-1 font-medium">
+                <span>利潤金額</span>
+                <Input
+                  autoFocus
+                  inputMode="decimal"
+                  value={profitForm}
+                  onChange={(event) => {
+                    setProfitForm(event.target.value);
+                    if (profitError) setProfitError("");
+                  }}
+                />
+              </label>
+              {profitError ? <p className="text-sm text-destructive">{profitError}</p> : null}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isMutating}
+                  onClick={() => setEditingSale(null)}
+                >
+                  取消
+                </Button>
+                <Button type="button" className="flex-1" disabled={isMutating} onClick={() => void submitProfitEdit()}>
+                  {isMutating ? "處理中…" : "儲存"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <SaleConfirmModal
         open={confirmOpen}

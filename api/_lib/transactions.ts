@@ -1,11 +1,11 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
-import { allocateFifo, calcProfit, calcTwd, toDbMoney, toDbRate } from "./money.js";
+import { allocateFifo, calcProfit, calcTwd, money, toDbMoney, toDbRate } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { reverseRmbLotTransfer, transferRmbLots } from "./rmbInventory.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
-import { getAvailableProfitTwd, insertSaleProfitLedger } from "./profitLedger.js";
+import { getAvailableProfitTwd, insertSaleProfitLedger, syncSaleProfitLedger } from "./profitLedger.js";
 import {
   accounts,
   channels,
@@ -232,6 +232,58 @@ export async function createSale(input: {
       action: AuditAction.CREATE_SALE,
       targetType: "sale",
       targetId: sale.id,
+      after: sale,
+      actor
+    });
+
+    return sale;
+  });
+}
+
+export async function updateSaleProfit(input: {
+  saleId: number;
+  profitTwd: string;
+}, actor: Actor) {
+  const db = getDb();
+  if (!Number.isInteger(input.saleId) || input.saleId <= 0) throw new Error("找不到售出紀錄");
+  if (!input.profitTwd.trim()) throw new Error("請輸入利潤");
+  const profit = money(input.profitTwd);
+  if (profit.lt(0)) throw new Error("利潤不可小於 0");
+  const profitTwd = toDbMoney(profit);
+
+  return db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(sales)
+      .where(and(eq(sales.id, input.saleId), eq(sales.status, "active")))
+      .limit(1);
+    if (!before) throw new Error("找不到售出紀錄");
+
+    const [sale] = await tx
+      .update(sales)
+      .set({ profitTwd })
+      .where(eq(sales.id, input.saleId))
+      .returning();
+
+    const [customer] = await tx
+      .select({ name: customers.name })
+      .from(customers)
+      .where(eq(customers.id, sale.customerId))
+      .limit(1);
+
+    await syncSaleProfitLedger(tx, {
+      saleId: sale.id,
+      customerId: sale.customerId,
+      customerName: customer?.name ?? "客戶",
+      profitTwd,
+      operatorId: actor.id
+    });
+
+    await writeAudit(tx, {
+      action: AuditAction.UPDATE_SALE,
+      targetType: "sale",
+      targetId: sale.id,
+      before,
       after: sale,
       actor
     });

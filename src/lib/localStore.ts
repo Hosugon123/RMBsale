@@ -874,6 +874,49 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
   return state;
 }
 
+export function updateSaleProfit(state: AppState, input: { saleId: number; profitTwd: string }) {
+  const sale = state.sales.find((item) => item.id === input.saleId && item.status !== "reversed");
+  if (!sale) throw new Error("找不到售出紀錄");
+  if (!input.profitTwd.trim()) throw new Error("請輸入利潤");
+  if (d(input.profitTwd).lt(0)) throw new Error("利潤不可小於 0");
+
+  const profitTwd = money(input.profitTwd);
+  sale.profitTwd = profitTwd;
+
+  const existing = state.ledger.find(
+    (entry) =>
+      entry.entryType === "利潤" &&
+      entry.relatedTable === "sales" &&
+      entry.relatedId === sale.id &&
+      !entry.isReversal
+  );
+
+  if (d(profitTwd).lte(0)) {
+    if (existing) state.ledger = state.ledger.filter((entry) => entry.id !== existing.id);
+    return state;
+  }
+
+  if (existing) {
+    existing.customerId = sale.customerId;
+    existing.amount = profitTwd;
+    existing.description = `${sale.customerName} 售出利潤`;
+    existing.operatorName = currentOperator(state);
+    return state;
+  }
+
+  addLedger(state, {
+    entryType: "利潤",
+    customerId: sale.customerId,
+    direction: "in",
+    currency: "TWD",
+    amount: profitTwd,
+    description: `${sale.customerName} 售出利潤`,
+    relatedTable: "sales",
+    relatedId: sale.id
+  });
+  return state;
+}
+
 export function addSettlement(state: AppState, input: { customerId: number; accountId: number; amountTwd: string; note?: string }) {
   const customer = state.customers.find((item) => item.id === input.customerId);
   if (!customer) throw new Error("找不到客戶");

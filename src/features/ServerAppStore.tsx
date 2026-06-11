@@ -252,6 +252,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       await serverApi.createSale(input as Record<string, unknown>);
       afterMutation("sale");
     },
+    updateSaleProfit: async (input) => {
+      await serverApi.updateSaleProfit(input);
+      afterMutation("sale");
+    },
     createSettlement: async (input) => {
       const settlementInput = input as SettlementInput;
       const rollbackState = state;

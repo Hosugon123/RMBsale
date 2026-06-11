@@ -2,6 +2,7 @@ import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } fro
 import { parseBootstrapSections } from "../_lib/bootstrapSections.js";
 import { loadBootstrapState, loadFullBootstrapState } from "../_lib/bootstrap.js";
 import { fail, ok, requireUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
+import { ensureProfitLedgerEntries } from "../_lib/profitLedger.js";
 import { withRouteTiming } from "../_lib/requestTiming.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
@@ -10,6 +11,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const user = requireUser(req);
       const sections = parseBootstrapSections(req.query.sections);
+      if (!sections || sections.includes("ledger")) await ensureProfitLedgerEntries();
       const state = sections
         ? await loadBootstrapState(user.id, sections)
         : await loadFullBootstrapState(user.id);

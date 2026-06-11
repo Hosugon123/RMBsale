@@ -11,6 +11,7 @@ import {
   deleteCustomer,
   addPurchase,
   addSale,
+  updateSaleProfit,
   addSettlement,
   payPurchase,
   purchasePayableTwd,
@@ -141,6 +142,33 @@ describe("local demo store", () => {
       currency: "TWD",
       amount: "80.00"
     });
+  });
+
+  it("updates sale profit and keeps the profit ledger in sync", () => {
+    const state = createSeedState();
+    const saleId = state.sales[0].id;
+    const next = updateSaleProfit(state, { saleId, profitTwd: "888.88" });
+    const profitEntry = next.ledger.find((entry) => entry.entryType === "利潤" && entry.relatedId === saleId);
+
+    expect(next.sales[0].profitTwd).toBe("888.88");
+    expect(profitEntry).toMatchObject({
+      direction: "in",
+      currency: "TWD",
+      amount: "888.88"
+    });
+    expect(sortedProfitLedgerWithBalances(next)[0]).toMatchObject({
+      entryType: "利潤",
+      amount: "888.88"
+    });
+  });
+
+  it("removes the profit ledger entry when sale profit is set to zero", () => {
+    const state = createSeedState();
+    const saleId = state.sales[0].id;
+    const next = updateSaleProfit(state, { saleId, profitTwd: "0" });
+
+    expect(next.sales[0].profitTwd).toBe("0.00");
+    expect(next.ledger.some((entry) => entry.entryType === "利潤" && entry.relatedId === saleId)).toBe(false);
   });
 
   it("shows profit balance on ledger rows", () => {
