@@ -9,6 +9,9 @@ const STATUS_MESSAGE: Record<Exclude<PwaUpdateStatus, "hidden">, string> = {
   updating: "正在更新，請稍候…"
 };
 
+const STATUS_HINT =
+  "若點更新後仍出現此提示，請關閉 PWA 視窗，在瀏覽器用 Ctrl+Shift+R 強制重新整理。";
+
 export function PwaUpdateHost() {
   const [status, setStatus] = React.useState<PwaUpdateStatus>("hidden");
 
@@ -20,7 +23,12 @@ export function PwaUpdateHost() {
     <div className="fixed bottom-3 left-3 right-3 z-[100] flex justify-center sm:left-auto sm:right-4 sm:max-w-md">
       <div className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-background/95 px-3 py-2.5 text-sm shadow-lg backdrop-blur">
         <RefreshCw className={cnIcon(status)} />
-        <p className="min-w-0 flex-1 leading-snug">{STATUS_MESSAGE[status]}</p>
+        <p className="min-w-0 flex-1 leading-snug">
+          {STATUS_MESSAGE[status]}
+          {status === "pending" ? (
+            <span className="mt-0.5 block text-xs text-muted-foreground">{STATUS_HINT}</span>
+          ) : null}
+        </p>
         {status === "pending" || status === "waiting_mutation" ? (
           <Button type="button" size="sm" variant="outline" className="shrink-0 h-8" onClick={applyPendingPwaUpdate}>
             立即更新

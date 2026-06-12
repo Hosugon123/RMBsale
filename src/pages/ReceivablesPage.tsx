@@ -28,6 +28,8 @@ import type { Account, Customer, Purchase } from "../lib/types";
 const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
 const cardHeaderClass = "p-3 pb-2 sm:p-4 sm:pb-0";
+const cardHeaderStackClass = cn(cardHeaderClass, "gap-3");
+const cardHeaderSplitClass = cn(cardHeaderClass, "flex-row items-start justify-between gap-3");
 const cardContentClass = "min-w-0 p-3 pt-0 sm:p-4";
 const PAYABLE_PAGE_SIZE = 5;
 
@@ -384,14 +386,14 @@ export function ReceivablesPage() {
     <div className="grid min-w-0 max-w-full gap-3 sm:gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
       <div className="min-w-0 space-y-3 sm:space-y-4">
         <Card>
-          <CardHeader className={cn(cardHeaderClass, "flex-row flex-wrap items-start justify-between gap-3")}>
-            <div className="min-w-0 flex-1">
+          <CardHeader className={cardHeaderStackClass}>
+            <div className="min-w-0">
               <CardTitle className="text-base sm:text-lg">應收帳款</CardTitle>
               <p className={cn("mt-2 text-lg font-semibold tabular-nums sm:text-xl", receivable.money)}>
                 待收合計 {fmtMoney(totalReceivable)}
               </p>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
@@ -477,8 +479,8 @@ export function ReceivablesPage() {
         </Card>
 
         <Card className="xl:hidden">
-          <CardHeader className={cn(cardHeaderClass, "flex-row flex-wrap items-start justify-between gap-3")}>
-            <div className="min-w-0 flex-1">
+          <CardHeader className={cardHeaderStackClass}>
+            <div className="min-w-0">
               <CardTitle className="text-base sm:text-lg">應付帳款</CardTitle>
               <p className={cn("mt-2 text-lg font-semibold tabular-nums sm:text-xl", twd.money)}>
                 待付合計 {fmtMoney(totalPayable)}
@@ -487,7 +489,7 @@ export function ReceivablesPage() {
             <Button
               type="button"
               size="sm"
-              className="h-9 shrink-0"
+              className="h-9 self-start"
               disabled={payables.length === 0}
               onClick={openPayModal}
             >
@@ -659,7 +661,7 @@ export function ReceivablesPage() {
 
       <div className="hidden min-w-0 space-y-3 sm:space-y-4 xl:block">
         <Card>
-          <CardHeader className={cn(cardHeaderClass, "flex-row flex-wrap items-start justify-between gap-3")}>
+          <CardHeader className={cardHeaderSplitClass}>
             <div className="min-w-0 flex-1">
               <CardTitle className="text-base sm:text-lg">應付帳款</CardTitle>
               <p className={cn("mt-2 text-lg font-semibold tabular-nums sm:text-xl", twd.money)}>

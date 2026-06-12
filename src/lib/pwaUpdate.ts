@@ -3,7 +3,6 @@ import { isMutationInFlight, onMutationIdle } from "./runMutation";
 const CLIENT_BUILD_ID = import.meta.env.VITE_BUILD_ID;
 const RELOAD_TS_KEY = "rmbsale-last-reload-ts";
 const BLOCKED_BUILD_KEY = "rmbsale-blocked-reload-build";
-const RELOAD_COOLDOWN_MS = 10_000;
 
 export type PwaUpdateStatus = "hidden" | "pending" | "waiting_mutation" | "updating";
 
@@ -13,6 +12,8 @@ let statusListener: StatusListener | null = null;
 let pendingApply: (() => void) | null = null;
 let applying = false;
 let notifiedBuildId: string | null = null;
+let activateSwUpdate: (() => Promise<void>) | null = null;
+let reloadScheduled = false;
 
 function setStatus(status: PwaUpdateStatus) {
   statusListener?.(status);
@@ -24,17 +25,50 @@ function clearReloadGuards() {
   notifiedBuildId = null;
 }
 
-function safeReload(serverBuildId?: string) {
-  const now = Date.now();
-  const last = Number(sessionStorage.getItem(RELOAD_TS_KEY) || 0);
-  if (now - last < RELOAD_COOLDOWN_MS) {
-    if (serverBuildId) sessionStorage.setItem(BLOCKED_BUILD_KEY, serverBuildId);
-    setStatus("pending");
-    return false;
-  }
-  sessionStorage.setItem(RELOAD_TS_KEY, String(now));
+function reloadPage() {
+  if (reloadScheduled) return;
+  reloadScheduled = true;
+  sessionStorage.setItem(RELOAD_TS_KEY, String(Date.now()));
   window.location.reload();
-  return true;
+}
+
+function waitForSwControl(timeoutMs = 2500) {
+  if (!("serviceWorker" in navigator)) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (changed: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(changed);
+    };
+
+    const timer = window.setTimeout(() => finish(false), timeoutMs);
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      () => finish(true),
+      { once: true }
+    );
+  });
+}
+
+/** 先啟用新 SW，再整頁重載；僅 reload 會被舊 SW 快取卡住。 */
+async function performAppUpdate() {
+  clearReloadGuards();
+
+  try {
+    if (activateSwUpdate) {
+      await activateSwUpdate();
+      await waitForSwControl();
+    }
+  } catch {
+    // SW 更新失敗時仍嘗試重載
+  }
+
+  reloadPage();
 }
 
 function tryApplyPending() {
@@ -56,18 +90,19 @@ function tryApplyPending() {
       return;
     }
     pendingApply = null;
-    apply();
-    window.setTimeout(() => {
-      applying = false;
-      if (pendingApply) setStatus("pending");
-    }, 2000);
+    void Promise.resolve(apply()).finally(() => {
+      window.setTimeout(() => {
+        applying = false;
+        if (pendingApply) setStatus("pending");
+      }, 2000);
+    });
   }, 300);
 }
 
-function notifyUpdateAvailable(apply: () => void, buildId?: string) {
+function notifyUpdateAvailable(buildId?: string) {
   if (buildId && notifiedBuildId === buildId) return;
   if (buildId) notifiedBuildId = buildId;
-  pendingApply = apply;
+  pendingApply = () => performAppUpdate();
   setStatus(isMutationInFlight() ? "waiting_mutation" : "pending");
 }
 
@@ -87,18 +122,7 @@ async function checkServerBuildId() {
       return;
     }
 
-    const blocked = sessionStorage.getItem(BLOCKED_BUILD_KEY);
-    if (blocked === serverBuildId) {
-      notifyUpdateAvailable(() => {
-        sessionStorage.removeItem(BLOCKED_BUILD_KEY);
-        safeReload(serverBuildId);
-      }, serverBuildId);
-      return;
-    }
-
-    notifyUpdateAvailable(() => {
-      safeReload(serverBuildId);
-    }, serverBuildId);
+    notifyUpdateAvailable(serverBuildId);
   } catch {
     // 離線或暫時性錯誤時略過
   }
@@ -128,11 +152,16 @@ export function setupPwaUpdate(listener: StatusListener) {
           // 僅靜態資源快取就緒
         },
         onNeedRefresh() {
-          notifyUpdateAvailable(() => {
-            void updateSW(true);
-          }, "service-worker");
+          notifyUpdateAvailable("service-worker");
+        },
+        onNeedReload() {
+          reloadPage();
         }
       });
+
+      activateSwUpdate = async () => {
+        await updateSW(true);
+      };
     });
 
     const onVisibility = () => {
@@ -155,5 +184,7 @@ export function setupPwaUpdate(listener: StatusListener) {
     pendingApply = null;
     applying = false;
     notifiedBuildId = null;
+    activateSwUpdate = null;
+    reloadScheduled = false;
   };
 }
