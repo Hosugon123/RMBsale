@@ -21,12 +21,13 @@ import {
   sortedReceivableLedgerWithBalances
 } from "../lib/localStore";
 import { isDepositPurchase, isPurchasePayable, purchasePaymentStatusLabel } from "../lib/purchaseUtils";
+import { fieldControlClass } from "../lib/formStyles";
 import Decimal from "decimal.js";
 import { cn, d, fmtMoney } from "../lib/utils";
 import type { Account, Customer, Purchase } from "../lib/types";
 
-const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
-const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const fieldSelectClass = fieldControlClass;
+const fieldInputClass = fieldControlClass;
 const cardHeaderClass = "p-3 pb-2 sm:p-4 sm:pb-0";
 const cardHeaderStackClass = cn(cardHeaderClass, "gap-3");
 const cardHeaderSplitClass = cn(cardHeaderClass, "flex-row items-start justify-between gap-3");

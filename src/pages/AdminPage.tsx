@@ -19,13 +19,14 @@ import {
   permissionsSummary
 } from "../lib/permissions";
 import { parseBusinessImportJson, summarizeBusinessImport } from "../lib/dataImport";
+import { modalOverlayClass } from "../lib/formStyles";
 import { cn } from "../lib/utils";
 import type { AppUser, PermissionKey, UserLevel } from "../lib/types";
 
 const adminCardHeader = "gap-2 p-3 pb-2 sm:p-4 sm:pb-0";
 const adminCardContent = "p-3 pt-0 sm:p-4";
-const adminModalOverlay = "fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4";
-const adminModalCard = "max-h-[92dvh] w-full max-w-lg overflow-hidden rounded-t-2xl border-b-0 sm:rounded-lg sm:border-b";
+const adminModalOverlay = cn(modalOverlayClass, "z-50");
+const adminModalCard = "max-h-[92dvh] w-full max-w-lg overflow-hidden";
 
 type UserFormState = {
   username: string;

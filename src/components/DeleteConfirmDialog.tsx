@@ -1,3 +1,5 @@
+import { modalOverlayClass } from "../lib/formStyles";
+import { cn } from "../lib/utils";
 import { PortalOverlay } from "./PortalOverlay";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -27,14 +29,8 @@ export function DeleteConfirmDialog({
 
   return (
     <PortalOverlay>
-      <div
-        className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
-        onClick={onClose}
-      >
-        <Card
-          className="w-full max-w-sm overflow-hidden rounded-t-2xl border-b-0 sm:rounded-lg sm:border-b"
-          onClick={(event) => event.stopPropagation()}
-        >
+      <div className={cn(modalOverlayClass, "z-[70]")} onClick={onClose}>
+        <Card className="w-full max-w-sm overflow-hidden" onClick={(event) => event.stopPropagation()}>
           <CardHeader className="border-b p-3 sm:p-4">
             <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
           </CardHeader>

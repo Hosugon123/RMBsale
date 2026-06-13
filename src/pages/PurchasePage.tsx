@@ -12,10 +12,11 @@ import { validatePurchaseForm, type PaymentStatusChoice } from "../lib/formValid
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
+import { fieldControlClass } from "../lib/formStyles";
 import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
 
-const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
-const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const fieldSelectClass = fieldControlClass;
+const fieldInputClass = fieldControlClass;
 const sectionBoxClass = "min-w-0 space-y-2.5 rounded-lg border bg-muted/20 p-3 sm:space-y-3 sm:p-4";
 const sectionTitleClass = "text-base font-semibold leading-tight sm:text-[1.1375rem]";
 const PURCHASE_PAGE_SIZE = 20;

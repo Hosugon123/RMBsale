@@ -17,11 +17,12 @@ import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
+import { fieldControlClass } from "../lib/formStyles";
 import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
 import type { Sale } from "../lib/types";
 
-const fieldSelectClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
-const fieldInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const fieldSelectClass = fieldControlClass;
+const fieldInputClass = fieldControlClass;
 const SALE_PAGE_SIZE = 20;
 
 function accountOptionLabel(holderName: string, name: string, balance: string, fifoRmb: string) {

@@ -8,6 +8,8 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
+import { fieldControlClass, modalOverlayClass } from "../lib/formStyles";
+import { cn } from "../lib/utils";
 
 const TRANSFER_OPEN_EVENT = "rmb:open-transfer";
 
@@ -116,10 +118,7 @@ export function TransferModalHost() {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4"
-      onClick={close}
-    >
+    <div className={cn(modalOverlayClass, "z-50")} onClick={close}>
       <Card
         className="flex max-h-[min(90dvh,100%)] w-full max-w-lg flex-col overflow-hidden"
         onClick={(event) => event.stopPropagation()}
@@ -135,7 +134,7 @@ export function TransferModalHost() {
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">轉出帳戶</span>
               <Select
-                className="min-w-0 max-w-full"
+                className={fieldControlClass}
                 value={form.fromAccountId}
                 onChange={(event) => {
                   const selected = activeAccounts.find((account) => account.id === Number(event.target.value));
@@ -153,7 +152,7 @@ export function TransferModalHost() {
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">轉入帳戶</span>
               <Select
-                className="min-w-0 max-w-full"
+                className={fieldControlClass}
                 value={form.toAccountId}
                 disabled={compatibleAccounts.length === 0}
                 onChange={(event) => setForm({ ...form, toAccountId: event.target.value })}
@@ -164,7 +163,7 @@ export function TransferModalHost() {
             <label className="grid gap-1.5 text-sm">
               <span className="text-muted-foreground">金額</span>
               <Input
-                className="min-w-0 max-w-full"
+                className={fieldControlClass}
                 inputMode="decimal"
                 placeholder="金額"
                 value={form.amount}
@@ -183,7 +182,7 @@ export function TransferModalHost() {
 
       {confirmOpen ? (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4"
+          className={cn(modalOverlayClass, "z-[60]")}
           onClick={() => !isMutating && setConfirmOpen(false)}
         >
           <Card

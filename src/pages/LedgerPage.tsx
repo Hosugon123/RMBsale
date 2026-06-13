@@ -9,6 +9,7 @@ import { useAppStore } from "../features/AppStore";
 import { useLedgerVoid } from "../hooks/useLedgerVoid";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit as profitStyle, rmb, twd } from "../lib/currencyStyles";
+import { fieldControlClass } from "../lib/formStyles";
 import {
   sortedCashLedgerWithBalances,
   sortedLedgerWithBalances,
@@ -205,7 +206,7 @@ export function LedgerPage() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>利潤金額</span>
                 <Input
-                  className="h-10 min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   inputMode="decimal"
                   value={openingProfitForm.amountTwd}
                   onChange={(event) => {
@@ -217,7 +218,7 @@ export function LedgerPage() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>備註</span>
                 <Input
-                  className="h-10 min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   value={openingProfitForm.note}
                   onChange={(event) => setOpeningProfitForm({ ...openingProfitForm, note: event.target.value })}
                   placeholder="例如：試算表期初匯入"

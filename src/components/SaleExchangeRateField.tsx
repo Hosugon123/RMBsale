@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Sale } from "../lib/types";
+import { fieldControlClass } from "../lib/formStyles";
 import { cn, d, fmtRate } from "../lib/utils";
 import { saleFieldLabelRowClass } from "./saleFormLayout";
 import { Button } from "./ui/button";
@@ -14,7 +15,7 @@ export function stepSaleExchangeRate(value: string, direction: "up" | "down") {
   return fmtRate(next);
 }
 
-const defaultInputClass = "h-10 min-w-0 w-full max-w-full text-xs sm:text-sm";
+const defaultInputClass = fieldControlClass;
 
 type SaleExchangeRateFieldProps = {
   value: string;

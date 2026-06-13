@@ -13,6 +13,7 @@ import { SaleExchangeRateField } from "./SaleExchangeRateField";
 import { saleFieldLabelRowClass } from "./saleFormLayout";
 import { SaleConfirmModal, validateSaleForm } from "./SaleConfirmModal";
 import { SaleCustomerFields } from "./SaleCustomerFields";
+import { fieldControlClass } from "../lib/formStyles";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -163,7 +164,7 @@ export function SaleModalHost() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>扣款 RMB 帳戶</span>
                 <Select
-                  className="min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   value={form.rmbAccountId}
                   onChange={(event) => setForm({ ...form, rmbAccountId: event.target.value })}
                   required
@@ -189,7 +190,7 @@ export function SaleModalHost() {
                     <span className={rmb.text}>RMB 金額</span>
                   </div>
                   <Input
-                    className="min-w-0 w-full max-w-full text-xs sm:text-sm"
+                    className={fieldControlClass}
                     inputMode="decimal"
                     value={form.rmbAmount}
                     onChange={(event) => setForm({ ...form, rmbAmount: event.target.value })}

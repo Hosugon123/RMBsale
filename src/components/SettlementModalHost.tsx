@@ -5,6 +5,7 @@ import { useAppStore } from "../features/AppStore";
 import Decimal from "decimal.js";
 import { d, fmtMoney } from "../lib/utils";
 import { runMutation, useIsMutating } from "../lib/runMutation";
+import { fieldControlClass } from "../lib/formStyles";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -144,7 +145,7 @@ export function SettlementModalHost() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>客戶</span>
                 <Select
-                  className="min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   value={form.customerId}
                   onChange={(event) => {
                     const customer = state.customers.find((item) => item.id === Number(event.target.value));
@@ -166,7 +167,7 @@ export function SettlementModalHost() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>入帳 TWD 帳戶</span>
                 <Select
-                  className="min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   value={form.accountId}
                   onChange={(event) => setForm({ ...form, accountId: event.target.value })}
                   required
@@ -181,7 +182,7 @@ export function SettlementModalHost() {
               <label className="block min-w-0 space-y-1 text-sm font-medium">
                 <span>收款金額</span>
                 <Input
-                  className="min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  className={fieldControlClass}
                   inputMode="decimal"
                   value={form.amountTwd}
                   onChange={(event) => setForm({ ...form, amountTwd: event.target.value })}
