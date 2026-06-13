@@ -110,7 +110,6 @@ async function main() {
     clientId,
     entryDate: todayIsoDate(),
     payoutRmb: "30000.00",
-    vendorName: "探測廠商",
     cashAccountId: rmbAccount.id
   };
   const payout = await request("special-client-wallet/payout", { method: "POST", body: JSON.stringify(payoutBody) }, cookie);

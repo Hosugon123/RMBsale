@@ -119,7 +119,6 @@ export function SpecialClientWalletPage() {
 
   const [payoutForm, setPayoutForm] = React.useState({
     entryDate: todayIsoDate(),
-    vendorName: "",
     payoutRmb: "",
     cashAccountId: "",
     purpose: "",
@@ -244,7 +243,6 @@ export function SpecialClientWalletPage() {
   const resetPayoutForm = React.useCallback(() => {
     setPayoutForm({
       entryDate: todayIsoDate(),
-      vendorName: "",
       payoutRmb: "",
       cashAccountId: "",
       purpose: "",
@@ -265,6 +263,10 @@ export function SpecialClientWalletPage() {
     }
     if (d(depositForm.grossRmb).lte(0)) {
       setDepositError("結匯 RMB 金額必須大於 0");
+      return;
+    }
+    if (depositForm.usdAmount.trim() && depositForm.usdToRmbRate.trim()) {
+      setDepositError("USD 金額與 USD/RMB 匯率只能擇一填寫");
       return;
     }
 
@@ -301,10 +303,6 @@ export function SpecialClientWalletPage() {
       setPayoutError("請選擇客戶");
       return;
     }
-    if (!payoutForm.vendorName.trim()) {
-      setPayoutError("請填寫廠商名稱");
-      return;
-    }
     if (!payoutForm.cashAccountId) {
       setPayoutError("請選擇付款公司 RMB 帳戶");
       return;
@@ -318,7 +316,6 @@ export function SpecialClientWalletPage() {
       clientId: Number(selectedClientId),
       entryDate: payoutForm.entryDate,
       payoutRmb: d(payoutForm.payoutRmb).toFixed(2),
-      vendorName: payoutForm.vendorName.trim(),
       cashAccountId: Number(payoutForm.cashAccountId),
       purpose: payoutForm.purpose.trim() || undefined,
       note: payoutForm.note.trim() || undefined
@@ -397,7 +394,7 @@ export function SpecialClientWalletPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">特殊客戶儲值代付帳</h1>
-          <p className="text-sm text-muted-foreground">記錄特殊客戶結匯儲值、代付廠商與 1.1% 服務費利潤。</p>
+          <p className="text-sm text-muted-foreground">記錄特殊客戶結匯儲值、代付與 1.1% 服務費利潤。</p>
         </div>
         {wallet?.clients.length ? (
           <div className="w-full sm:w-56">
@@ -480,12 +477,36 @@ export function SpecialClientWalletPage() {
                     <Input className={fieldClass} type="date" value={depositForm.entryDate} onChange={(e) => setDepositForm((p) => ({ ...p, entryDate: e.target.value }))} />
                   </label>
                   <label className="block space-y-1 text-sm">
-                    <span>USD 金額（選填）</span>
-                    <Input className={fieldClass} inputMode="decimal" value={depositForm.usdAmount} onChange={(e) => setDepositForm((p) => ({ ...p, usdAmount: e.target.value }))} placeholder="例如 10000" />
+                    <span>USD 金額（擇一填）</span>
+                    <Input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={depositForm.usdAmount}
+                      onChange={(e) =>
+                        setDepositForm((p) => ({
+                          ...p,
+                          usdAmount: e.target.value,
+                          usdToRmbRate: e.target.value.trim() ? "" : p.usdToRmbRate
+                        }))
+                      }
+                      placeholder="例如 10000"
+                    />
                   </label>
                   <label className="block space-y-1 text-sm">
-                    <span>USD/RMB 匯率（選填）</span>
-                    <Input className={fieldClass} inputMode="decimal" value={depositForm.usdToRmbRate} onChange={(e) => setDepositForm((p) => ({ ...p, usdToRmbRate: e.target.value }))} placeholder="例如 7.2500" />
+                    <span>USD/RMB 匯率（擇一填）</span>
+                    <Input
+                      className={fieldClass}
+                      inputMode="decimal"
+                      value={depositForm.usdToRmbRate}
+                      onChange={(e) =>
+                        setDepositForm((p) => ({
+                          ...p,
+                          usdToRmbRate: e.target.value,
+                          usdAmount: e.target.value.trim() ? "" : p.usdAmount
+                        }))
+                      }
+                      placeholder="例如 7.2500"
+                    />
                   </label>
                   <label className="block space-y-1 text-sm">
                     <span>結匯 RMB 金額 *</span>
@@ -531,10 +552,6 @@ export function SpecialClientWalletPage() {
                   <label className="block space-y-1 text-sm">
                     <span>日期</span>
                     <Input className={fieldClass} type="date" value={payoutForm.entryDate} onChange={(e) => setPayoutForm((p) => ({ ...p, entryDate: e.target.value }))} />
-                  </label>
-                  <label className="block space-y-1 text-sm">
-                    <span>廠商名稱 *</span>
-                    <Input className={fieldClass} value={payoutForm.vendorName} onChange={(e) => setPayoutForm((p) => ({ ...p, vendorName: e.target.value }))} required />
                   </label>
                   <label className="block space-y-1 text-sm">
                     <span>代付 RMB 金額 *</span>

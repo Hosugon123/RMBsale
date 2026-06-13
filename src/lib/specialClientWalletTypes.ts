@@ -97,7 +97,7 @@ export type SpecialClientPayoutBody = {
   clientId: number;
   entryDate: string;
   payoutRmb: string;
-  vendorName: string;
+  vendorName?: string;
   cashAccountId: number;
   purpose?: string;
   note?: string;

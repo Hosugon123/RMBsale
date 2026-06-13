@@ -41,7 +41,7 @@ type PayoutInput = {
   clientId: number;
   entryDate: string;
   payoutRmb: string;
-  vendorName: string;
+  vendorName?: string;
   cashAccountId: number;
   purpose?: string;
   note?: string;
@@ -366,7 +366,6 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
   if (!input.clientId) throw new Error("請選擇客戶");
   if (!input.cashAccountId) throw new Error("請選擇付款公司 RMB 帳戶");
   if (!input.entryDate) throw new Error("請填寫日期");
-  if (!input.vendorName?.trim()) throw new Error("請填寫廠商名稱");
   const payout = money(input.payoutRmb);
   if (payout.lte(0)) throw new Error("代付 RMB 金額必須大於 0");
 
@@ -379,6 +378,8 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
     const balanceBefore = money(await getClientBalanceInTx(tx, input.clientId));
     const balanceAfter = balanceBefore.sub(payoutRmb);
 
+    const vendorLabel = input.vendorName?.trim() || input.purpose?.trim() || "代付";
+
     const [entry] = await tx
       .insert(specialClientWalletEntries)
       .values({
@@ -386,7 +387,7 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
         type: "payout",
         entryDate: input.entryDate,
         payoutRmb,
-        vendorName: input.vendorName.trim(),
+        vendorName: input.vendorName?.trim() || null,
         purpose: input.purpose?.trim() || null,
         cashAccountId: input.cashAccountId,
         cashAccountDelta: toDbMoney(payout.neg()),
@@ -403,7 +404,7 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
       "out",
       entry.id,
       actor.id ?? 0,
-      `特殊客戶代付 ${client.name} → ${input.vendorName.trim()} ${fmtRmbAmount(payoutRmb)}`,
+      `特殊客戶代付 ${client.name} → ${vendorLabel} ${fmtRmbAmount(payoutRmb)}`,
       "特殊客戶代付"
     );
 
