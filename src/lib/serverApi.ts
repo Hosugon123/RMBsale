@@ -55,6 +55,9 @@ export const serverApi = {
   createOpeningReceivable: (body: { customerName: string; amountTwd: string; note?: string }) =>
     request("receivables", { method: "POST", body: JSON.stringify(body) }),
 
+  createOpeningProfit: (body: { amountTwd: string; note?: string }) =>
+    request("profit", { method: "POST", body: JSON.stringify(body) }),
+
   payPurchase: (body: Record<string, unknown>) =>
     request("purchases/pay", { method: "POST", body: JSON.stringify(body) }),
 

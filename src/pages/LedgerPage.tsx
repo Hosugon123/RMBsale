@@ -1,22 +1,28 @@
 import * as React from "react";
-import { Download } from "lucide-react";
+import { Download, Plus, X } from "lucide-react";
 import { LEDGER_PAGE_SIZE, PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
 import { VoidOperationDialog } from "../components/VoidOperationDialog";
 import { useAppStore } from "../features/AppStore";
 import { useLedgerVoid } from "../hooks/useLedgerVoid";
+import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit as profitStyle, rmb, twd } from "../lib/currencyStyles";
 import {
   sortedCashLedgerWithBalances,
   sortedLedgerWithBalances,
   sortedProfitLedgerWithBalances
 } from "../lib/localStore";
-import { cn, fmtMoney } from "../lib/utils";
+import { cn, d, fmtMoney } from "../lib/utils";
 
 export function LedgerPage() {
-  const { state, summary } = useAppStore();
+  const { state, summary, createOpeningProfit } = useAppStore();
+  const isMutating = useIsMutating();
   const { resolveVoidTarget, requestVoid, pending, error, cancelVoid, confirmVoid } = useLedgerVoid();
+  const [openingProfitOpen, setOpeningProfitOpen] = React.useState(false);
+  const [openingProfitForm, setOpeningProfitForm] = React.useState({ amountTwd: "", note: "" });
+  const [openingProfitError, setOpeningProfitError] = React.useState("");
   const voidProps = {
     resolveVoidTarget,
     onVoid: requestVoid,
@@ -48,6 +54,25 @@ export function LedgerPage() {
     link.download = "rmbsale-ledger.csv";
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const openOpeningProfitModal = () => {
+    setOpeningProfitForm({ amountTwd: "", note: "" });
+    setOpeningProfitError("");
+    setOpeningProfitOpen(true);
+  };
+
+  const submitOpeningProfit = async () => {
+    try {
+      if (!openingProfitForm.amountTwd.trim()) throw new Error("請輸入利潤金額");
+      if (d(openingProfitForm.amountTwd).lte(0)) throw new Error("利潤金額必須大於 0");
+      await runMutation(() => createOpeningProfit(openingProfitForm));
+      setOpeningProfitOpen(false);
+      setOpeningProfitForm({ amountTwd: "", note: "" });
+      setOpeningProfitError("");
+    } catch (err) {
+      setOpeningProfitError(err instanceof Error ? err.message : "新增期初利潤失敗");
+    }
   };
 
   return (
@@ -106,9 +131,16 @@ export function LedgerPage() {
       </div>
 
       <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>利潤流水</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">售出利潤入庫與分潤出金紀錄</p>
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle>利潤流水</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">售出利潤入庫、期初利潤與分潤出金紀錄</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-9 shrink-0" onClick={openOpeningProfitModal}>
+            <Plus className="h-4 w-4" />
+            新增期初利潤
+          </Button>
+          <div className="basis-full">
           <div className="mt-2 flex flex-wrap gap-x-8 gap-y-3">
             <div>
               <p className="text-xs text-muted-foreground">未分利潤</p>
@@ -122,6 +154,7 @@ export function LedgerPage() {
                 {fmtMoney(summary.profitEarned, "TWD")}
               </p>
             </div>
+          </div>
           </div>
         </CardHeader>
         <CardContent className="min-w-0 space-y-3 p-3 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
@@ -146,6 +179,75 @@ export function LedgerPage() {
         onClose={cancelVoid}
         onConfirm={() => void confirmVoid()}
       />
+
+      {openingProfitOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={isMutating ? undefined : () => setOpeningProfitOpen(false)}
+        >
+          <Card className="max-h-[90vh] w-full max-w-md overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">新增期初利潤</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">僅建立利潤池，不會異動現金帳戶或售出紀錄。</p>
+              </div>
+              <Button
+                aria-label="關閉"
+                disabled={isMutating}
+                onClick={() => setOpeningProfitOpen(false)}
+                size="icon"
+                variant="ghost"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="max-h-[calc(90vh-4rem)] space-y-3 overflow-y-auto p-3 sm:p-4">
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <span>利潤金額</span>
+                <Input
+                  className="h-10 min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  inputMode="decimal"
+                  value={openingProfitForm.amountTwd}
+                  onChange={(event) => {
+                    setOpeningProfitForm({ ...openingProfitForm, amountTwd: event.target.value });
+                    if (openingProfitError) setOpeningProfitError("");
+                  }}
+                />
+              </label>
+              <label className="block min-w-0 space-y-1 text-sm font-medium">
+                <span>備註</span>
+                <Input
+                  className="h-10 min-w-0 w-full max-w-full text-xs sm:text-sm"
+                  value={openingProfitForm.note}
+                  onChange={(event) => setOpeningProfitForm({ ...openingProfitForm, note: event.target.value })}
+                  placeholder="例如：試算表期初匯入"
+                />
+              </label>
+              <div className="rounded-md border border-pending/20 bg-pending/10 p-3 text-sm">
+                <p className="text-xs text-pending/80">新增後未分利潤會增加</p>
+                <p className={cn("mt-1 text-xl font-semibold tabular-nums", profitStyle.text)}>
+                  {fmtMoney(openingProfitForm.amountTwd || 0)}
+                </p>
+              </div>
+              {openingProfitError ? <p className="text-sm text-destructive">{openingProfitError}</p> : null}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isMutating}
+                  onClick={() => setOpeningProfitOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button type="button" className="flex-1" disabled={isMutating} onClick={() => void submitOpeningProfit()}>
+                  {isMutating ? "處理中…" : "建立利潤"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

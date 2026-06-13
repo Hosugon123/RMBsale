@@ -274,6 +274,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       await serverApi.createOpeningReceivable(input);
       afterMutation("settlement");
     },
+    createOpeningProfit: async (input) => {
+      await serverApi.createOpeningProfit(input);
+      afterMutation("adjustment");
+    },
     payPurchase: async (input) => {
       await serverApi.payPurchase(input as Record<string, unknown>);
       afterMutation("purchasePay");

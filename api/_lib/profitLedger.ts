@@ -151,7 +151,20 @@ export async function getAvailableProfitTwd(tx: DbTx) {
     .select({ profitTwd: sales.profitTwd })
     .from(sales)
     .where(eq(sales.status, "active"));
-  const earned = activeSales.reduce((sum, row) => sum.add(row.profitTwd), money(0));
+  const saleEarned = activeSales.reduce((sum, row) => sum.add(row.profitTwd), money(0));
+
+  const openingProfits = await tx
+    .select({ amount: ledgerEntries.amount })
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.relatedTable, "opening_profit"),
+        eq(ledgerEntries.direction, "in"),
+        eq(ledgerEntries.currency, "TWD"),
+        eq(ledgerEntries.isReversal, false)
+      )
+    );
+  const openingEarned = openingProfits.reduce((sum, row) => sum.add(row.amount), money(0));
 
   const withdrawals = await tx
     .select({ amount: ledgerEntries.amount })
@@ -166,5 +179,5 @@ export async function getAvailableProfitTwd(tx: DbTx) {
     );
   const withdrawn = withdrawals.reduce((sum, row) => sum.add(row.amount), money(0));
 
-  return earned.sub(withdrawn);
+  return saleEarned.add(openingEarned).sub(withdrawn);
 }

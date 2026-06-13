@@ -14,6 +14,7 @@ import {
   updateSaleProfit,
   addSettlement,
   createOpeningReceivable,
+  createOpeningProfit,
   payPurchase,
   purchasePayableTwd,
   addTransfer,
@@ -254,6 +255,32 @@ describe("local demo store", () => {
       amount: "12345.00",
       subjectLabel: "期初客戶",
       balanceAfter: "12345.00"
+    });
+  });
+
+  it("creates opening profit without changing cash accounts", () => {
+    const state = createSeedState();
+    state.sales = [];
+    state.ledger = state.ledger.filter((entry) => entry.entryType !== "利潤");
+    const twdBefore = state.accounts
+      .filter((account) => account.currency === "TWD")
+      .map((account) => [account.id, account.balance]);
+
+    createOpeningProfit(state, { amountTwd: "143512", note: "試算表期初匯入" });
+
+    expect(totals(state).profitEarned).toBe("143512.00");
+    expect(totals(state).profit).toBe("143512.00");
+    expect(
+      state.accounts.filter((account) => account.currency === "TWD").map((account) => [account.id, account.balance])
+    ).toEqual(twdBefore);
+
+    const row = sortedProfitLedgerWithBalances(state).find((entry) => entry.relatedTable === "opening_profit");
+    expect(row).toMatchObject({
+      entryType: "利潤",
+      direction: "in",
+      amount: "143512.00",
+      subjectLabel: "累計利潤",
+      balanceAfter: "143512.00"
     });
   });
 

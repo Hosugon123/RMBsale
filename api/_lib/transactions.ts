@@ -425,6 +425,46 @@ export async function createOpeningReceivable(input: {
   });
 }
 
+export async function createOpeningProfit(input: {
+  amountTwd: string;
+  note?: string;
+}, actor: Actor) {
+  const db = getDb();
+  if (!input.amountTwd.trim()) throw new Error("請輸入利潤金額");
+  const amount = money(input.amountTwd);
+  if (amount.lte(0)) throw new Error("利潤金額必須大於 0");
+  const amountTwd = toDbMoney(amount);
+
+  return db.transaction(async (tx) => {
+    const note = input.note?.trim();
+    const description = note ? `期初利潤（${note}）` : "期初利潤";
+    const [entry] = await tx
+      .insert(ledgerEntries)
+      .values({
+        entryType: "利潤",
+        relatedTable: "opening_profit",
+        direction: "in",
+        currency: "TWD",
+        amount: amountTwd,
+        description,
+        operatorId: actor.id
+      })
+      .returning();
+
+    await tx.update(ledgerEntries).set({ relatedId: entry.id }).where(eq(ledgerEntries.id, entry.id));
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_OPENING_PROFIT,
+      targetType: "opening_profit",
+      targetId: entry.id,
+      after: { ...entry, relatedId: entry.id },
+      actor
+    });
+
+    return { ledgerEntry: { ...entry, relatedId: entry.id } };
+  });
+}
+
 export async function createTransfer(input: {
   fromAccountId: number;
   toAccountId: number;

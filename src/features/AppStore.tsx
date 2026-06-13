@@ -9,6 +9,7 @@ import {
   addSettlement,
   updateSaleProfit as updateLocalSaleProfit,
   createOpeningReceivable as createLocalOpeningReceivable,
+  createOpeningProfit as createLocalOpeningProfit,
   addTransfer,
   adjustAccount,
   createUser,
@@ -61,6 +62,7 @@ export type AppStore = {
   updateSaleProfit: Parameters<typeof updateLocalSaleProfit>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createSettlement: Parameters<typeof addSettlement>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createOpeningReceivable: Parameters<typeof createLocalOpeningReceivable>[1] extends infer P ? (input: P) => void | Promise<void> : never;
+  createOpeningProfit: Parameters<typeof createLocalOpeningProfit>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   payPurchase: Parameters<typeof payPurchase>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   adjustAccount: Parameters<typeof adjustAccount>[1] extends infer P ? (input: P) => void | Promise<void> : never;
   createTransfer: Parameters<typeof addTransfer>[1] extends infer P ? (input: P) => void | Promise<void> : never;
@@ -176,6 +178,7 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
     updateSaleProfit: (input) => commit((draft) => updateLocalSaleProfit(draft, input)),
     createSettlement: (input) => commit((draft) => addSettlement(draft, input)),
     createOpeningReceivable: (input) => commit((draft) => createLocalOpeningReceivable(draft, input)),
+    createOpeningProfit: (input) => commit((draft) => createLocalOpeningProfit(draft, input)),
     payPurchase: (input) => commit((draft) => payPurchase(draft, input)),
     adjustAccount: (input) => commit((draft) => adjustAccount(draft, input)),
     createTransfer: (input) => commit((draft) => addTransfer(draft, input)),

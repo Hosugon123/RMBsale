@@ -475,7 +475,11 @@ export function replaceBusinessData(state: AppState, next: AppState): AppState {
 }
 
 export function totals(state: AppState) {
-  const profitEarned = state.sales.reduce((sum, sale) => sum.add(sale.profitTwd), d(0));
+  const saleProfitEarned = state.sales.reduce((sum, sale) => sum.add(sale.profitTwd), d(0));
+  const openingProfitEarned = state.ledger
+    .filter((entry) => entry.relatedTable === "opening_profit" && entry.direction === "in" && entry.currency === "TWD" && !entry.isReversal)
+    .reduce((sum, entry) => sum.add(entry.amount), d(0));
+  const profitEarned = saleProfitEarned.add(openingProfitEarned);
   const profitWithdrawals = state.ledger
     .filter((entry) => entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD")
     .reduce((sum, entry) => sum.add(entry.amount), d(0));
@@ -970,6 +974,30 @@ export function createOpeningReceivable(state: AppState, input: { customerName: 
     description: note ? `期初待收：${customer.name}（${note}）` : `期初待收：${customer.name}`,
     operatorName: currentOperator(state),
     relatedTable: "opening_receivable",
+    relatedId: ledgerId
+  });
+
+  return state;
+}
+
+export function createOpeningProfit(state: AppState, input: { amountTwd: string; note?: string }) {
+  if (!input.amountTwd.trim()) throw new Error("請輸入利潤金額");
+  if (d(input.amountTwd).lte(0)) throw new Error("利潤金額必須大於 0");
+
+  const amountTwd = money(input.amountTwd);
+  const ledgerId = nextId(state.ledger);
+  const note = input.note?.trim();
+
+  state.ledger.unshift({
+    id: ledgerId,
+    createdAt: txNow(),
+    entryType: "利潤",
+    direction: "in",
+    currency: "TWD",
+    amount: amountTwd,
+    description: note ? `期初利潤（${note}）` : "期初利潤",
+    operatorName: currentOperator(state),
+    relatedTable: "opening_profit",
     relatedId: ledgerId
   });
 
