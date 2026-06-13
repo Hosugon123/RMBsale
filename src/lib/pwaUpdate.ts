@@ -3,8 +3,9 @@ import { isMutationInFlight, onMutationIdle } from "./runMutation";
 const CLIENT_BUILD_ID = import.meta.env.VITE_BUILD_ID;
 const RELOAD_TS_KEY = "rmbsale-last-reload-ts";
 const BLOCKED_BUILD_KEY = "rmbsale-blocked-reload-build";
+const SAFE_RELOAD_RETRY_MS = 1500;
 
-export type PwaUpdateStatus = "hidden" | "pending" | "waiting_mutation" | "updating";
+export type PwaUpdateStatus = "hidden" | "updating";
 
 type StatusListener = (status: PwaUpdateStatus) => void;
 
@@ -14,6 +15,7 @@ let applying = false;
 let notifiedBuildId: string | null = null;
 let activateSwUpdate: (() => Promise<void>) | null = null;
 let reloadScheduled = false;
+let autoApplyTimer: number | null = null;
 
 function setStatus(status: PwaUpdateStatus) {
   statusListener?.(status);
@@ -30,6 +32,27 @@ function reloadPage() {
   reloadScheduled = true;
   sessionStorage.setItem(RELOAD_TS_KEY, String(Date.now()));
   window.location.reload();
+}
+
+function clearAutoApplyTimer() {
+  if (autoApplyTimer == null) return;
+  window.clearTimeout(autoApplyTimer);
+  autoApplyTimer = null;
+}
+
+function isEditableActive() {
+  const element = document.activeElement;
+  if (!(element instanceof HTMLElement)) return false;
+  return Boolean(element.closest("input, textarea, select, [contenteditable='true'], [role='textbox']"));
+}
+
+function scheduleAutoApply(delayMs = 0) {
+  if (!pendingApply || applying || reloadScheduled) return;
+  clearAutoApplyTimer();
+  autoApplyTimer = window.setTimeout(() => {
+    autoApplyTimer = null;
+    tryApplyPending();
+  }, delayMs);
 }
 
 function waitForSwControl(timeoutMs = 2500) {
@@ -76,7 +99,14 @@ function tryApplyPending() {
   if (!apply || applying) return;
 
   if (isMutationInFlight()) {
-    setStatus("waiting_mutation");
+    setStatus("hidden");
+    scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
+    return;
+  }
+
+  if (document.visibilityState === "visible" && isEditableActive()) {
+    setStatus("hidden");
+    scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
     return;
   }
 
@@ -86,14 +116,21 @@ function tryApplyPending() {
   window.setTimeout(() => {
     if (isMutationInFlight()) {
       applying = false;
-      setStatus("waiting_mutation");
+      setStatus("hidden");
+      scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
+      return;
+    }
+    if (document.visibilityState === "visible" && isEditableActive()) {
+      applying = false;
+      setStatus("hidden");
+      scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
       return;
     }
     pendingApply = null;
     void Promise.resolve(apply()).finally(() => {
       window.setTimeout(() => {
         applying = false;
-        if (pendingApply) setStatus("pending");
+        if (pendingApply) scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
       }, 2000);
     });
   }, 300);
@@ -103,7 +140,8 @@ function notifyUpdateAvailable(buildId?: string) {
   if (buildId && notifiedBuildId === buildId) return;
   if (buildId) notifiedBuildId = buildId;
   pendingApply = () => performAppUpdate();
-  setStatus(isMutationInFlight() ? "waiting_mutation" : "pending");
+  setStatus("hidden");
+  scheduleAutoApply();
 }
 
 async function checkServerBuildId() {
@@ -128,10 +166,6 @@ async function checkServerBuildId() {
   }
 }
 
-export function applyPendingPwaUpdate() {
-  tryApplyPending();
-}
-
 export function setupPwaUpdate(listener: StatusListener) {
   statusListener = listener;
   const cleanups: Array<() => void> = [];
@@ -139,7 +173,7 @@ export function setupPwaUpdate(listener: StatusListener) {
   cleanups.push(
     onMutationIdle(() => {
       if (pendingApply && !applying) {
-        setStatus("pending");
+        scheduleAutoApply();
       }
     })
   );
@@ -155,7 +189,7 @@ export function setupPwaUpdate(listener: StatusListener) {
           notifyUpdateAvailable("service-worker");
         },
         onNeedReload() {
-          reloadPage();
+          notifyUpdateAvailable("service-worker-reload");
         }
       });
 
@@ -166,9 +200,20 @@ export function setupPwaUpdate(listener: StatusListener) {
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") void checkServerBuildId();
+      if (pendingApply && !applying) scheduleAutoApply();
     };
     document.addEventListener("visibilitychange", onVisibility);
     cleanups.push(() => document.removeEventListener("visibilitychange", onVisibility));
+
+    const onSafeInteractionBoundary = () => {
+      if (pendingApply && !applying) scheduleAutoApply(SAFE_RELOAD_RETRY_MS);
+    };
+    window.addEventListener("focusout", onSafeInteractionBoundary);
+    window.addEventListener("pagehide", onSafeInteractionBoundary);
+    cleanups.push(() => {
+      window.removeEventListener("focusout", onSafeInteractionBoundary);
+      window.removeEventListener("pagehide", onSafeInteractionBoundary);
+    });
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") void checkServerBuildId();
@@ -186,5 +231,6 @@ export function setupPwaUpdate(listener: StatusListener) {
     notifiedBuildId = null;
     activateSwUpdate = null;
     reloadScheduled = false;
+    clearAutoApplyTimer();
   };
 }
