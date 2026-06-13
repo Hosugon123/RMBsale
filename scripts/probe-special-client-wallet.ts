@@ -4,8 +4,10 @@
  */
 import "./loadEnv.ts";
 import Decimal from "decimal.js";
+import { assertProbeTargetAllowed } from "../api/_lib/databaseEnv.js";
 
 const BASE = process.env.PROBE_BASE_URL ?? "http://127.0.0.1:8080";
+assertProbeTargetAllowed(BASE);
 const USER = process.env.PROBE_USERNAME ?? "ds6186";
 const PASS = process.env.PROBE_PASSWORD ?? "1234";
 

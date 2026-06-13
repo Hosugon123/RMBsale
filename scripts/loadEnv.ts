@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-function loadFile(path: string) {
+function loadFile(path: string, options?: { override?: boolean }) {
   if (!existsSync(path)) return;
   const text = readFileSync(path, "utf8");
   for (const line of text.split(/\r?\n/)) {
@@ -17,11 +17,13 @@ function loadFile(path: string) {
     ) {
       value = value.slice(1, -1);
     }
-    if (!process.env[key]) process.env[key] = value;
+    if (options?.override || process.env[key] === undefined) {
+      process.env[key] = value;
+    }
   }
 }
 
 const root = resolve(import.meta.dirname, "..");
 loadFile(resolve(root, ".env"));
 loadFile(resolve(root, ".env.production"));
-loadFile(resolve(root, ".env.local"));
+loadFile(resolve(root, ".env.local"), { override: true });

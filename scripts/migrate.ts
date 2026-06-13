@@ -2,12 +2,14 @@ import "./loadEnv.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
+import { assertNotProductionDatabaseForDevOps } from "../api/_lib/databaseEnv.js";
 import { getDb } from "../api/_lib/db.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error("DATABASE_URL is not configured.");
 }
+assertNotProductionDatabaseForDevOps("db:migrate");
 
 /** Migration runs single statements only; shares the Pool-backed client with the app. */
 const db = getDb();

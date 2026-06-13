@@ -57,6 +57,26 @@ postgresql://user:password@host:5432/dbname?sslmode=require
 
 記下為 `DATABASE_URL`。
 
+### 測試與正式資料庫分離
+
+- **正式**：Neon 專案 `rmbsale-prod` → GCP Secret `rmbsale-database-url` → Cloud Run `dsrmbsys`
+- **本機測試**：Neon 專案 `rmbsale-dev` → 僅寫入 `.env.local`，`RMBSALE_ENV=development`
+- **切勿**把正式 `DATABASE_URL` 貼到本機 `.env.local` 做 `dev:online` 或探測腳本
+- 執行 `npm.cmd run db:check-isolation` 確認本機未連到正式 host
+- 舊版 `setup-neon-b.ps1` 已棄用（曾造成測試／正式混庫）
+
+建立／更新：
+
+```powershell
+# 本機測試庫
+powershell -ExecutionPolicy Bypass -File scripts\setup-neon-dev.ps1
+
+# 正式庫 Secret
+powershell -ExecutionPolicy Bypass -File scripts\setup-neon-prod.ps1
+```
+
+---
+
 ### 4. 機密變數（建議用 Secret Manager）
 
 ```bash

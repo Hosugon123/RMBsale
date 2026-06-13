@@ -4,6 +4,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
+import { formatDatabaseIsolationReport, assertDevOnlineDatabaseSafe } from "../api/_lib/databaseEnv.js";
 import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "../api/_lib/ensureAuditBackupSchema.js";
 import { ensureProfitLedgerEntries } from "../api/_lib/profitLedger.js";
 import { ensureUserProfileColumns } from "../api/_lib/ensureUserColumns.js";
@@ -112,6 +113,15 @@ async function createApp() {
 }
 
 validateProductionEnv();
+if (useViteDev) {
+  console.log(formatDatabaseIsolationReport());
+  try {
+    assertDevOnlineDatabaseSafe();
+  } catch (error) {
+    console.error(`\n拒絕啟動 dev:online：${error instanceof Error ? error.message : error}\n`);
+    process.exit(1);
+  }
+}
 if (isProduction && !useViteDev) {
   assertDistExists(distDir);
 }

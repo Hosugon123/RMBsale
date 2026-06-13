@@ -58,6 +58,47 @@ PowerShell 若擋 `npm.ps1`，請使用 `npm.cmd`。
 
 ## 資料庫
 
+### 測試與正式必須分離（重要）
+
+**本機測試不可連到 Cloud Run 正式庫。** 若 `dev:online` 或探測腳本誤用正式 `DATABASE_URL`，測試資料（例如儲值代付探測、廠商名「探測廠商」）會寫進正式版。
+
+| 環境 | Neon 專案 | 設定位置 |
+|------|-----------|----------|
+| 本機／測試 | `rmbsale-dev` | `.env.local`（`RMBSALE_ENV=development`） |
+| 正式 Cloud Run | `rmbsale-prod` | GCP Secret `rmbsale-database-url` |
+
+**首次建立本機測試庫：**
+
+```powershell
+$env:NEON_API_KEY = "napi_xxxxxxxx"
+powershell -ExecutionPolicy Bypass -File scripts\setup-neon-dev.ps1
+```
+
+**正式庫（僅更新 GCP Secret，勿寫入 .env.local）：**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-neon-prod.ps1
+```
+
+在 `.env.local` 設定 `RMBSALE_PRODUCTION_DB_HOST`（正式 Neon 的 host，不含密碼），然後確認未誤連正式庫：
+
+```bash
+npm.cmd run db:check-isolation
+```
+
+- `dev:demo`：localStorage，完全不連資料庫。
+- `dev:online`：若偵測到本機 `DATABASE_URL` 與正式 host 相同，**會拒絕啟動**。
+- `scripts/probe-special-client-wallet.ts`：僅允許 `http://127.0.0.1:8080`，不可對 Cloud Run 網址執行。
+- 已棄用 `scripts/setup-neon-b.ps1`（曾把同一庫寫入 Vercel 各環境）。
+
+若正式庫已有誤寫入的探測資料且尚未沖銷，可在確認後執行（需 `RMBSALE_ENV=production`）：
+
+```bash
+ALLOW_PURGE_PROBE=1 npm.cmd run db:purge-probe-wallet -- --confirm
+```
+
+已沖銷的探測紀錄仍會留在稽核流水（追加式帳務設計），但餘額應已還原。
+
 部署到 Cloud Run（或任何 Node 主機）時，設定：
 
 ```bash

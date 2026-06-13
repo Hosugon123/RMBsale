@@ -1,5 +1,5 @@
 # 一鍵線上設定（不需 Neon API Key）
-# 透過 Vercel Marketplace 建立 Neon，再 migrate / seed / 寫入 JWT 等
+# ⚠ DATABASE_URL 請勿寫入 Vercel preview/development 與本機 .env.local 共用；本機測試請用 setup-neon-dev.ps1
 # 用法：.\scripts\run-setup-auto.cmd
 
 param(

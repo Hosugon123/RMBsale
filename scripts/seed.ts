@@ -1,4 +1,5 @@
 import "./loadEnv.ts";
+import { assertNotProductionDatabaseForDevOps } from "../api/_lib/databaseEnv.js";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../api/_lib/db";
@@ -13,6 +14,8 @@ if (process.env.NODE_ENV === "production" && process.env.ALLOW_PRODUCTION_SEED !
   );
   process.exit(1);
 }
+
+assertNotProductionDatabaseForDevOps("db:seed");
 
 const username = process.env.ADMIN_USERNAME?.trim() || "ds6186";
 const password = process.env.ADMIN_PASSWORD?.trim() || "1234";
