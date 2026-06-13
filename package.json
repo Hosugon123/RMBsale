@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --mode demo",
     "dev:demo": "vite --host 127.0.0.1 --mode demo",
-    "dev:online": "cross-env VITE_DEV=1 tsx watch server/index.ts",
+    "dev:online": "cross-env VITE_DEV=1 tsx watch --exclude \"vite.config.ts.timestamp-*\" server/index.ts",
     "dev:server": "cross-env NODE_ENV=production tsx server/index.ts",
     "build:server": "tsc -p server/tsconfig.build.json",
     "build": "tsc -p tsconfig.app.json --noEmit && tsc -p api/tsconfig.json --noEmit && vite build && npm run build:server",

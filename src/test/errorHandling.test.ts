@@ -135,7 +135,7 @@ describe("store error handling (no partial apply on failure)", () => {
     const state = createSeedState();
     expect(() =>
       createUser(state, {
-        username: "ds001",
+        username: "ds6186",
         password: "1234",
         displayName: "重複",
         permissions: ["dashboard"]

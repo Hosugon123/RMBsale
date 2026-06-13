@@ -20,6 +20,18 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_BUILD_ID": JSON.stringify(buildId)
   },
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8080",
+        changeOrigin: true
+      },
+      "/health": {
+        target: "http://127.0.0.1:8080",
+        changeOrigin: true
+      }
+    }
+  },
   plugins: [
     react(),
     buildMetaPlugin(buildId),

@@ -161,7 +161,7 @@ gcloud run deploy rmbsale \
 ```powershell
 $env:DATABASE_URL="postgresql://...（正式庫）"
 $env:JWT_SECRET="..."
-$env:ADMIN_USERNAME="ds001"
+$env:ADMIN_USERNAME="ds6186"
 $env:ADMIN_PASSWORD="強密碼"
 npm.cmd run db:migrate
 npm.cmd run db:seed
@@ -177,7 +177,7 @@ npm.cmd run db:seed
 | `JWT_SECRET` | 是 | 登入 session 簽章 |
 | `PORT` | 否 | Cloud Run 自動注入（程式預設 8080） |
 | `NODE_ENV` | 建議 | `production`（Dockerfile 已設） |
-| `ADMIN_USERNAME` | 選填 | seed 用，預設 `ds001` |
+| `ADMIN_USERNAME` | 選填 | seed 用，預設 `ds6186` |
 | `ADMIN_PASSWORD` | 選填 | seed 用 |
 
 ---

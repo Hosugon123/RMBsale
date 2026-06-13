@@ -1,7 +1,7 @@
 const login = await fetch("https://dsrmb-sys.vercel.app/api/auth/login", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ username: "ds001", password: "1234" })
+  body: JSON.stringify({ username: "ds6186", password: "1234" })
 });
 const loginBody = await login.text();
 const setCookie = login.headers.getSetCookie?.() ?? [];

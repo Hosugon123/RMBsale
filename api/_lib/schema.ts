@@ -259,5 +259,49 @@ export const backupRuns = pgTable(
   })
 );
 
+export const specialClients = pgTable("special_clients", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  feeRate: numeric("fee_rate", { precision: 8, scale: 6 }).notNull().default("0.011000"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const specialClientWalletEntries = pgTable(
+  "special_client_wallet_entries",
+  {
+    id: serial("id").primaryKey(),
+    clientId: integer("client_id").notNull().references(() => specialClients.id),
+    type: text("type", { enum: ["deposit", "payout", "reversal"] }).notNull(),
+    entryDate: date("entry_date").notNull(),
+    usdAmount: numeric("usd_amount", { precision: 14, scale: 2 }),
+    usdToRmbRate: numeric("usd_to_rmb_rate", { precision: 12, scale: 6 }),
+    grossRmb: numeric("gross_rmb", { precision: 14, scale: 2 }),
+    feeRate: numeric("fee_rate", { precision: 8, scale: 6 }),
+    feeRmb: numeric("fee_rmb", { precision: 14, scale: 2 }),
+    netCreditRmb: numeric("net_credit_rmb", { precision: 14, scale: 2 }),
+    payoutRmb: numeric("payout_rmb", { precision: 14, scale: 2 }),
+    vendorName: text("vendor_name"),
+    purpose: text("purpose"),
+    cashAccountId: integer("cash_account_id").notNull().references(() => accounts.id),
+    cashAccountDelta: numeric("cash_account_delta", { precision: 14, scale: 2 }).notNull(),
+    balanceAfterRmb: numeric("balance_after_rmb", { precision: 14, scale: 2 }).notNull(),
+    profitLedgerId: integer("profit_ledger_id").references(() => ledgerEntries.id),
+    note: text("note"),
+    createdBy: integer("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedBy: integer("reversed_by").references(() => users.id),
+    reverseReason: text("reverse_reason"),
+    originalEntryId: integer("original_entry_id"),
+    reversalEntryId: integer("reversal_entry_id")
+  },
+  (table) => ({
+    clientDateIdx: index("special_client_wallet_entries_client_idx").on(table.clientId, table.entryDate),
+    createdIdx: index("special_client_wallet_entries_created_idx").on(table.createdAt)
+  })
+);
+
 export type UserRole = "admin" | "operator";
 export type Currency = "TWD" | "RMB";

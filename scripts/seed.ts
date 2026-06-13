@@ -1,6 +1,6 @@
 import "./loadEnv.ts";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../api/_lib/db";
 import { accounts, channels, customers, holders, users } from "../api/_lib/schema";
 import { ALL_PERMISSIONS, presetForRole, serializePermissions } from "../api/_lib/userPermissions";
@@ -14,8 +14,8 @@ if (process.env.NODE_ENV === "production" && process.env.ALLOW_PRODUCTION_SEED !
   process.exit(1);
 }
 
-const username = process.env.ADMIN_USERNAME ?? "ds001";
-const password = process.env.ADMIN_PASSWORD ?? "1234";
+const username = process.env.ADMIN_USERNAME?.trim() || "ds6186";
+const password = process.env.ADMIN_PASSWORD?.trim() || "1234";
 
 if (password === "1234" || password === "operator123") {
   console.warn("警告：正在使用預設弱密碼，正式環境請設定 ADMIN_PASSWORD / OPERATOR_PASSWORD。");
@@ -24,8 +24,12 @@ if (password === "1234" || password === "operator123") {
 const passwordHash = await bcrypt.hash(password, 12);
 let [admin] = await db.select().from(users).where(eq(users.username, username));
 if (!admin) {
-  const [legacyAdmin] = await db.select().from(users).where(eq(users.username, "admin"));
-  if (legacyAdmin) {
+  const [legacyUser] = await db
+    .select()
+    .from(users)
+    .where(inArray(users.username, ["admin", "ds001"]))
+    .limit(1);
+  if (legacyUser) {
     [admin] = await db
       .update(users)
       .set({
@@ -36,9 +40,9 @@ if (!admin) {
         displayName: "系統管理員",
         permissionsJson: serializePermissions([...ALL_PERMISSIONS])
       })
-      .where(eq(users.id, legacyAdmin.id))
+      .where(eq(users.id, legacyUser.id))
       .returning();
-    console.log(`已將舊帳號 admin 改為 ${username}`);
+    console.log(`已將舊帳號 ${legacyUser.username} 改為 ${username}`);
   } else {
     [admin] = await db
       .insert(users)

@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, "..");
 const vercel = process.platform === "win32" ? "npx.cmd" : "npx";
 const base = ["--yes", "vercel@latest"];
 
-const adminUsername = process.env.ADMIN_USERNAME ?? "ds001";
+const adminUsername = process.env.ADMIN_USERNAME ?? "ds6186";
 const adminPassword = process.env.ADMIN_PASSWORD ?? "1234";
 const jwtSecret =
   process.env.JWT_SECRET ?? randomBytes(48).toString("base64");

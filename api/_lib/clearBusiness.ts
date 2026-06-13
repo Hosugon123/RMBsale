@@ -10,6 +10,8 @@ import {
   saleAllocations,
   sales,
   settlements,
+  specialClientWalletEntries,
+  specialClients,
   transfers
 } from "./schema.js";
 
@@ -18,11 +20,13 @@ export async function clearBusinessTablesInTx(tx: DbTx) {
   await tx.delete(sales);
   await tx.delete(settlements);
   await tx.delete(transfers);
+  await tx.delete(specialClientWalletEntries);
   await tx.delete(ledgerEntries);
   await tx.delete(rmbLots);
   await tx.delete(purchases);
   await tx.delete(accounts);
   await tx.delete(customers);
+  await tx.delete(specialClients);
   await tx.delete(channels);
   await tx.delete(holders);
 }

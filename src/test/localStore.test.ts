@@ -481,7 +481,7 @@ describe("local demo store", () => {
       isActive: true,
       permissions: ["dashboard", "sale", "ledger"]
     });
-    expect(getSessionUser(state)?.username).toBe("ds001");
+    expect(getSessionUser(state)?.username).toBe("ds6186");
   });
 
   it("updates existing user profile and keeps password when omitted", () => {
@@ -650,6 +650,7 @@ describe("local demo store", () => {
 
     expect(totals(state).profitEarned).toBe("330.05");
     expect(totals(state).profit).toBe("330.05");
+    expect(totals(state).walletDepositProfitRmb).toBe("0.00");
     adjustAccount(state, { accountId: 1, direction: "out", amount: "100", withdrawType: "profit", note: "owner payout" });
 
     expect(state.accounts.find((account) => account.id === 1)?.balance).toBe("119900.00");
@@ -658,5 +659,39 @@ describe("local demo store", () => {
     expect(totals(state).profit).toBe("230.05");
     expect(state.ledger[0]).toMatchObject({ entryType: "分潤", relatedTable: "profit", accountId: 1, direction: "out", currency: "TWD", amount: "100.00" });
     expect(profitLedger(state).map((entry) => entry.direction)).toEqual(["out", "in"]);
+  });
+
+  it("sums special client wallet deposit profit in RMB", () => {
+    const state = createSeedState();
+    state.ledger.unshift(
+      {
+        id: 9001,
+        createdAt: "2026-06-09T10:00:00.000Z",
+        entryType: "利潤",
+        direction: "in",
+        currency: "RMB",
+        amount: "1100.00",
+        description: "特殊客戶代付服務費",
+        operatorName: "管理員",
+        relatedTable: "special_client_wallet",
+        relatedId: 1
+      },
+      {
+        id: 9002,
+        createdAt: "2026-06-09T11:00:00.000Z",
+        entryType: "利潤",
+        direction: "out",
+        currency: "RMB",
+        amount: "200.00",
+        description: "沖銷特殊客戶代付服務費",
+        operatorName: "管理員",
+        relatedTable: "special_client_wallet",
+        relatedId: 2,
+        isReversal: true,
+        reversesLedgerId: 9001
+      }
+    );
+
+    expect(totals(state).walletDepositProfitRmb).toBe("900.00");
   });
 });

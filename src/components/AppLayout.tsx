@@ -1,6 +1,6 @@
 import * as React from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { ArrowLeftRight, Banknote, Boxes, CheckCircle2, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, ReceiptText, Settings, Users, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, Boxes, CheckCircle2, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, ReceiptText, Settings, Users, Wallet, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
@@ -19,6 +19,7 @@ const baseNav = [
   { to: "/purchase", label: "買入登記", icon: Banknote },
   { to: "/sale", label: "售出錄入", icon: HandCoins },
   { to: "/receivables", label: "應收應付", icon: Users },
+  { to: "/special-client-wallet", label: "儲值代付", icon: Wallet },
   { to: "/accounts", label: "帳務管理", icon: Landmark },
   { to: "/ledger", label: "現金流水", icon: ReceiptText },
   { to: "/inventory", label: "FIFO 庫存", icon: Boxes }
@@ -47,6 +48,7 @@ export function AppLayout() {
   const pageTitle = React.useMemo(() => {
     if (location.pathname === "/" || location.pathname === "") return "儀表板";
     if (location.pathname === "/account" || location.pathname === "/accounts") return "帳務管理";
+    if (location.pathname === "/special-client-wallet") return "儲值代付";
     if (location.pathname === "/admin") return adminNavItem.label;
     return nav.find((item) => item.to === location.pathname)?.label ?? "RMBsale";
   }, [location.pathname, nav]);

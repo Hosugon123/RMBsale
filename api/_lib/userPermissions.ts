@@ -3,6 +3,7 @@ export const ALL_PERMISSIONS = [
   "purchase",
   "sale",
   "receivables",
+  "specialClientWallet",
   "accounts",
   "transfer",
   "ledger",
@@ -13,6 +14,22 @@ export const ALL_PERMISSIONS = [
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number];
 
 const PERMISSION_SET = new Set<string>(ALL_PERMISSIONS);
+
+function upgradePermissions(permissions: PermissionKey[]): PermissionKey[] {
+  const set = new Set(permissions);
+  if (set.has("admin")) {
+    for (const key of ALL_PERMISSIONS) set.add(key);
+    return [...set];
+  }
+  const operatorPreset = presetForRole("operator");
+  const missingOnlyNewOperatorKeys = operatorPreset.every(
+    (key) => key === "specialClientWallet" || set.has(key)
+  );
+  if (missingOnlyNewOperatorKeys && !set.has("specialClientWallet")) {
+    set.add("specialClientWallet");
+  }
+  return [...set];
+}
 
 export function deriveRole(permissions: PermissionKey[]): "admin" | "operator" {
   return permissions.includes("admin") ? "admin" : "operator";
@@ -25,6 +42,7 @@ export function presetForRole(role: string): PermissionKey[] {
     "purchase",
     "sale",
     "receivables",
+    "specialClientWallet",
     "accounts",
     "transfer",
     "ledger",
@@ -38,7 +56,7 @@ export function parsePermissionsJson(json: string | null | undefined, role: stri
       const parsed = JSON.parse(json) as unknown;
       if (Array.isArray(parsed)) {
         const keys = parsed.filter((item): item is PermissionKey => typeof item === "string" && PERMISSION_SET.has(item));
-        if (keys.length) return [...new Set(keys)];
+        if (keys.length) return upgradePermissions([...new Set(keys)]);
       }
     } catch {
       /* fall through */

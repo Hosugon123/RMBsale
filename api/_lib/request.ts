@@ -11,7 +11,7 @@ export interface HttpRequest {
 export interface HttpResponse {
   status(code: number): HttpResponse;
   json(data: unknown): unknown;
-  send(data: string): unknown;
+  send(data: string | Buffer): unknown;
   setHeader(name: string, value: string | string[]): void;
 }
 

@@ -7,9 +7,9 @@ import { eq } from "drizzle-orm";
 
 await ensureUserProfileColumns();
 const db = getDb();
-const [admin] = await db.select().from(users).where(eq(users.username, "ds001"));
+const [admin] = await db.select().from(users).where(eq(users.username, "ds6186"));
 if (!admin) {
-  console.error("找不到 ds001");
+  console.error("找不到 ds6186");
   process.exit(1);
 }
 const state = await loadFullBootstrapState(admin.id);

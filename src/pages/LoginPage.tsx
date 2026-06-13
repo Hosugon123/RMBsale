@@ -26,7 +26,12 @@ export function LoginPage() {
       await login(username, password);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登入失敗");
+      const message = err instanceof Error ? err.message : "登入失敗";
+      if (/failed to fetch|networkerror|load failed|fetch/i.test(message)) {
+        setError("無法連線伺服器。請執行 npm run dev:online 後，以 http://127.0.0.1:8080 開啟（非 5174 demo）。");
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }

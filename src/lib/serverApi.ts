@@ -1,3 +1,10 @@
+import type {
+  SpecialClientDepositBody,
+  SpecialClientPayoutBody,
+  SpecialClientReverseBody,
+  SpecialClientWalletData,
+  SpecialClientWalletQuery
+} from "./specialClientWalletTypes";
 import type { AppState, AppUser, PermissionKey } from "./types";
 import type { BootstrapSection } from "./bootstrapSections";
 import type { BusinessDataImport } from "./dataImport";
@@ -17,6 +24,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(typeof data.error === "string" ? data.error : `請求失敗 (${res.status})`);
   }
   return data as T;
+}
+
+function buildSpecialClientWalletQuery(params?: SpecialClientWalletQuery) {
+  if (!params) return "";
+  const search = new URLSearchParams();
+  if (params.clientId) search.set("clientId", String(params.clientId));
+  if (params.dateFrom) search.set("dateFrom", params.dateFrom);
+  if (params.dateTo) search.set("dateTo", params.dateTo);
+  if (params.entryType && params.entryType !== "all") search.set("entryType", params.entryType);
+  const query = search.toString();
+  return query ? `?${query}` : "";
 }
 
 export const serverApi = {
@@ -54,6 +72,30 @@ export const serverApi = {
 
   createOpeningReceivable: (body: { customerName: string; amountTwd: string; note?: string }) =>
     request("receivables", { method: "POST", body: JSON.stringify(body) }),
+
+  specialClientWallet: (params?: SpecialClientWalletQuery) =>
+    request<SpecialClientWalletData>(`special-client-wallet${buildSpecialClientWalletQuery(params)}`),
+
+  specialClientDeposit: (body: SpecialClientDepositBody) =>
+    request<SpecialClientWalletData>("special-client-wallet/deposit", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+
+  specialClientPayout: (body: SpecialClientPayoutBody) =>
+    request<SpecialClientWalletData>("special-client-wallet/payout", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+
+  specialClientReverse: (body: SpecialClientReverseBody) =>
+    request<SpecialClientWalletData>("special-client-wallet/reverse", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+
+  specialClientWalletExportUrl: (params?: SpecialClientWalletQuery) =>
+    `/api/special-client-wallet/export.xlsx${buildSpecialClientWalletQuery(params)}`,
 
   createOpeningProfit: (body: { amountTwd: string; note?: string }) =>
     request("profit", { method: "POST", body: JSON.stringify(body) }),

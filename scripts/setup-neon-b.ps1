@@ -58,7 +58,7 @@ $env:DATABASE_URL = $dbUrl
 
 Write-Step "執行 migration 與 seed"
 npm.cmd run db:migrate
-if (-not $env:ADMIN_USERNAME) { $env:ADMIN_USERNAME = "ds001" }
+if (-not $env:ADMIN_USERNAME) { $env:ADMIN_USERNAME = "ds6186" }
 if (-not $env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD = "1234" }
 npm.cmd run db:seed
 

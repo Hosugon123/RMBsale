@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import { initTheme } from "./lib/theme";
+import { clearStalePwaInDev } from "./lib/clearStalePwaInDev";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AdminRoute } from "./components/AdminRoute";
@@ -19,6 +20,7 @@ import { ReceivablesPage } from "./pages/ReceivablesPage";
 import { AccountsPage } from "./pages/AccountsPage";
 import { LedgerPage } from "./pages/LedgerPage";
 import { InventoryPage } from "./pages/InventoryPage";
+import { SpecialClientWalletPage } from "./pages/SpecialClientWalletPage";
 import { AdminPage } from "./pages/AdminPage";
 import { BackupAuditPage } from "./pages/BackupAuditPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -28,6 +30,23 @@ import "./styles/globals.css";
 initTheme();
 
 const queryClient = new QueryClient();
+
+void clearStalePwaInDev().finally(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <PwaUpdateHost />
+            </BrowserRouter>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </React.StrictMode>
+  );
+});
 
 function AppRoutes() {
   const appShell = (
@@ -41,6 +60,7 @@ function AppRoutes() {
           <Route path="purchase" element={<PurchasePage />} />
           <Route path="sale" element={<SalePage />} />
           <Route path="receivables" element={<ReceivablesPage />} />
+          <Route path="special-client-wallet" element={<SpecialClientWalletPage />} />
           <Route path="accounts" element={<AccountsPage />} />
           <Route path="account" element={<AccountsPage />} />
           <Route path="ledger" element={<LedgerPage />} />
@@ -73,18 +93,3 @@ function AppRoutes() {
     </Routes>
   );
 }
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <PwaUpdateHost />
-          </BrowserRouter>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
-);

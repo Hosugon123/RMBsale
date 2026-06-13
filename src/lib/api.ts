@@ -141,6 +141,36 @@ export const api = {
       body: JSON.stringify({ amount, accountId, note }),
     }),
 
+  specialClientWallet: (params?: import('./specialClientWalletTypes').SpecialClientWalletQuery) => {
+    const search = new URLSearchParams();
+    if (params?.clientId) search.set('clientId', String(params.clientId));
+    if (params?.dateFrom) search.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) search.set('dateTo', params.dateTo);
+    if (params?.entryType && params.entryType !== 'all') search.set('entryType', params.entryType);
+    const query = search.toString();
+    return request<import('./specialClientWalletTypes').SpecialClientWalletData>(
+      `special-client-wallet${query ? `?${query}` : ''}`,
+    );
+  },
+
+  specialClientDeposit: (body: import('./specialClientWalletTypes').SpecialClientDepositBody) =>
+    request<import('./specialClientWalletTypes').SpecialClientWalletData>('special-client-wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  specialClientPayout: (body: import('./specialClientWalletTypes').SpecialClientPayoutBody) =>
+    request<import('./specialClientWalletTypes').SpecialClientWalletData>('special-client-wallet/payout', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  specialClientReverse: (body: import('./specialClientWalletTypes').SpecialClientReverseBody) =>
+    request<import('./specialClientWalletTypes').SpecialClientWalletData>('special-client-wallet/reverse', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   users: () => request<UserRow[]>('users'),
   addUser: (username: string, password: string, role: string) =>
     request('users', {

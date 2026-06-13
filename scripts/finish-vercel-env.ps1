@@ -1,6 +1,6 @@
 # 寫入 JWT / 帳密到 Vercel（每個環境各加一次）
 param(
-  [string]$AdminUser = "ds001",
+  [string]$AdminUser = "ds6186",
   [string]$AdminPassword = "1234",
   [string]$JwtSecret = ""
 )

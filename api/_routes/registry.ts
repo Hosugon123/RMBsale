@@ -29,6 +29,11 @@ import { handler as transactionReverse } from "./transaction-reverse.js";
 import { handler as bootstrap } from "./bootstrap.js";
 import { handler as holders } from "./holders.js";
 import { handler as purchasesPay } from "./purchases-pay.js";
+import { handler as specialClientWallet } from "./special-client-wallet.js";
+import { handler as specialClientWalletDeposit } from "./special-client-wallet-deposit.js";
+import { handler as specialClientWalletPayout } from "./special-client-wallet-payout.js";
+import { handler as specialClientWalletReverse } from "./special-client-wallet-reverse.js";
+import { handler as specialClientWalletExport } from "./special-client-wallet-export.js";
 
 export type RouteHandler = (
   req: VercelRequest,
@@ -47,6 +52,11 @@ export const routes: Record<string, RouteHandler> = {
   profit,
   purchases,
   receivables,
+  "special-client-wallet": specialClientWallet,
+  "special-client-wallet/deposit": specialClientWalletDeposit,
+  "special-client-wallet/payout": specialClientWalletPayout,
+  "special-client-wallet/reverse": specialClientWalletReverse,
+  "special-client-wallet/export.xlsx": specialClientWalletExport,
   sales,
   settlements,
   transfers,

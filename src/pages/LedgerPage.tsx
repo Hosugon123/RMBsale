@@ -135,7 +135,7 @@ export function LedgerPage() {
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle>利潤流水</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">售出利潤入庫、期初利潤與分潤出金紀錄</p>
+            <p className="mt-1 text-sm text-muted-foreground">售出利潤入庫、期初利潤、儲值服務費與分潤出金紀錄</p>
           </div>
           <Button type="button" size="sm" variant="outline" className="h-9 shrink-0" onClick={openOpeningProfitModal}>
             <Plus className="h-4 w-4" />
@@ -153,6 +153,12 @@ export function LedgerPage() {
               <p className="text-xs text-muted-foreground">歷史利潤</p>
               <p className="text-lg font-semibold tabular-nums text-foreground">
                 {fmtMoney(summary.profitEarned, "TWD")}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">儲值利潤</p>
+              <p className={cn("text-lg font-semibold tabular-nums", rmb.money)}>
+                {fmtMoney(summary.walletDepositProfitRmb, "RMB")}
               </p>
             </div>
           </div>

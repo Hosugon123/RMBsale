@@ -8,6 +8,7 @@ export const PERMISSION_GROUPS = [
       { key: "purchase", label: "買入 RMB" },
       { key: "sale", label: "售出 RMB" },
       { key: "receivables", label: "應收應付" },
+      { key: "specialClientWallet", label: "特殊客戶代付" },
       { key: "accounts", label: "帳務管理" },
       { key: "transfer", label: "帳戶轉帳" }
     ] as const
@@ -36,7 +37,7 @@ export const LEVEL_PRESETS: Record<Exclude<UserLevel, "custom">, { label: string
   },
   operator: {
     label: "操作員",
-    permissions: ["dashboard", "purchase", "sale", "receivables", "accounts", "transfer", "ledger", "inventory"]
+    permissions: ["dashboard", "purchase", "sale", "receivables", "specialClientWallet", "accounts", "transfer", "ledger", "inventory"]
   },
   readonly: {
     label: "唯讀",
@@ -49,6 +50,7 @@ const ROUTE_PERMISSION: Record<string, PermissionKey> = {
   "/purchase": "purchase",
   "/sale": "sale",
   "/receivables": "receivables",
+  "/special-client-wallet": "specialClientWallet",
   "/accounts": "accounts",
   "/account": "accounts",
   "/ledger": "ledger",
@@ -57,13 +59,27 @@ const ROUTE_PERMISSION: Record<string, PermissionKey> = {
 };
 
 export function permissionForPath(pathname: string) {
-  if (pathname === "/" || pathname === "") return "dashboard" as PermissionKey;
-  return ROUTE_PERMISSION[pathname];
+  const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === "/" || path === "") return "dashboard" as PermissionKey;
+  return ROUTE_PERMISSION[path];
+}
+
+function effectivePermissions(user: AppUser): PermissionKey[] {
+  if (user.permissions.includes("admin")) return [...ALL_PERMISSIONS];
+  const permissions = [...user.permissions];
+  const operatorPreset = LEVEL_PRESETS.operator.permissions;
+  const missingOnlyNewOperatorKeys = operatorPreset.every(
+    (key) => key === "specialClientWallet" || permissions.includes(key)
+  );
+  if (missingOnlyNewOperatorKeys && !permissions.includes("specialClientWallet")) {
+    permissions.push("specialClientWallet");
+  }
+  return permissions;
 }
 
 export function hasPermission(user: AppUser, permission: PermissionKey) {
   if (!user.isActive) return false;
-  return user.permissions.includes(permission);
+  return effectivePermissions(user).includes(permission);
 }
 
 export function canAccessPath(user: AppUser, pathname: string) {
@@ -94,7 +110,7 @@ export function deriveRole(permissions: PermissionKey[]): AppUser["role"] {
   return permissions.includes("admin") ? "admin" : "operator";
 }
 
-const WRITE_PERMISSIONS: PermissionKey[] = ["purchase", "sale", "receivables", "accounts", "transfer", "admin"];
+const WRITE_PERMISSIONS: PermissionKey[] = ["purchase", "sale", "receivables", "specialClientWallet", "accounts", "transfer", "admin"];
 
 export function canWriteLedger(user: AppUser) {
   if (!user.isActive) return false;

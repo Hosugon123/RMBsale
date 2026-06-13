@@ -94,7 +94,7 @@ export async function requireAdmin(req: VercelRequest) {
   return row;
 }
 
-const WRITE_PERMISSIONS = ["purchase", "sale", "receivables", "accounts", "transfer", "admin"] as const;
+const WRITE_PERMISSIONS = ["purchase", "sale", "receivables", "accounts", "transfer", "specialClientWallet", "admin"] as const;
 
 /** 拒絕唯讀帳號執行帳務變更（作廢、買賣、收付等） */
 export async function requireWriteAccess(req: VercelRequest) {

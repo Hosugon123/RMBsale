@@ -31,7 +31,7 @@ function currentOperator(state: AppState) {
 function createAdminUser(): AppUser {
   return {
     id: 1,
-    username: "ds001",
+    username: "ds6186",
     displayName: "系統管理員",
     password: "1234",
     role: "admin",
@@ -40,20 +40,50 @@ function createAdminUser(): AppUser {
   };
 }
 
+function upgradeStoredPermissions(user: AppUser): PermissionKey[] {
+  const permissions = [...user.permissions];
+  if (user.role === "admin") {
+    for (const key of ALL_PERMISSIONS) {
+      if (!permissions.includes(key)) permissions.push(key);
+    }
+    return permissions;
+  }
+  const operatorKeys = LEVEL_PRESETS.operator.permissions;
+  const missingOnlyNewOperatorKeys = operatorKeys.every(
+    (key) => key === "specialClientWallet" || permissions.includes(key)
+  );
+  if (missingOnlyNewOperatorKeys && !permissions.includes("specialClientWallet")) {
+    permissions.push("specialClientWallet");
+  }
+  return permissions;
+}
+
 function migrateUsers(legacy: { user?: User; users?: AppUser[]; sessionUserId?: number }): Pick<AppState, "users" | "sessionUserId"> {
   if (legacy.users?.length) {
-    const users = legacy.users.map((user) => ({
-      ...user,
-      displayName: user.displayName ?? user.username,
-      password: user.password ?? "",
-      permissions: user.permissions?.length ? user.permissions : [...ALL_PERMISSIONS],
-      isActive: user.isActive ?? true,
-      role: user.role ?? deriveRole(user.permissions ?? [])
-    }));
+    const users = legacy.users.map((user) => {
+      const base = {
+        ...user,
+        displayName: user.displayName ?? user.username,
+        password: user.password ?? "",
+        permissions: user.permissions?.length ? user.permissions : [...ALL_PERMISSIONS],
+        isActive: user.isActive ?? true,
+        role: user.role ?? deriveRole(user.permissions ?? [])
+      };
+      return {
+        ...base,
+        permissions: upgradeStoredPermissions(base),
+        role: deriveRole(upgradeStoredPermissions(base))
+      };
+    });
     const legacyAdmin = users.find((u) => u.username === "admin" && u.role === "admin");
     if (legacyAdmin) {
-      legacyAdmin.username = "ds001";
+      legacyAdmin.username = "ds6186";
       legacyAdmin.password = "1234";
+    }
+    const legacyDs001 = users.find((u) => u.username === "ds001" && u.role === "admin");
+    if (legacyDs001) {
+      legacyDs001.username = "ds6186";
+      legacyDs001.password = "1234";
     }
     return {
       users,
@@ -483,6 +513,17 @@ export function totals(state: AppState) {
   const profitWithdrawals = state.ledger
     .filter((entry) => entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD")
     .reduce((sum, entry) => sum.add(entry.amount), d(0));
+  const walletDepositProfitRmb = state.ledger
+    .filter(
+      (entry) =>
+        entry.entryType === "利潤" &&
+        entry.relatedTable === "special_client_wallet" &&
+        entry.currency === "RMB"
+    )
+    .reduce(
+      (sum, entry) => (entry.direction === "in" ? sum.add(entry.amount) : sum.sub(entry.amount)),
+      d(0)
+    );
 
   return {
     twd: state.accounts.filter((a) => a.currency === "TWD").reduce((sum, a) => sum.add(a.balance), d(0)).toFixed(2),
@@ -490,7 +531,8 @@ export function totals(state: AppState) {
     receivable: state.customers.reduce((sum, c) => sum.add(c.receivableTwd), d(0)).toFixed(2),
     inventory: state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0)).toFixed(2),
     profitEarned: profitEarned.toFixed(2),
-    profit: profitEarned.sub(profitWithdrawals).toFixed(2)
+    profit: profitEarned.sub(profitWithdrawals).toFixed(2),
+    walletDepositProfitRmb: walletDepositProfitRmb.toFixed(2)
   };
 }
 

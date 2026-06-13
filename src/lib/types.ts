@@ -6,6 +6,7 @@ export type PermissionKey =
   | "purchase"
   | "sale"
   | "receivables"
+  | "specialClientWallet"
   | "accounts"
   | "transfer"
   | "ledger"

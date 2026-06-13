@@ -37,7 +37,7 @@ npm.cmd install
 npm.cmd run dev:online
 ```
 
-`dev:online` 會在 **port 8080** 啟動 Express：同時提供 `/api` 與 Vite 前端熱更新。預設帳號見 `.env.example`（`ds001` / `1234`）。
+`dev:online` 會在 **port 8080** 啟動 Express：同時提供 `/api` 與 Vite 前端熱更新。預設帳號為 `ds6186` / `1234`。
 
 僅要本機 localStorage 示範、不連資料庫時：
 
