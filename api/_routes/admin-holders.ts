@@ -1,8 +1,6 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { and, asc, eq } from "drizzle-orm";
-import { assertAccountDeletable } from "../_lib/accountGuards.js";
-import { AuditAction, writeAudit } from "../_lib/audit.js";
-import { getDb } from "../_lib/db.js";
+import { AuditAction, writeAudit } from "../_lib/audit.js";import { getDb } from "../_lib/db.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
 import { accounts, holders } from "../_lib/schema.js";
 
@@ -30,20 +28,8 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
             .select()
             .from(accounts)
             .where(and(eq(accounts.holderId, body.id), eq(accounts.isActive, true)));
-          for (const account of activeAccounts) {
-            await assertAccountDeletable(account.id, tx);
-          }
-          const now = new Date();
-          for (const account of activeAccounts) {
-            await tx
-              .update(accounts)
-              .set({
-                isActive: false,
-                deletedAt: now,
-                deletedBy: admin.id,
-                deleteReason: body.deleteReason ?? "停用持有人連動停用帳戶"
-              })
-              .where(eq(accounts.id, account.id));
+          if (activeAccounts.length > 0) {
+            throw new Error("持有人名下仍有帳戶，請先刪除所有帳戶");
           }
         }
 

@@ -27,6 +27,7 @@ import {
   getSessionUser,
   updateUser,
   deleteAccount,
+  deleteHolder,
   ledgerWithBalances,
   profitLedger,
   sortedCashLedgerWithBalances,
@@ -76,6 +77,11 @@ describe("local demo store", () => {
 
     const removed = deleteCustomer(renamed, { customerId: customer!.id });
     expect(removed.customers.find((item) => item.id === customer!.id)?.isActive).toBe(false);
+    expect(removed.ledger[0]).toMatchObject({
+      entryType: "刪除客戶",
+      customerId: customer!.id,
+      direction: "none"
+    });
 
     const readded = addCustomer(removed, { name: "熟客甲" });
     expect(readded.customers.find((item) => item.name === "熟客甲")?.isActive).toBe(true);
@@ -573,6 +579,37 @@ describe("local demo store", () => {
   it("blocks account delete when balance remains", () => {
     const state = createSeedState();
     expect(() => deleteAccount(state, { accountId: 1 })).toThrow("帳戶仍有餘額");
+  });
+
+  it("blocks holder delete when accounts remain", () => {
+    const state = createSeedState();
+    expect(() => deleteHolder(state, { holderId: 1 })).toThrow("持有人名下仍有帳戶");
+  });
+
+  it("records ledger entry when deleting zero-balance account", () => {
+    const state = createSeedState();
+    addAccount(state, { holderId: 1, name: "空帳戶", currency: "TWD" });
+    const account = state.accounts.find((item) => item.name === "空帳戶");
+    expect(account).toBeTruthy();
+    deleteAccount(state, { accountId: account!.id });
+    expect(state.ledger[0]).toMatchObject({
+      entryType: "刪除帳戶",
+      accountId: account!.id,
+      direction: "none",
+      amount: "0.00"
+    });
+    expect(state.accounts.find((item) => item.id === account!.id)?.isActive).toBe(false);
+  });
+
+  it("allows holder delete after all accounts removed", () => {
+    const state = createSeedState();
+    addHolder(state, { name: "空持有人" });
+    const holder = state.holders.find((item) => item.name === "空持有人");
+    addAccount(state, { holderId: holder!.id, name: "暫存", currency: "TWD" });
+    const account = state.accounts.find((item) => item.name === "暫存" && item.holderId === holder!.id);
+    deleteAccount(state, { accountId: account!.id });
+    deleteHolder(state, { holderId: holder!.id });
+    expect(state.holders.find((item) => item.id === holder!.id)?.isActive).toBe(false);
   });
 
   it("adds a new account under a holder", () => {

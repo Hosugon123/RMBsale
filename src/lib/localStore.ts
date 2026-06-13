@@ -568,6 +568,18 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       continue;
     }
 
+    if (entry.customerId && entry.entryType === "刪除客戶") {
+      const customer = customerById.get(entry.customerId);
+      if (!customer) continue;
+      contextById.set(entry.id, {
+        subjectLabel: customer.name,
+        balanceBefore: customer.receivableTwd,
+        balanceAfter: customer.receivableTwd,
+        balanceCurrency: "TWD"
+      });
+      continue;
+    }
+
     const payableChannelId = resolvePayableChannelId(entry);
     if (payableChannelId !== undefined && (entry.entryType === "應付" || entry.entryType === "應付付款")) {
       const channel = channelById.get(payableChannelId);
@@ -648,6 +660,9 @@ export function isReceivableLedgerEntry(
 ) {
   if (entry.entryType === "利潤" || entry.entryType === "售出") return false;
   if (entry.customerId !== undefined && (entry.entryType === "應收" || entry.entryType === "收帳")) {
+    return true;
+  }
+  if (entry.customerId !== undefined && entry.entryType === "刪除客戶") {
     return true;
   }
   if (
@@ -1241,6 +1256,16 @@ export function deleteCustomer(state: AppState, input: { customerId: number }) {
   const customer = state.customers.find((item) => item.id === input.customerId);
   if (!customer) throw new Error("找不到客戶");
   customer.isActive = false;
+  addLedger(state, {
+    entryType: "刪除客戶",
+    customerId: customer.id,
+    direction: "none",
+    currency: "TWD",
+    amount: "0.00",
+    description: `從常用清單移除：${customer.name}`,
+    relatedTable: "customers",
+    relatedId: customer.id
+  });
   saveState(state);
   return state;
 }
@@ -1316,6 +1341,16 @@ export function deleteAccount(state: AppState, input: { accountId: number }) {
   if (!account) throw new Error("找不到帳戶");
   assertAccountDeletable(state, account);
   account.isActive = false;
+  addLedger(state, {
+    entryType: "刪除帳戶",
+    accountId: account.id,
+    direction: "none",
+    currency: account.currency,
+    amount: "0.00",
+    description: `${account.holderName} / ${account.name} 刪除帳戶`,
+    relatedTable: "accounts",
+    relatedId: account.id
+  });
   saveState(state);
   return state;
 }
@@ -1323,11 +1358,10 @@ export function deleteAccount(state: AppState, input: { accountId: number }) {
 export function deleteHolder(state: AppState, input: { holderId: number }) {
   const holder = state.holders.find((item) => item.id === input.holderId && item.isActive);
   if (!holder) throw new Error("找不到持有者");
-  const accounts = state.accounts.filter((account) => account.holderId === holder.id && account.isActive);
-  accounts.forEach((account) => assertAccountDeletable(state, account));
-  accounts.forEach((account) => {
-    account.isActive = false;
-  });
+  const activeAccounts = state.accounts.filter((account) => account.holderId === holder.id && account.isActive);
+  if (activeAccounts.length > 0) {
+    throw new Error("持有人名下仍有帳戶，請先刪除所有帳戶");
+  }
   holder.isActive = false;
   saveState(state);
   return state;

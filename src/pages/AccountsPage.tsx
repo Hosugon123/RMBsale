@@ -440,6 +440,8 @@ export function AccountsPage() {
                       label: "刪除持有人",
                       icon: <Trash2 className="h-4 w-4 shrink-0" />,
                       destructive: true,
+                      disabled: group.accounts.length > 0,
+                      title: group.accounts.length > 0 ? "請先刪除名下所有帳戶" : undefined,
                       onClick: () => openDeleteModal({ kind: "holder", id: group.holder.id, name: group.holder.name })
                     }
                   ]}
@@ -570,7 +572,7 @@ export function AccountsPage() {
             <CardContent className="space-y-4 p-4">
               <p className="text-sm text-muted-foreground">
                 {deleteTarget.kind === "holder"
-                  ? `確定要刪除持有人「${deleteTarget.name}」及其旗下所有帳戶嗎？旗下帳戶須皆無餘額與庫存。`
+                  ? `確定要刪除持有人「${deleteTarget.name}」嗎？須先刪除名下所有帳戶。`
                   : `確定要刪除帳戶「${deleteTarget.name}」嗎？僅限餘額為 0 時可刪除。`}
               </p>
               {deleteError ? <p className="text-sm text-destructive">{deleteError}</p> : null}

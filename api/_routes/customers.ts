@@ -1,6 +1,7 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { asc, eq } from "drizzle-orm";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
+import { insertCustomerDeleteLedger } from "../_lib/adminLedger.js";
 import { getDb } from "../_lib/db.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser } from "../_lib/http.js";
 import { customers } from "../_lib/schema.js";
@@ -60,14 +61,20 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
           patch.deleteReason = null;
         }
       }
-      const [row] = await db.update(customers).set(patch).where(eq(customers.id, body.id)).returning();
-      await writeAudit(db, {
-        action: AuditAction.CUSTOMER_UPDATE,
-        targetType: "customer",
-        targetId: row.id,
-        before: customer,
-        after: row,
-        actor: { id: admin.id, username: admin.username, ...meta }
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(customers).set(patch).where(eq(customers.id, body.id)).returning();
+        if (body.isActive === false) {
+          await insertCustomerDeleteLedger(tx, customer, admin.id);
+        }
+        await writeAudit(tx, {
+          action: AuditAction.CUSTOMER_UPDATE,
+          targetType: "customer",
+          targetId: updated.id,
+          before: customer,
+          after: updated,
+          actor: { id: admin.id, username: admin.username, ...meta }
+        });
+        return updated;
       });
       return ok(res, { customer: row });
     }

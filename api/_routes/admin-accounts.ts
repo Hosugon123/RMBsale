@@ -1,6 +1,7 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { and, eq, ne } from "drizzle-orm";
 import { assertAccountDeletable } from "../_lib/accountGuards.js";
+import { insertAccountDeleteLedger } from "../_lib/adminLedger.js";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { getDb } from "../_lib/db.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
@@ -57,6 +58,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const [row] = await tx.update(accounts).set(patch).where(eq(accounts.id, body.id)).returning();
+        if (body.isActive === false) {
+          await insertAccountDeleteLedger(tx, current, admin.id);
+        }
         await writeAudit(tx, {
           action: AuditAction.ACCOUNT_UPDATE,
           targetType: "account",
