@@ -83,6 +83,19 @@ function todayEntryDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function assertHistoricalSpecialClientExists<T extends { id: number } | null | undefined>(client: T): NonNullable<T> {
+  if (!client) throw new Error("找不到原始特殊客戶，無法沖銷歷史紀錄");
+  return client;
+}
+
+export function assertHistoricalRmbAccountExists<T extends { id: number; currency: string } | null | undefined>(
+  account: T
+): NonNullable<T> {
+  if (!account) throw new Error("找不到原始公司 RMB 帳戶，無法沖銷歷史紀錄");
+  if (account.currency !== "RMB") throw new Error("原始公司帳戶幣別異常，無法沖銷歷史紀錄");
+  return account;
+}
+
 async function getClientBalanceInTx(tx: DbTx | ReturnType<typeof getDb>, clientId: number) {
   const [last] = await tx
     .select({ balanceAfterRmb: specialClientWalletEntries.balanceAfterRmb })
@@ -110,6 +123,19 @@ async function assertActiveRmbAccount(tx: DbTx, accountId: number) {
   return account;
 }
 
+async function getHistoricalRmbAccount(tx: DbTx, accountId: number) {
+  const [account] = await tx
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      currency: accounts.currency
+    })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  return assertHistoricalRmbAccountExists(account);
+}
+
 async function assertActiveClient(tx: DbTx, clientId: number) {
   const [client] = await tx
     .select({ id: specialClients.id, name: specialClients.name, feeRate: specialClients.feeRate, isActive: specialClients.isActive })
@@ -118,6 +144,15 @@ async function assertActiveClient(tx: DbTx, clientId: number) {
     .limit(1);
   if (!client || !client.isActive) throw new Error("找不到可用的特殊客戶");
   return client;
+}
+
+async function getHistoricalClient(tx: DbTx, clientId: number) {
+  const [client] = await tx
+    .select({ id: specialClients.id, name: specialClients.name, feeRate: specialClients.feeRate, isActive: specialClients.isActive })
+    .from(specialClients)
+    .where(eq(specialClients.id, clientId))
+    .limit(1);
+  return assertHistoricalSpecialClientExists(client);
 }
 
 async function assertProfitLedgerNotReversed(tx: DbTx, profitLedgerId: number) {
@@ -443,8 +478,8 @@ export async function reverseSpecialClientWalletEntry(
       throw new Error("此筆紀錄已沖銷，不可重複沖銷");
     }
 
-    const client = await assertActiveClient(tx, original.clientId);
-    const account = await assertActiveRmbAccount(tx, original.cashAccountId);
+    const client = await getHistoricalClient(tx, original.clientId);
+    const account = await getHistoricalRmbAccount(tx, original.cashAccountId);
     const balanceBefore = money(await getClientBalanceInTx(tx, original.clientId));
     const entryDate = todayEntryDate();
     let reversalEntryId = 0;

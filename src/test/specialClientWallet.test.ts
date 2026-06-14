@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import Decimal from "decimal.js";
+import {
+  assertHistoricalRmbAccountExists,
+  assertHistoricalSpecialClientExists
+} from "../../api/_lib/specialClientWallet";
 import { calcDepositBreakdown, calcPeriodSummary } from "../../api/_lib/specialClientWalletCalc";
 
 const m = (value: Decimal.Value) => new Decimal(value || 0);
@@ -67,5 +71,23 @@ describe("special client wallet period summary", () => {
     ]);
     expect(result.totalGrossRmb).toBe("100000.00");
     expect(result.totalFeeRmb).toBe("1100.00");
+  });
+});
+
+describe("special client wallet historical reversal references", () => {
+  it("allows reversing entries for inactive historical clients", () => {
+    const client = { id: 1, name: "舊客戶名", feeRate: "0.011000", isActive: false };
+    expect(assertHistoricalSpecialClientExists(client)).toBe(client);
+  });
+
+  it("allows reversing entries for inactive historical RMB accounts", () => {
+    const account = { id: 2, name: "舊 RMB 帳戶", currency: "RMB", isActive: false, deletedAt: new Date() };
+    expect(assertHistoricalRmbAccountExists(account)).toBe(account);
+  });
+
+  it("still rejects historical entries whose account is not RMB", () => {
+    expect(() => assertHistoricalRmbAccountExists({ id: 3, name: "台幣帳戶", currency: "TWD" })).toThrow(
+      "原始公司帳戶幣別異常"
+    );
   });
 });
