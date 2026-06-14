@@ -18,6 +18,21 @@ const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
 
+function customerHasActiveSettlements(state: AppState, customerId: number) {
+  const reversedLedgerIds = new Set(
+    state.ledger
+      .filter((entry) => entry.isReversal && entry.reversesLedgerId != null)
+      .map((entry) => entry.reversesLedgerId!)
+  );
+  return state.ledger.some(
+    (entry) =>
+      entry.customerId === customerId &&
+      entry.entryType === "收帳" &&
+      !entry.accountId &&
+      !reversedLedgerIds.has(entry.id)
+  );
+}
+
 function syncCustomerSalesSettlementStatus(state: AppState, customerId: number) {
   const customer = state.customers.find((item) => item.id === customerId);
   if (!customer) return;
@@ -26,7 +41,8 @@ function syncCustomerSalesSettlementStatus(state: AppState, customerId: number) 
   );
   const status = resolveCustomerSettlementStatus(
     customer.receivableTwd,
-    activeSales.map((sale) => sale.twdAmount)
+    activeSales.map((sale) => sale.twdAmount),
+    customerHasActiveSettlements(state, customerId)
   );
   activeSales.forEach((sale) => {
     sale.settlementStatus = status;
@@ -953,6 +969,7 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
       relatedId: sale.id
     });
   }
+  syncCustomerSalesSettlementStatus(state, customer.id);
   return state;
 }
 

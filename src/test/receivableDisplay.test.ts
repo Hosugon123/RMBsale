@@ -32,5 +32,7 @@ describe("receivableDisplay", () => {
     expect(resolveCustomerSettlementStatus("-1000", ["5000"])).toBe("settled");
     expect(resolveCustomerSettlementStatus("5000", ["5000"])).toBe("unsettled");
     expect(resolveCustomerSettlementStatus("2000", ["5000"])).toBe("partial");
+    expect(resolveCustomerSettlementStatus("10000", ["9000"], true)).toBe("partial");
+    expect(resolveCustomerSettlementStatus("12000", ["9000"], false)).toBe("unsettled");
   });
 });

@@ -4,7 +4,7 @@ import { calcTwd, toDbMoney, toDbRate } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
 import { reverseRmbLotTransfer } from "./rmbInventory.js";
-import { resolveCustomerSettlementStatus } from "./receivableUtils.js";
+import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import {
   accounts,
   channels,
@@ -328,22 +328,7 @@ export async function reverseSettlement(settlementId: number, actor: Actor) {
       })
       .where(eq(settlements.id, settlementId));
 
-    const [customerAfter] = await tx
-      .select({ receivableTwd: customers.receivableTwd })
-      .from(customers)
-      .where(eq(customers.id, settlement.customerId));
-    const activeSales = await tx
-      .select({ twdAmount: sales.twdAmount })
-      .from(sales)
-      .where(and(eq(sales.customerId, settlement.customerId), eq(sales.status, "active")));
-    const settlementStatus = resolveCustomerSettlementStatus(
-      customerAfter?.receivableTwd ?? 0,
-      activeSales.map((sale) => sale.twdAmount)
-    );
-    await tx
-      .update(sales)
-      .set({ settlementStatus })
-      .where(and(eq(sales.customerId, settlement.customerId), eq(sales.status, "active")));
+    await syncCustomerSalesSettlementStatus(tx, settlement.customerId);
 
     await writeAudit(tx, {
       action: AuditAction.REVERSE_OPERATION,

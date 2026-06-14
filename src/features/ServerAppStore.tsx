@@ -84,9 +84,23 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
   const activeSales = state.sales.filter(
     (sale) => sale.customerId === customer.id && sale.status !== "reversed"
   );
+  const reversedLedgerIds = new Set(
+    state.ledger
+      .filter((entry) => entry.isReversal && entry.reversesLedgerId != null)
+      .map((entry) => entry.reversesLedgerId!)
+  );
+  const hasSettlements =
+    state.ledger.some(
+      (entry) =>
+        entry.customerId === customer.id &&
+        entry.entryType === "收帳" &&
+        !entry.accountId &&
+        !reversedLedgerIds.has(entry.id)
+    ) || true;
   const settlementStatus = resolveCustomerSettlementStatus(
     nextReceivable,
-    activeSales.map((sale) => sale.twdAmount)
+    activeSales.map((sale) => sale.twdAmount),
+    hasSettlements
   );
 
   return {

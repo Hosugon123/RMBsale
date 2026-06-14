@@ -81,7 +81,8 @@ export function isReceivableFullySettled(value: Decimal.Value) {
 
 export function resolveCustomerSettlementStatus(
   receivableTwd: Decimal.Value,
-  activeSaleTwdAmounts: Decimal.Value[]
+  activeSaleTwdAmounts: Decimal.Value[],
+  hasSettlements = false
 ): "unsettled" | "partial" | "settled" {
   const receivable = receivableBalance(receivableTwd);
   if (receivable.lte(0)) return "settled";
@@ -90,5 +91,7 @@ export function resolveCustomerSettlementStatus(
   for (const amount of activeSaleTwdAmounts) {
     totalSaleTwd = totalSaleTwd.add(receivableBalance(amount));
   }
-  return receivable.gte(totalSaleTwd) ? "unsettled" : "partial";
+  if (receivable.lt(totalSaleTwd)) return "partial";
+  if (receivable.gt(totalSaleTwd) && hasSettlements) return "partial";
+  return "unsettled";
 }

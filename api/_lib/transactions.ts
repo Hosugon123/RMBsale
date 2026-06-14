@@ -6,7 +6,7 @@ import { reverseRmbLotTransfer, transferRmbLots } from "./rmbInventory.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
 import { getAvailableProfitTwd, insertSaleProfitLedger, syncSaleProfitLedger } from "./profitLedger.js";
-import { resolveCustomerSettlementStatus } from "./receivableUtils.js";
+import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import {
   accounts,
   channels,
@@ -237,6 +237,8 @@ export async function createSale(input: {
       actor
     });
 
+    await syncCustomerSalesSettlementStatus(tx, customerId);
+
     return sale;
   });
 }
@@ -354,22 +356,7 @@ export async function createSettlement(input: {
       "收帳"
     );
 
-    const [customerAfter] = await tx
-      .select({ receivableTwd: customers.receivableTwd })
-      .from(customers)
-      .where(eq(customers.id, input.customerId));
-    const activeSales = await tx
-      .select({ twdAmount: sales.twdAmount })
-      .from(sales)
-      .where(and(eq(sales.customerId, input.customerId), eq(sales.status, "active")));
-    const settlementStatus = resolveCustomerSettlementStatus(
-      customerAfter?.receivableTwd ?? 0,
-      activeSales.map((sale) => sale.twdAmount)
-    );
-    await tx
-      .update(sales)
-      .set({ settlementStatus })
-      .where(and(eq(sales.customerId, input.customerId), eq(sales.status, "active")));
+    await syncCustomerSalesSettlementStatus(tx, input.customerId);
 
     await writeAudit(tx, {
       action: AuditAction.CREATE_SETTLEMENT,
