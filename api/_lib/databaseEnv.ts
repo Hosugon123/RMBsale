@@ -51,6 +51,12 @@ export function assertNotProductionDatabaseForDevOps(action: string) {
 
 export function assertDevOnlineDatabaseSafe() {
   if (getRmbsaleEnv() === "production") return;
+  if (process.env.RMBSALE_USE_REMOTE_DB !== "1") {
+    throw new Error(
+      "本機預設不連資料庫。日常開發請用 npm run dev（localStorage，port 8080）。" +
+        "若需連 dev Neon 做 API 整合，請明確設定 RMBSALE_USE_REMOTE_DB=1 後再執行 npm run dev:online。"
+    );
+  }
   if (isLocalUsingProductionDatabase()) {
     throw new Error(
       "本機 DATABASE_URL 與 RMBSALE_PRODUCTION_DB_HOST 相同，測試會寫進正式庫。" +

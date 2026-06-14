@@ -46,6 +46,19 @@ import {
 } from "../lib/xlsxAutoImport";
 import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState, AppUser, PermissionKey } from "../lib/types";
+import type {
+  SpecialClientDepositBody,
+  SpecialClientPayoutBody,
+  SpecialClientReverseBody,
+  SpecialClientWalletData,
+  SpecialClientWalletQuery
+} from "../lib/specialClientWalletTypes";
+import {
+  createSpecialClientDeposit,
+  createSpecialClientPayout,
+  getSpecialClientWallet,
+  reverseSpecialClientWalletEntry
+} from "../lib/localSpecialClientWallet";
 import { ServerAppStoreProvider } from "./ServerAppStore";
 import { useServerDataMode } from "../lib/serverApi";
 
@@ -91,6 +104,10 @@ export type AppStore = {
   ) => void | Promise<void>;
   setUserActive: (userId: number, isActive: boolean) => void | Promise<void>;
   reverseOperation: (input: { entityType: ReversalEntityType; entityId: number }) => void | Promise<void>;
+  loadSpecialClientWallet: (query?: SpecialClientWalletQuery) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
+  specialClientDeposit: (body: SpecialClientDepositBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
+  specialClientPayout: (body: SpecialClientPayoutBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
+  specialClientReverse: (body: SpecialClientReverseBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
 };
 
 export const AppStoreContext = React.createContext<AppStore | null>(null);
@@ -206,7 +223,29 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
     createUser: (input) => commit((draft) => createUser(draft, input)),
     updateUser: (userId, input) => commit((draft) => updateUser(draft, userId, input)),
     setUserActive: (userId, isActive) => commit((draft) => setUserActive(draft, userId, isActive)),
-    reverseOperation: (input) => commit((draft) => reverseOperation(draft, input))
+    reverseOperation: (input) => commit((draft) => reverseOperation(draft, input)),
+    loadSpecialClientWallet: (query) => getSpecialClientWallet(state, query),
+    specialClientDeposit: (body) => {
+      let result!: SpecialClientWalletData;
+      commit((draft) => {
+        result = createSpecialClientDeposit(draft, body);
+      });
+      return result;
+    },
+    specialClientPayout: (body) => {
+      let result!: SpecialClientWalletData;
+      commit((draft) => {
+        result = createSpecialClientPayout(draft, body);
+      });
+      return result;
+    },
+    specialClientReverse: (body) => {
+      let result!: SpecialClientWalletData;
+      commit((draft) => {
+        result = reverseSpecialClientWalletEntry(draft, body);
+      });
+      return result;
+    }
   }), [applyState, commit, sessionUser, state]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;

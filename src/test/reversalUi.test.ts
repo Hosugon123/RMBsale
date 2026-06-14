@@ -14,7 +14,9 @@ function stateWithLedger(ledger: LedgerEntry[]): AppState {
     sales: [],
     saleAllocations: [],
     rmbLots: [],
-    ledger
+    ledger,
+    specialClients: [],
+    specialClientWalletEntries: []
   };
 }
 

@@ -134,6 +134,41 @@ export type LedgerEntry = {
   reversesLedgerId?: number;
 };
 
+export type SpecialClientRecord = {
+  id: number;
+  name: string;
+  feeRate: string;
+  isActive: boolean;
+};
+
+export type SpecialClientWalletEntryRecord = {
+  id: number;
+  clientId: number;
+  type: "deposit" | "payout" | "reversal";
+  entryDate: string;
+  usdAmount: string | null;
+  usdToRmbRate: string | null;
+  grossRmb: string | null;
+  feeRate: string | null;
+  feeRmb: string | null;
+  netCreditRmb: string | null;
+  payoutRmb: string | null;
+  vendorName: string | null;
+  purpose: string | null;
+  cashAccountId: number;
+  cashAccountDelta: string;
+  balanceAfterRmb: string;
+  profitLedgerId: number | null;
+  note: string | null;
+  createdBy: number;
+  createdAt: string;
+  reversedAt: string | null;
+  reversedBy: number | null;
+  reverseReason: string | null;
+  originalEntryId: number | null;
+  reversalEntryId: number | null;
+};
+
 export type AppState = {
   sessionUserId: number;
   users: AppUser[];
@@ -146,4 +181,6 @@ export type AppState = {
   saleAllocations: SaleAllocation[];
   rmbLots: RmbLot[];
   ledger: LedgerEntry[];
+  specialClients: SpecialClientRecord[];
+  specialClientWalletEntries: SpecialClientWalletEntryRecord[];
 };

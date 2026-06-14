@@ -1,6 +1,5 @@
 import * as React from "react";
-import { AlertCircle, Download, ExternalLink, Loader2, RotateCcw, Wallet, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { AlertCircle, Download, Loader2, RotateCcw, Wallet, X } from "lucide-react";
 import { useAppStore } from "../features/AppStore";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -90,7 +89,14 @@ function buildWalletQuery(
 
 export function SpecialClientWalletPage() {
   const serverMode = useServerDataMode();
-  const { refresh, sessionUser } = useAppStore();
+  const {
+    refresh,
+    sessionUser,
+    loadSpecialClientWallet,
+    specialClientDeposit,
+    specialClientPayout,
+    specialClientReverse
+  } = useAppStore();
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string>();
   const [wallet, setWallet] = React.useState<SpecialClientWalletData | null>(null);
@@ -127,12 +133,11 @@ export function SpecialClientWalletPage() {
 
   const loadWallet = React.useCallback(
     async (query?: SpecialClientWalletQuery) => {
-      if (!serverMode) return;
       setLoading(true);
       setError(undefined);
       try {
         const params = query ?? buildWalletQuery(selectedClientId, filters);
-        const data = await serverApi.specialClientWallet(params);
+        const data = await loadSpecialClientWallet(params);
         setWallet(data);
         if (data.selectedClientId) {
           setSelectedClientId(String(data.selectedClientId));
@@ -147,16 +152,12 @@ export function SpecialClientWalletPage() {
         setLoading(false);
       }
     },
-    [filters, selectedClientId, serverMode]
+    [filters, loadSpecialClientWallet, selectedClientId]
   );
 
   React.useEffect(() => {
-    if (!serverMode) {
-      setLoading(false);
-      return;
-    }
     void loadWallet();
-  }, [loadWallet, serverMode]);
+  }, [loadWallet]);
 
   const handleClientChange = (clientId: string) => {
     setSelectedClientId(clientId);
@@ -168,6 +169,10 @@ export function SpecialClientWalletPage() {
   };
 
   const exportExcel = async () => {
+    if (!serverMode) {
+      setError("本機 demo 模式不支援 Excel 匯出，請改用線上環境");
+      return;
+    }
     setError(undefined);
     try {
       setSubmitting("export");
@@ -201,7 +206,7 @@ export function SpecialClientWalletPage() {
     try {
       setSubmitting("reverse");
       await runMutation(async () => {
-        const data = await serverApi.specialClientReverse({
+        const data = await specialClientReverse({
           entryId: reverseTarget.id,
           reverseReason: reverseReason.trim(),
           clientId: reverseTarget.clientId
@@ -284,7 +289,7 @@ export function SpecialClientWalletPage() {
     try {
       setSubmitting("deposit");
       await runMutation(async () => {
-        const data = await serverApi.specialClientDeposit(body);
+        const data = await specialClientDeposit(body);
         setWallet(data);
         resetDepositForm();
         await refresh();
@@ -324,7 +329,7 @@ export function SpecialClientWalletPage() {
     try {
       setSubmitting("payout");
       await runMutation(async () => {
-        const data = await serverApi.specialClientPayout(body);
+        const data = await specialClientPayout(body);
         setWallet(data);
         resetPayoutForm();
         await refresh();
@@ -335,50 +340,6 @@ export function SpecialClientWalletPage() {
       setSubmitting(null);
     }
   };
-
-  if (!serverMode) {
-    return (
-      <div className="space-y-4 pb-8">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">特殊客戶儲值代付帳</h1>
-          <p className="text-sm text-muted-foreground">此功能需連線 PostgreSQL 資料庫，demo 模式無法使用。</p>
-        </div>
-        <Card>
-          <CardContent className="space-y-4 py-8 text-center">
-            <AlertCircle className="mx-auto h-10 w-10 text-amber-500" />
-            <p className="text-sm text-muted-foreground">
-              您目前使用的是本機 demo（<code className="rounded bg-muted px-1">npm run dev</code>，port 5173/5174），資料存在
-              localStorage，沒有 API 後端。
-            </p>
-            <p className="text-sm text-muted-foreground">
-              請改用以下其中一種方式後，再開啟此頁面：
-            </p>
-            <ul className="mx-auto max-w-md space-y-2 text-left text-sm text-muted-foreground">
-              <li>
-                <span className="font-medium text-foreground">開發（推薦）</span>：在專案目錄執行{" "}
-                <code className="rounded bg-muted px-1">npm run dev:online</code>，然後開啟{" "}
-                <a className="text-primary underline" href="http://127.0.0.1:8080/special-client-wallet">
-                  http://127.0.0.1:8080/special-client-wallet
-                </a>
-              </li>
-              <li>
-                <span className="font-medium text-foreground">正式 build</span>：執行{" "}
-                <code className="rounded bg-muted px-1">npm run build</code> 後{" "}
-                <code className="rounded bg-muted px-1">npm run start</code>（port 8080）
-              </li>
-            </ul>
-            <Link
-              to="/"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background/40 px-4 py-2 text-sm font-medium"
-            >
-              <ExternalLink className="h-4 w-4" />
-              返回儀表板
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (loading && !wallet) {
     return (

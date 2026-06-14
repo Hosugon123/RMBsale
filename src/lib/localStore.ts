@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { ALL_PERMISSIONS, deriveRole, LEVEL_PRESETS } from "./permissions";
 import { DEPOSIT_CHANNEL, isDepositPurchase } from "./purchaseUtils";
+import { ensureSpecialClientWalletState, reverseSpecialClientWalletEntry } from "./localSpecialClientWallet";
 import { resolveCustomerSettlementStatus } from "./receivableDisplay";
 import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
 import { d, nextId } from "./utils";
@@ -148,6 +149,7 @@ function normalizeState(state: AppState): AppState {
   removeDepositPayableLedger(state);
   ensurePayableLedgerEntries(state);
   reconcileLocalRmbLotInventory(state);
+  ensureSpecialClientWalletState(state);
   state.purchases.forEach((purchase) => {
     if (isDepositPurchase(purchase)) return;
     if (purchase.paidTwd == null || purchase.paidTwd === undefined) {
@@ -352,7 +354,9 @@ export function createSeedState(): AppState {
       { id: 1, createdAt: now(), entryType: "售出", accountId: 4, customerId: 1, direction: "out", currency: "RMB", amount: "3500.00", description: "售出 RMB 給阿明", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
       { id: 2, createdAt: now(), entryType: "應收", customerId: 1, direction: "in", currency: "TWD", amount: "15800.05", description: "阿明應收增加", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
       { id: 3, createdAt: now(), entryType: "利潤", customerId: 1, direction: "in", currency: "TWD", amount: "330.05", description: "阿明 售出利潤", operatorName: "admin", relatedTable: "sales", relatedId: 1 }
-    ]
+    ],
+    specialClients: [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
+    specialClientWalletEntries: []
   };
 }
 
@@ -465,6 +469,7 @@ export function saveState(state: AppState) {
 
 /** 淺拷貝頂層陣列供 React 更新，避免 structuredClone 整份帳務。 */
 export function publishAppStateShallow(state: AppState): AppState {
+  ensureSpecialClientWalletState(state);
   return {
     ...state,
     users: [...state.users],
@@ -476,7 +481,9 @@ export function publishAppStateShallow(state: AppState): AppState {
     sales: [...state.sales],
     saleAllocations: [...state.saleAllocations],
     rmbLots: state.rmbLots.map((lot) => ({ ...lot })),
-    ledger: [...state.ledger]
+    ledger: [...state.ledger],
+    specialClients: [...state.specialClients],
+    specialClientWalletEntries: [...state.specialClientWalletEntries]
   };
 }
 
@@ -514,7 +521,9 @@ export function clearBusinessData(state: AppState): AppState {
     sales: [],
     saleAllocations: [],
     rmbLots: [],
-    ledger: []
+    ledger: [],
+    specialClients: [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
+    specialClientWalletEntries: []
   };
   saveState(cleared);
   return cleared;
@@ -532,7 +541,9 @@ export function replaceBusinessData(state: AppState, next: AppState): AppState {
     sales: next.sales,
     saleAllocations: next.saleAllocations ?? [],
     rmbLots: next.rmbLots,
-    ledger: next.ledger
+    ledger: next.ledger,
+    specialClients: next.specialClients ?? [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
+    specialClientWalletEntries: next.specialClientWalletEntries ?? []
   };
   return normalizeState(merged);
 }
@@ -1946,7 +1957,11 @@ export function reverseOperation(
       break;
     }
     case "specialClientWallet":
-      throw new Error("特殊客戶儲值代付請在線上環境沖銷");
+      reverseSpecialClientWalletEntry(state, {
+        entryId: input.entityId,
+        reverseReason: "由總流水頁沖銷"
+      });
+      break;
     default:
       throw new Error("不支援的作廢類型");
   }

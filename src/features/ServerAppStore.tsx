@@ -49,7 +49,9 @@ function stateFromPartial(patch: Partial<AppState> & { sessionUserId?: number })
     sales: patch.sales ?? [],
     rmbLots: patch.rmbLots ?? [],
     saleAllocations: patch.saleAllocations ?? [],
-    ledger: patch.ledger ?? []
+    ledger: patch.ledger ?? [],
+    specialClients: patch.specialClients ?? [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
+    specialClientWalletEntries: patch.specialClientWalletEntries ?? []
   };
 }
 
@@ -401,6 +403,22 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
         await serverApi.reverseOperation(input.entityType, input.entityId);
       }
       afterMutation("reversal");
+    },
+    loadSpecialClientWallet: (query) => serverApi.specialClientWallet(query),
+    specialClientDeposit: async (body) => {
+      const data = await serverApi.specialClientDeposit(body);
+      afterMutation("adjustment");
+      return data;
+    },
+    specialClientPayout: async (body) => {
+      const data = await serverApi.specialClientPayout(body);
+      afterMutation("adjustment");
+      return data;
+    },
+    specialClientReverse: async (body) => {
+      const data = await serverApi.specialClientReverse(body);
+      afterMutation("reversal");
+      return data;
     }
   };
 

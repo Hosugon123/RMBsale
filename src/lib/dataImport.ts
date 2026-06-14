@@ -74,7 +74,9 @@ export function applyBusinessImport(
     sales: payload.sales ?? [],
     saleAllocations: payload.saleAllocations ?? [],
     rmbLots: payload.rmbLots ?? [],
-    ledger: payload.ledger ?? []
+    ledger: payload.ledger ?? [],
+    specialClients: [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
+    specialClientWalletEntries: []
   };
 }
 

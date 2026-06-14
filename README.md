@@ -23,26 +23,30 @@ RMBsale 是以 Vite + React + TypeScript 建立的人民幣代付與換匯金流
 
 ## 開發
 
-1. 複製 `.env.example` 為 `.env.local`，填入 PostgreSQL 的 `DATABASE_URL` 與 `JWT_SECRET` 等。
-2. 初始化資料庫（首次）：
-
-```bash
-npm.cmd run db:setup
-```
-
-3. 啟動（Express 單一服務，與 Cloud Run 相同架構）：
+**本機預設（推薦）：** 資料存在瀏覽器 localStorage，**不連任何 PostgreSQL／正式庫**。
 
 ```bash
 npm.cmd install
+npm.cmd run dev
+```
+
+開啟 http://127.0.0.1:8080 ，預設帳號 `ds6186` / `1234`。與 `dev:demo`、`dev:local` 相同。
+
+若要連 **dev Neon** 做 API／儲值代付整合（需已設定 `.env.local`）：
+
+```bash
 npm.cmd run dev:online
 ```
 
-`dev:online` 會在 **port 8080** 啟動 Express：同時提供 `/api` 與 Vite 前端熱更新。預設帳號為 `ds6186` / `1234`。
+`dev:online` 會設定 `RMBSALE_USE_REMOTE_DB=1` 並在 port 8080 啟動 Express + Vite；若偵測到誤連正式 host 會拒絕啟動。
 
-僅要本機 localStorage 示範、不連資料庫時：
+首次使用 dev 資料庫時：
+
+1. 複製 `.env.example` 為 `.env.local`，填入 **dev** 的 `DATABASE_URL` 與 `JWT_SECRET`。
+2. 初始化：
 
 ```bash
-npm.cmd run dev:demo
+npm.cmd run db:setup
 ```
 
 正式模式本機驗證（build 後靜態檔 + API）：
@@ -86,8 +90,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-neon-prod.ps1
 npm.cmd run db:check-isolation
 ```
 
-- `dev:demo`：localStorage，完全不連資料庫。
-- `dev:online`：若偵測到本機 `DATABASE_URL` 與正式 host 相同，**會拒絕啟動**。
+- `npm run dev` / `dev:local` / `dev:demo`：localStorage，**完全不連資料庫**（本機預設）。
+- `dev:online`：需 `RMBSALE_USE_REMOTE_DB=1`；若偵測到本機 `DATABASE_URL` 與正式 host 相同，**會拒絕啟動**。
 - `scripts/probe-special-client-wallet.ts`：僅允許 `http://127.0.0.1:8080`，不可對 Cloud Run 網址執行。
 - 已棄用 `scripts/setup-neon-b.ps1`（曾把同一庫寫入 Vercel 各環境）。
 

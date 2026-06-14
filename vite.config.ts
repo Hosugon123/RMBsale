@@ -17,6 +17,11 @@ function buildMetaPlugin(id: string) {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "src")
+    }
+  },
   define: {
     "import.meta.env.VITE_BUILD_ID": JSON.stringify(buildId)
   },

@@ -12,6 +12,8 @@ export function mergeBootstrapState(current: AppState, patch: Partial<AppState> 
     sales: patch.sales ?? current.sales,
     rmbLots: patch.rmbLots ?? current.rmbLots,
     saleAllocations: patch.saleAllocations ?? current.saleAllocations,
-    ledger: patch.ledger ?? current.ledger
+    ledger: patch.ledger ?? current.ledger,
+    specialClients: patch.specialClients ?? current.specialClients,
+    specialClientWalletEntries: patch.specialClientWalletEntries ?? current.specialClientWalletEntries
   };
 }
