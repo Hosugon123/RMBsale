@@ -20,3 +20,4 @@ Avoid expensive reruns for every small change.
 - Run targeted tests when business logic, money calculations, local storage behavior, or transaction/accounting behavior changes.
 - Reload the in-app browser only when hot reload does not reflect the change, the page state is stale, or the change affects initial load/routing behavior.
 - Before committing or preparing a release/deploy, run the full build even if individual edits were small.
+- When the relevant tests and `npm.cmd run build` both pass, commit with a Traditional Chinese commit title and push the current branch to GitHub by default.

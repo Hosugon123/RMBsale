@@ -632,7 +632,7 @@ describe("local demo store", () => {
     const receivableEntry = rows.find((entry) => entry.entryType === "應收");
 
     expect(saleEntry).toMatchObject({
-      subjectLabel: "團隊帳戶",
+      subjectLabel: "團隊帳戶 / 支付寶 RMB",
       balanceBefore: "62000.00",
       balanceAfter: "58500.00",
       balanceCurrency: "RMB"

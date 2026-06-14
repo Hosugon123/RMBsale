@@ -537,7 +537,7 @@ export function totals(state: AppState) {
 }
 
 export type LedgerBalanceContext = {
-  /** 戶名：帳戶為持有人、應收為客戶名、應付為渠道名 */
+  /** 戶名：帳戶為持有人／帳戶名、應收為客戶名、應付為渠道名 */
   subjectLabel?: string;
   balanceBefore: string;
   balanceAfter: string;
@@ -586,7 +586,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       const after = accountBalances.get(entry.accountId)!;
       const before = after.sub(delta);
       contextById.set(entry.id, {
-        subjectLabel: account.holderName,
+        subjectLabel: `${account.holderName} / ${account.name}`,
         balanceBefore: money(before),
         balanceAfter: money(after),
         balanceCurrency: account.currency
