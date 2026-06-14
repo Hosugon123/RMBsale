@@ -22,6 +22,7 @@ import {
 } from "../lib/localStore";
 import { isDepositPurchase, isPurchasePayable, purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { fieldControlClass } from "../lib/formStyles";
+import { describeReceivable, fmtReceivableBalance, sumPendingReceivable } from "../lib/receivableDisplay";
 import Decimal from "decimal.js";
 import { cn, d, fmtMoney } from "../lib/utils";
 import type { Account, Customer, Purchase } from "../lib/types";
@@ -48,7 +49,7 @@ function ReceivableCustomerCards({
   return (
     <div className="space-y-2 md:hidden">
       {customers.map((customer) => {
-        const pending = Number(customer.receivableTwd) > 0;
+        const info = describeReceivable(customer.receivableTwd);
         return (
           <button
             key={customer.id}
@@ -57,15 +58,24 @@ function ReceivableCustomerCards({
             className={cn(
               "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
               "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              pending ? "border-receivable/30 bg-receivable/5" : "border-border/80 bg-muted/15"
+              info.statusTone === "pending"
+                ? "border-receivable/30 bg-receivable/5"
+                : "border-border/80 bg-muted/15"
             )}
           >
             <div className="min-w-0">
               <p className="truncate font-medium">{customer.name}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{pending ? "待收 · 點擊查看流水" : "已結清 · 點擊查看流水"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {info.statusLabel} · 點擊查看流水
+              </p>
             </div>
-            <p className={cn("shrink-0 text-lg font-semibold tabular-nums", receivable.money)}>
-              {fmtMoney(customer.receivableTwd)}
+            <p
+              className={cn(
+                "shrink-0 text-lg font-semibold tabular-nums",
+                info.statusTone === "overpaid" ? "text-emerald-600 dark:text-emerald-400" : receivable.money
+              )}
+            >
+              {fmtReceivableBalance(customer.receivableTwd)}
             </p>
           </button>
         );
@@ -357,10 +367,7 @@ export function ReceivablesPage() {
   };
   const receivableLedgerRows = React.useMemo(() => sortedReceivableLedgerWithBalances(state), [state]);
   const payableLedgerRows = React.useMemo(() => sortedPayableLedgerWithBalances(state), [state]);
-  const totalReceivable = React.useMemo(
-    () => state.customers.reduce((sum, customer) => sum + Number(customer.receivableTwd), 0),
-    [state.customers]
-  );
+  const totalReceivable = React.useMemo(() => sumPendingReceivable(state.customers), [state.customers]);
   const totalPayable = React.useMemo(
     () => state.purchases.reduce((sum, purchase) => sum + Number(purchasePayableTwd(purchase)), 0),
     [state.purchases]
@@ -375,10 +382,17 @@ export function ReceivablesPage() {
         }),
     [state.customers]
   );
+  const overpaidCustomers = React.useMemo(
+    () =>
+      [...state.customers]
+        .filter((customer) => Number(customer.receivableTwd) < 0)
+        .sort((a, b) => Number(a.receivableTwd) - Number(b.receivableTwd)),
+    [state.customers]
+  );
   const historicalCustomers = React.useMemo(
     () =>
       [...state.customers]
-        .filter((customer) => Number(customer.receivableTwd) <= 0)
+        .filter((customer) => Number(customer.receivableTwd) === 0)
         .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")),
     [state.customers]
   );
@@ -432,6 +446,12 @@ export function ReceivablesPage() {
               customers={activeReceivableCustomers}
               onSelectCustomer={setLedgerCustomerId}
             />
+            {overpaidCustomers.length > 0 ? (
+              <div className="space-y-2 md:hidden">
+                <p className="text-xs font-medium text-muted-foreground">預收／多付客戶</p>
+                <ReceivableCustomerCards customers={overpaidCustomers} onSelectCustomer={setLedgerCustomerId} />
+              </div>
+            ) : null}
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <THead>
@@ -443,7 +463,9 @@ export function ReceivablesPage() {
                 </THead>
                 <TBody>
                   {activeReceivableCustomers.length > 0 ? (
-                    activeReceivableCustomers.map((customer) => (
+                    activeReceivableCustomers.map((customer) => {
+                      const info = describeReceivable(customer.receivableTwd);
+                      return (
                       <TR key={customer.id}>
                         <TD>
                           <button
@@ -454,10 +476,13 @@ export function ReceivablesPage() {
                             {customer.name}
                           </button>
                         </TD>
-                        <TD className="text-right font-semibold text-receivable">{fmtMoney(customer.receivableTwd)}</TD>
-                        <TD>待收</TD>
+                        <TD className="text-right font-semibold text-receivable">
+                          {fmtReceivableBalance(customer.receivableTwd)}
+                        </TD>
+                        <TD>{info.statusLabel}</TD>
                       </TR>
-                    ))
+                      );
+                    })
                   ) : (
                     <TR>
                       <TD colSpan={3} className="py-6 text-center text-muted-foreground">
@@ -468,6 +493,39 @@ export function ReceivablesPage() {
                 </TBody>
               </Table>
             </div>
+            {overpaidCustomers.length > 0 ? (
+              <div className="hidden overflow-x-auto md:block">
+                <p className="mb-2 text-xs font-medium text-muted-foreground sm:text-sm">預收／多付客戶</p>
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>客戶</TH>
+                      <TH className="text-right">多付</TH>
+                      <TH>狀態</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {overpaidCustomers.map((customer) => (
+                      <TR key={customer.id}>
+                        <TD>
+                          <button
+                            type="button"
+                            className="font-medium text-left hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:text-emerald-400"
+                            onClick={() => setLedgerCustomerId(customer.id)}
+                          >
+                            {customer.name}
+                          </button>
+                        </TD>
+                        <TD className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                          {fmtReceivableBalance(customer.receivableTwd)}
+                        </TD>
+                        <TD>多付</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            ) : null}
             <div className="min-w-0 overflow-x-auto border-t border-border/60 pt-4">
               <p className="mb-3 text-xs font-medium text-muted-foreground sm:text-sm">應收／收帳流水</p>
               <PaginatedLedgerTable

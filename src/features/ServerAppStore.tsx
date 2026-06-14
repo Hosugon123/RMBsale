@@ -63,7 +63,6 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
   if (!account) throw new Error("找不到 TWD 帳戶");
   const amount = d(input.amountTwd);
   if (amount.lte(0)) throw new Error("金額必須大於 0");
-  if (d(customer.receivableTwd).lt(amount)) throw new Error("收款金額超過應收餘額");
 
   const amountTwd = money(amount);
   const nextReceivable = money(d(customer.receivableTwd).sub(amountTwd));
@@ -71,7 +70,15 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
   const now = new Date().toISOString();
   const tempId = -Date.now();
   const note = input.note?.trim();
-  const description = note ? `收帳：${customer.name}（${note}）` : `收帳：${customer.name}`;
+  const overpay = d(nextReceivable).lt(0);
+  const description =
+    overpay && note
+      ? `收帳：${customer.name}（${note}｜多付 ${money(d(nextReceivable).abs())}）`
+      : overpay
+        ? `收帳：${customer.name}（多付 ${money(d(nextReceivable).abs())}）`
+        : note
+          ? `收帳：${customer.name}（${note}）`
+          : `收帳：${customer.name}`;
 
   return {
     ...state,
@@ -80,6 +87,11 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
     ),
     accounts: state.accounts.map((item) =>
       item.id === account.id ? { ...item, balance: nextBalance } : item
+    ),
+    sales: state.sales.map((sale) =>
+      sale.customerId === customer.id
+        ? { ...sale, settlementStatus: d(nextReceivable).lte(0) ? ("settled" as const) : ("partial" as const) }
+        : sale
     ),
     ledger: [
       {

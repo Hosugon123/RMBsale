@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
 import { useAppStore } from "../features/AppStore";
+import { describeReceivable, fmtReceivableBalance } from "../lib/receivableDisplay";
 import { profit, receivable, rmb, twd } from "../lib/currencyStyles";
 import { sortedLedgerWithBalances } from "../lib/localStore";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
@@ -68,7 +69,6 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
               type="button"
               size="sm"
               className="h-9"
-              disabled={Number(selectedCustomer.receivableTwd) <= 0}
               onClick={() => {
                 const id = selectedCustomer.id;
                 onClose();
@@ -87,8 +87,18 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <div className="rounded-md border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">目前應收</p>
-              <p className="mt-1 text-base font-semibold text-receivable sm:text-lg">
-                {fmtMoney(selectedCustomer.receivableTwd)}
+              <p
+                className={cn(
+                  "mt-1 text-base font-semibold sm:text-lg",
+                  describeReceivable(selectedCustomer.receivableTwd).statusTone === "overpaid"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : receivable.text
+                )}
+              >
+                {fmtReceivableBalance(selectedCustomer.receivableTwd)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {describeReceivable(selectedCustomer.receivableTwd).statusLabel}
               </p>
             </div>
             <div className="rounded-md border bg-muted/30 p-3">

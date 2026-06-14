@@ -297,30 +297,20 @@ export function replayAssetFlow(
             throw new Error("收帳缺少客戶、入帳戶或金額");
           }
           const customer = state.customers.find((c) => c.id === customerId)!;
-          if (d(customer.receivableTwd).lt(amount)) {
+          if (d(customer.receivableTwd).lt(amount) && d(customer.receivableTwd).gt(0)) {
             logs.push({
               level: "WARN",
               sheetRow: row.sheetRow,
               category: row.category,
-              message: `應收不足：應收 ${customer.receivableTwd}，收帳 ${amount}，改為收清現有應收`
-            });
-            if (d(customer.receivableTwd).lte(0)) {
-              throw new Error("無應收可收");
-            }
-            addSettlement(state, {
-              customerId,
-              accountId,
-              amountTwd: customer.receivableTwd,
-              note: row.note ?? "匯入調整"
-            });
-          } else {
-            addSettlement(state, {
-              customerId,
-              accountId,
-              amountTwd: amount,
-              note: row.note ?? undefined
+              message: `收帳超過應收：應收 ${customer.receivableTwd}，收帳 ${amount}，將記為多付`
             });
           }
+          addSettlement(state, {
+            customerId,
+            accountId,
+            amountTwd: amount,
+            note: row.note ?? undefined
+          });
           logs.push({ level: "OK", sheetRow: row.sheetRow, category: row.category, message: "收帳已寫入" });
           break;
         }

@@ -15,6 +15,7 @@ import {
   sortedReceivableLedgerWithBalances
 } from "../lib/localStore";
 import { XLSX_IMPORT_NOTICE_KEY } from "../lib/xlsxAutoImport";
+import { fmtReceivableBalance } from "../lib/receivableDisplay";
 import { cn, fmtMoney, fmtRate } from "../lib/utils";
 
 export function DashboardPage() {
@@ -116,7 +117,7 @@ export function DashboardPage() {
                 <p className="font-medium">{customer.name}</p>
                 <p className="text-xs text-muted-foreground">客戶欠款</p>
               </div>
-              <p className="font-semibold text-receivable">{fmtMoney(customer.receivableTwd)}</p>
+              <p className="font-semibold text-receivable">{fmtReceivableBalance(customer.receivableTwd)}</p>
             </button>
           ))}
           {pendingReceivableCount > 5 ? (

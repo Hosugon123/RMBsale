@@ -528,7 +528,12 @@ export function totals(state: AppState) {
   return {
     twd: state.accounts.filter((a) => a.currency === "TWD").reduce((sum, a) => sum.add(a.balance), d(0)).toFixed(2),
     rmb: state.accounts.filter((a) => a.currency === "RMB").reduce((sum, a) => sum.add(a.balance), d(0)).toFixed(2),
-    receivable: state.customers.reduce((sum, c) => sum.add(c.receivableTwd), d(0)).toFixed(2),
+    receivable: state.customers
+      .reduce((sum, c) => {
+        const balance = d(c.receivableTwd);
+        return balance.gt(0) ? sum.add(balance) : sum;
+      }, d(0))
+      .toFixed(2),
     inventory: state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0)).toFixed(2),
     profitEarned: profitEarned.toFixed(2),
     profit: profitEarned.sub(profitWithdrawals).toFixed(2),
@@ -982,14 +987,21 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
   const customer = state.customers.find((item) => item.id === input.customerId);
   if (!customer) throw new Error("找不到客戶");
   if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
-  if (d(customer.receivableTwd).lt(input.amountTwd)) throw new Error("收款金額超過應收餘額");
 
   const amountTwd = money(input.amountTwd);
   const settlementId = nextId(state.ledger);
   const note = input.note?.trim();
-  const description = note ? `收帳：${customer.name}（${note}）` : `收帳：${customer.name}`;
+  const nextReceivable = d(customer.receivableTwd).sub(amountTwd);
+  const description =
+    nextReceivable.lt(0) && note
+      ? `收帳：${customer.name}（${note}｜多付 ${money(nextReceivable.abs())}）`
+      : nextReceivable.lt(0)
+        ? `收帳：${customer.name}（多付 ${money(nextReceivable.abs())}）`
+        : note
+          ? `收帳：${customer.name}（${note}）`
+          : `收帳：${customer.name}`;
 
-  customer.receivableTwd = money(Decimal.max(0, d(customer.receivableTwd).sub(amountTwd)));
+  customer.receivableTwd = money(nextReceivable);
   addLedger(state, {
     entryType: "收帳",
     customerId: customer.id,
@@ -1002,7 +1014,7 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
   });
   mutateAccount(state, input.accountId, "TWD", amountTwd, "in", "settlements", settlementId, description, "收帳");
   state.sales.filter((sale) => sale.customerId === customer.id).forEach((sale) => {
-    sale.settlementStatus = d(customer.receivableTwd).eq(0) ? "settled" : "partial";
+    sale.settlementStatus = d(customer.receivableTwd).lte(0) ? "settled" : "partial";
   });
   return state;
 }

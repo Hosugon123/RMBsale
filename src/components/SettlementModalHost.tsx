@@ -2,9 +2,9 @@ import * as React from "react";
 import { CheckCircle2, X } from "lucide-react";
 import type { AppState } from "../lib/types";
 import { useAppStore } from "../features/AppStore";
-import Decimal from "decimal.js";
 import { d, fmtMoney } from "../lib/utils";
 import { runMutation, useIsMutating } from "../lib/runMutation";
+import { describeReceivable, fmtReceivableBalance, settlementReceivablePreview } from "../lib/receivableDisplay";
 import { fieldControlClass } from "../lib/formStyles";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -61,14 +61,11 @@ export function SettlementModalHost() {
   const selectedCustomer = state.customers.find((customer) => customer.id === Number(form.customerId));
   const selectedAccount = twdAccounts.find((account) => account.id === Number(form.accountId));
   const settlementPreview = React.useMemo(() => {
-    if (!selectedCustomer) return { overPay: false, payment: d(0), afterReceivable: d(0) };
-    const remaining = d(selectedCustomer.receivableTwd);
+    if (!selectedCustomer) {
+      return settlementReceivablePreview(0, 0);
+    }
     const payment = form.amountTwd.trim() ? d(form.amountTwd) : d(0);
-    return {
-      payment,
-      afterReceivable: Decimal.max(0, remaining.sub(payment)),
-      overPay: payment.gt(remaining)
-    };
+    return settlementReceivablePreview(selectedCustomer.receivableTwd, payment);
   }, [form.amountTwd, selectedCustomer]);
 
   const openModal = React.useCallback((event?: Event) => {
@@ -94,10 +91,6 @@ export function SettlementModalHost() {
   const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedCustomer || !form.accountId || !form.amountTwd.trim()) return;
-    if (settlementPreview.overPay) {
-      setError("收款金額超過應收餘額");
-      return;
-    }
     if (settlementPreview.payment.lte(0)) {
       setError("收款金額須大於 0");
       return;
@@ -157,11 +150,14 @@ export function SettlementModalHost() {
                   }}
                   required
                 >
-                  {receivables.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({fmtMoney(customer.receivableTwd)})
-                    </option>
-                  ))}
+                  {receivables.map((customer) => {
+                    const info = describeReceivable(customer.receivableTwd);
+                    return (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} ({fmtReceivableBalance(customer.receivableTwd)} · {info.statusLabel})
+                      </option>
+                    );
+                  })}
                 </Select>
               </label>
               <label className="block min-w-0 space-y-1 text-sm font-medium">
@@ -190,8 +186,10 @@ export function SettlementModalHost() {
                   required
                 />
               </label>
-              {settlementPreview.overPay ? (
-                <p className="text-sm text-destructive">收款金額超過應收餘額</p>
+              {settlementPreview.isOverpay ? (
+                <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                  本次將多付 {fmtMoney(settlementPreview.overpayAmount)}，餘額會顯示為「多付」
+                </p>
               ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
               <Button
@@ -200,7 +198,6 @@ export function SettlementModalHost() {
                   !selectedCustomer ||
                   !form.accountId ||
                   !form.amountTwd.trim() ||
-                  settlementPreview.overPay ||
                   settlementPreview.payment.lte(0) ||
                   isMutating
                 }
@@ -224,7 +221,6 @@ export function SettlementModalHost() {
         }
         amountTwd={form.amountTwd}
         receivableBefore={selectedCustomer?.receivableTwd ?? "0.00"}
-        overPay={settlementPreview.overPay}
         isMutating={isMutating}
       />
     </div>

@@ -157,7 +157,10 @@ describe("accounting integration", () => {
 
 function moneySumReceivable(state: ReturnType<typeof createSeedState>) {
   return state.customers
-    .reduce((sum, customer) => sum.add(customer.receivableTwd), d(0))
+    .reduce((sum, customer) => {
+      const balance = d(customer.receivableTwd);
+      return balance.gt(0) ? sum.add(balance) : sum;
+    }, d(0))
     .toDecimalPlaces(2)
     .toFixed(2);
 }

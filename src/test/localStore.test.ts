@@ -316,12 +316,12 @@ describe("local demo store", () => {
     expect(purchasePayableTwd(state.purchases[0])).toBe("0.00");
   });
 
-  it("rejects settlement above receivable balance", () => {
+  it("allows settlement above receivable balance and records overpay", () => {
     const state = createSeedState();
     const customer = state.customers.find((item) => item.name === "阿明")!;
-    expect(() =>
-      addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "999999" })
-    ).toThrow("收款金額超過應收餘額");
+    addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
+    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(state.ledger[0]?.description).toContain("多付");
   });
 
   it("groups ledger rows from the same sale operation", () => {

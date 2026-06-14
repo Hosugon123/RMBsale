@@ -1,6 +1,7 @@
-import Decimal from "decimal.js";
 import { receivable, twd } from "../lib/currencyStyles";
-import { d, fmtMoney } from "../lib/utils";
+import { describeReceivable, fmtReceivableBalance, settlementReceivablePreview } from "../lib/receivableDisplay";
+import { fmtMoney } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
@@ -12,7 +13,6 @@ type SettlementConfirmModalProps = {
   accountLabel: string;
   amountTwd: string;
   receivableBefore: string;
-  overPay?: boolean;
   isMutating?: boolean;
   overlayClassName?: string;
 };
@@ -25,13 +25,13 @@ export function SettlementConfirmModal({
   accountLabel,
   amountTwd,
   receivableBefore,
-  overPay = false,
   isMutating = false,
   overlayClassName = "z-[70]"
 }: SettlementConfirmModalProps) {
   if (!open) return null;
 
-  const afterReceivable = Decimal.max(0, d(receivableBefore).sub(amountTwd));
+  const preview = settlementReceivablePreview(receivableBefore, amountTwd);
+  const afterInfo = describeReceivable(preview.after);
 
   return (
     <div
@@ -58,19 +58,29 @@ export function SettlementConfirmModal({
             </p>
             <p>
               <span className="text-muted-foreground">收帳前應收餘額：</span>
-              <span className={receivable.text}>{fmtMoney(receivableBefore)}</span>
+              <span className={receivable.text}>{fmtReceivableBalance(receivableBefore)}</span>
             </p>
             <p>
               <span className="text-muted-foreground">收帳後應收餘額：</span>
-              <span className={receivable.text}>{fmtMoney(afterReceivable)}</span>
+              <span
+                className={cn(
+                  afterInfo.statusTone === "overpaid" ? "font-semibold text-emerald-600 dark:text-emerald-400" : receivable.text
+                )}
+              >
+                {fmtReceivableBalance(preview.after)}
+              </span>
             </p>
+            {preview.isOverpay ? (
+              <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-emerald-700 dark:text-emerald-300">
+                其中多付 {fmtMoney(preview.overpayAmount)}，將記為客戶預收餘額
+              </p>
+            ) : null}
           </div>
-          {overPay ? <p className="text-sm text-destructive">收款金額超過應收餘額</p> : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="flex-1" disabled={isMutating} onClick={onClose}>
               取消
             </Button>
-            <Button type="button" className="flex-1" disabled={isMutating || overPay} onClick={onConfirm}>
+            <Button type="button" className="flex-1" disabled={isMutating} onClick={onConfirm}>
               {isMutating ? "處理中…" : "確認收帳"}
             </Button>
           </div>

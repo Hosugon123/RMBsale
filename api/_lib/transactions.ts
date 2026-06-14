@@ -308,15 +308,25 @@ export async function createSettlement(input: {
       operatorId: actor.id
     }).returning();
 
+    const [customerBefore] = await tx
+      .select({ name: customers.name, receivableTwd: customers.receivableTwd })
+      .from(customers)
+      .where(eq(customers.id, input.customerId));
+    const customerName = customerBefore?.name ?? "客戶";
+    const receivableAfterPreview = money(customerBefore?.receivableTwd ?? 0).sub(input.amountTwd);
+    let description = input.note?.trim()
+      ? `收帳：${customerName}（${input.note.trim()}）`
+      : `收帳：${customerName}`;
+    if (receivableAfterPreview.lt(0)) {
+      const overpayLabel = toDbMoney(receivableAfterPreview.abs());
+      description = input.note?.trim()
+        ? `收帳：${customerName}（${input.note.trim()}｜多付 ${overpayLabel}）`
+        : `收帳：${customerName}（多付 ${overpayLabel}）`;
+    }
+
     await tx.update(customers).set({
       receivableTwd: sql`${customers.receivableTwd} - ${toDbMoney(input.amountTwd)}`
     }).where(eq(customers.id, input.customerId));
-
-    const [customer] = await tx.select({ name: customers.name }).from(customers).where(eq(customers.id, input.customerId));
-    const customerName = customer?.name ?? "客戶";
-    const description = input.note?.trim()
-      ? `收帳：${customerName}（${input.note.trim()}）`
-      : `收帳：${customerName}`;
 
     await tx.insert(ledgerEntries).values({
       entryType: "收帳",
@@ -347,7 +357,8 @@ export async function createSettlement(input: {
       .select({ receivableTwd: customers.receivableTwd })
       .from(customers)
       .where(eq(customers.id, input.customerId));
-    const settlementStatus = Number(customerAfter?.receivableTwd ?? 0) === 0 ? "settled" : "partial";
+    const receivableAfter = Number(customerAfter?.receivableTwd ?? 0);
+    const settlementStatus = receivableAfter <= 0 ? "settled" : "partial";
     await tx
       .update(sales)
       .set({ settlementStatus })
