@@ -16,12 +16,12 @@ import { detectLevel, hasPermission, levelLabel, permissionForPath } from "../li
 
 const baseNav = [
   { to: "/", label: "儀表板", icon: LayoutDashboard },
-  { to: "/purchase", label: "買入登記", icon: Banknote },
-  { to: "/sale", label: "售出錄入", icon: HandCoins },
-  { to: "/receivables", label: "應收應付", icon: Users },
-  { to: "/special-client-wallet", label: "儲值代付", icon: Wallet },
   { to: "/accounts", label: "帳務管理", icon: Landmark },
   { to: "/ledger", label: "現金流水", icon: ReceiptText },
+  { to: "/receivables", label: "應收應付", icon: Users },
+  { to: "/special-client-wallet", label: "儲值代付", icon: Wallet },
+  { to: "/purchase", label: "買入登記", icon: Banknote },
+  { to: "/sale", label: "售出錄入", icon: HandCoins },
   { to: "/inventory", label: "FIFO 庫存", icon: Boxes }
 ];
 
