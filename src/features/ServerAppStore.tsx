@@ -359,7 +359,14 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       afterMutation("userAdmin", { refreshSession: userId === sessionUser.id });
     },
     reverseOperation: async (input: { entityType: ReversalEntityType; entityId: number }) => {
-      await serverApi.reverseOperation(input.entityType, input.entityId);
+      if (input.entityType === "specialClientWallet") {
+        await serverApi.specialClientReverse({
+          entryId: input.entityId,
+          reverseReason: "由總流水頁沖銷"
+        });
+      } else {
+        await serverApi.reverseOperation(input.entityType, input.entityId);
+      }
       afterMutation("reversal");
     }
   };

@@ -1,6 +1,6 @@
 import type { AppState, LedgerEntry } from "./types";
 
-export type ReversalEntityType = "purchase" | "sale" | "settlement" | "transfer" | "adjustment";
+export type ReversalEntityType = "purchase" | "sale" | "settlement" | "transfer" | "adjustment" | "specialClientWallet";
 
 export type ReversalTarget = {
   entityType: ReversalEntityType;
@@ -39,6 +39,14 @@ export function getReversalTarget(entry: LedgerEntry): ReversalTarget | null {
   if (entry.accountId && ["入金", "撤資", "分潤"].includes(entry.entryType)) {
     return { entityType: "adjustment", entityId: entry.id, label: "作廢" };
   }
+  if (
+    entry.accountId &&
+    entry.relatedTable === "special_client_wallet" &&
+    entry.relatedId != null &&
+    ["特殊客戶儲值", "特殊客戶代付"].includes(entry.entryType)
+  ) {
+    return { entityType: "specialClientWallet", entityId: entry.relatedId, label: "沖銷" };
+  }
   return null;
 }
 
@@ -50,6 +58,9 @@ export function isVoidAnchor(entry: LedgerEntry): boolean {
   if (entry.entryType === "入金" && table === "入金") return true;
   if (["撤資", "分潤"].includes(entry.entryType)) return true;
   if (table === "profit") return true;
+  if (table === "special_client_wallet" && ["特殊客戶儲值", "特殊客戶代付"].includes(entry.entryType)) {
+    return true;
+  }
   return false;
 }
 
@@ -72,6 +83,17 @@ export function isOperationVoided(state: AppState, target: ReversalTarget): bool
         (row.relatedTable === "transfer" || row.relatedTable === "內轉") &&
         row.relatedId === target.entityId
     );
+  }
+  if (target.entityType === "specialClientWallet") {
+    const originalLedgerIds = state.ledger
+      .filter(
+        (row) =>
+          row.relatedTable === "special_client_wallet" &&
+          row.relatedId === target.entityId &&
+          !row.isReversal
+      )
+      .map((row) => row.id);
+    return state.ledger.some((row) => row.isReversal && originalLedgerIds.includes(row.reversesLedgerId ?? -1));
   }
   return state.ledger.some((row) => row.isReversal && row.reversesLedgerId === target.entityId);
 }

@@ -1761,7 +1761,7 @@ function reverseAccountLedger(
 
 export function reverseOperation(
   state: AppState,
-  input: { entityType: "purchase" | "sale" | "settlement" | "transfer" | "adjustment"; entityId: number }
+  input: { entityType: "purchase" | "sale" | "settlement" | "transfer" | "adjustment" | "specialClientWallet"; entityId: number }
 ) {
   switch (input.entityType) {
     case "purchase": {
@@ -1893,6 +1893,8 @@ export function reverseOperation(
       reverseAccountLedger(state, entry, `作廢：${entry.description}`, `${entry.entryType}作廢`);
       break;
     }
+    case "specialClientWallet":
+      throw new Error("特殊客戶儲值代付請在線上環境沖銷");
     default:
       throw new Error("不支援的作廢類型");
   }
