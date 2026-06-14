@@ -165,7 +165,8 @@ function normalizeState(state: AppState): AppState {
   return state;
 }
 
-export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd" | "channelName">) {
+export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd" | "channelName" | "status">) {
+  if (purchase.status === "reversed") return "0.00";
   if (isDepositPurchase(purchase)) return "0.00";
   return money(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
 }
