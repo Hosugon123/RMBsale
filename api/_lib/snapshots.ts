@@ -38,7 +38,11 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
         .select({ total: sql<string>`coalesce(sum(${accounts.balance}), 0)` })
         .from(accounts)
         .where(and(eq(accounts.currency, "RMB"), eq(accounts.isActive, true))),
-      db.select({ total: sql<string>`coalesce(sum(${customers.receivableTwd}), 0)` }).from(customers),
+      db
+        .select({
+          total: sql<string>`coalesce(sum(case when ${customers.receivableTwd} > 0 then ${customers.receivableTwd} else 0 end), 0)`
+        })
+        .from(customers),
       db
         .select({ total: sql<string>`coalesce(sum(${purchases.twdCost}), 0)` })
         .from(purchases)

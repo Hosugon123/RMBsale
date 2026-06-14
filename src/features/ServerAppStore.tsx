@@ -4,6 +4,7 @@ import { REFRESH_PROFILES, type RefreshProfile } from "../lib/bootstrapSections"
 import { mergeBootstrapState } from "../lib/mergeBootstrapState";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
+import { resolveCustomerSettlementStatus } from "../lib/receivableDisplay";
 import { d } from "../lib/utils";
 import type { BusinessDataImport } from "../lib/dataImport";
 import type { ReversalEntityType } from "../lib/reversalUi";
@@ -80,6 +81,14 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
           ? `收帳：${customer.name}（${note}）`
           : `收帳：${customer.name}`;
 
+  const activeSales = state.sales.filter(
+    (sale) => sale.customerId === customer.id && sale.status !== "reversed"
+  );
+  const settlementStatus = resolveCustomerSettlementStatus(
+    nextReceivable,
+    activeSales.map((sale) => sale.twdAmount)
+  );
+
   return {
     ...state,
     customers: state.customers.map((item) =>
@@ -89,9 +98,7 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
       item.id === account.id ? { ...item, balance: nextBalance } : item
     ),
     sales: state.sales.map((sale) =>
-      sale.customerId === customer.id
-        ? { ...sale, settlementStatus: d(nextReceivable).lte(0) ? ("settled" as const) : ("partial" as const) }
-        : sale
+      sale.customerId === customer.id ? { ...sale, settlementStatus } : sale
     ),
     ledger: [
       {

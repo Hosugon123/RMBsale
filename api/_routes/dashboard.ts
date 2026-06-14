@@ -11,7 +11,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getDb();
     const [twd] = await db.select({ value: sql<string>`coalesce(sum(${accounts.balance}), 0)` }).from(accounts).where(eq(accounts.currency, "TWD"));
     const [rmb] = await db.select({ value: sql<string>`coalesce(sum(${accounts.balance}), 0)` }).from(accounts).where(eq(accounts.currency, "RMB"));
-    const [receivable] = await db.select({ value: sql<string>`coalesce(sum(${customers.receivableTwd}), 0)` }).from(customers);
+    const [receivable] = await db.select({ value: sql<string>`coalesce(sum(case when ${customers.receivableTwd} > 0 then ${customers.receivableTwd} else 0 end), 0)` }).from(customers);
     const [inventory] = await db.select({ value: sql<string>`coalesce(sum(${rmbLots.remainingRmb}), 0)` }).from(rmbLots);
     const [saleProfit] = await db.select({ value: sql<string>`coalesce(sum(${sales.profitTwd}), 0)` }).from(sales).where(eq(sales.status, "active"));
     const [openingProfit] = await db

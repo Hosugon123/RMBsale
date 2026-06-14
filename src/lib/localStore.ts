@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { ALL_PERMISSIONS, deriveRole, LEVEL_PRESETS } from "./permissions";
 import { DEPOSIT_CHANNEL, isDepositPurchase } from "./purchaseUtils";
+import { resolveCustomerSettlementStatus } from "./receivableDisplay";
 import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
 import { d, nextId } from "./utils";
 
@@ -16,6 +17,21 @@ export function setTransactionTimestamp(iso: string | null) {
 const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
+
+function syncCustomerSalesSettlementStatus(state: AppState, customerId: number) {
+  const customer = state.customers.find((item) => item.id === customerId);
+  if (!customer) return;
+  const activeSales = state.sales.filter(
+    (sale) => sale.customerId === customerId && sale.status !== "reversed"
+  );
+  const status = resolveCustomerSettlementStatus(
+    customer.receivableTwd,
+    activeSales.map((sale) => sale.twdAmount)
+  );
+  activeSales.forEach((sale) => {
+    sale.settlementStatus = status;
+  });
+}
 
 export function getSessionUser(state: AppState): AppUser | null {
   if (!state.sessionUserId) return null;
@@ -1013,9 +1029,7 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
     relatedId: settlementId
   });
   mutateAccount(state, input.accountId, "TWD", amountTwd, "in", "settlements", settlementId, description, "收帳");
-  state.sales.filter((sale) => sale.customerId === customer.id).forEach((sale) => {
-    sale.settlementStatus = d(customer.receivableTwd).lte(0) ? "settled" : "partial";
-  });
+  syncCustomerSalesSettlementStatus(state, customer.id);
   return state;
 }
 
@@ -1836,7 +1850,14 @@ export function reverseOperation(
           row.accountId
       );
       if (!anchor) throw new Error("找不到收帳紀錄或已作廢");
-      const customer = state.customers.find((row) => row.id === anchor.customerId);
+      const customerSide = state.ledger.find(
+        (row) =>
+          !row.isReversal &&
+          row.relatedId === input.entityId &&
+          (row.relatedTable === "settlements" || row.relatedTable === "settlement") &&
+          row.customerId
+      );
+      const customer = state.customers.find((row) => row.id === customerSide?.customerId);
       if (customer) customer.receivableTwd = money(d(customer.receivableTwd).add(anchor.amount));
       state.ledger
         .filter(
@@ -1863,6 +1884,7 @@ export function reverseOperation(
             });
           }
         });
+      if (customer) syncCustomerSalesSettlementStatus(state, customer.id);
       break;
     }
     case "transfer": {

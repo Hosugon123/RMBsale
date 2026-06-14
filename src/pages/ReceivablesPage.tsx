@@ -285,6 +285,7 @@ export function ReceivablesPage() {
   const isMutating = useIsMutating();
   const twdAccounts = state.accounts.filter((a) => a.currency === "TWD" && a.isActive);
   const receivables = state.customers.filter((c) => Number(c.receivableTwd) > 0);
+  const settlementEligible = state.customers.filter((c) => c.isActive && Number(c.receivableTwd) !== 0);
   const payables = state.purchases.filter(isPurchasePayable);
   const purchasePayables = state.purchases.filter((purchase) => !isDepositPurchase(purchase));
   const [payForm, setPayForm] = React.useState({
@@ -433,7 +434,7 @@ export function ReceivablesPage() {
                 type="button"
                 size="sm"
                 className="h-9"
-                disabled={receivables.length === 0}
+                disabled={settlementEligible.length === 0}
                 onClick={() => openSettlementModal()}
               >
                 <CheckCircle2 className="h-4 w-4" />

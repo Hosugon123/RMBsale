@@ -1,4 +1,5 @@
 import type { BusinessDataImport } from "../dataImport";
+import Decimal from "decimal.js";
 import {
   addAccount,
   addChannel,
@@ -297,7 +298,7 @@ export function replayAssetFlow(
             throw new Error("收帳缺少客戶、入帳戶或金額");
           }
           const customer = state.customers.find((c) => c.id === customerId)!;
-          if (d(customer.receivableTwd).lt(amount) && d(customer.receivableTwd).gt(0)) {
+          if (d(amount).gt(Decimal.max(0, d(customer.receivableTwd)))) {
             logs.push({
               level: "WARN",
               sheetRow: row.sheetRow,

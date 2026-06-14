@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeReceivable, fmtReceivableBalance, settlementReceivablePreview, sumPendingReceivable } from "../lib/receivableDisplay";
+import { describeReceivable, fmtReceivableBalance, resolveCustomerSettlementStatus, settlementReceivablePreview, sumPendingReceivable } from "../lib/receivableDisplay";
 
 describe("receivableDisplay", () => {
   it("shows overpay when balance is negative", () => {
@@ -26,5 +26,11 @@ describe("receivableDisplay", () => {
     expect(preview.isOverpay).toBe(true);
     expect(preview.overpayAmount.toFixed(2)).toBe("40000.00");
     expect(preview.after.toFixed(2)).toBe("-40000.00");
+  });
+
+  it("resolves settlement status from receivable and sales", () => {
+    expect(resolveCustomerSettlementStatus("-1000", ["5000"])).toBe("settled");
+    expect(resolveCustomerSettlementStatus("5000", ["5000"])).toBe("unsettled");
+    expect(resolveCustomerSettlementStatus("2000", ["5000"])).toBe("partial");
   });
 });

@@ -24,17 +24,23 @@ type SettlementFormState = {
   amountTwd: string;
 };
 
+function settlementEligibleCustomers(state: AppState) {
+  return state.customers.filter((customer) => customer.isActive && Number(customer.receivableTwd) !== 0);
+}
+
 function buildSettlementForm(state: AppState, preselectedCustomerId?: number): SettlementFormState {
-  const receivables = state.customers.filter((customer) => Number(customer.receivableTwd) > 0);
+  const eligible = settlementEligibleCustomers(state);
   const twdAccounts = state.accounts.filter((account) => account.currency === "TWD" && account.isActive);
   const customer =
     (preselectedCustomerId != null
-      ? state.customers.find((item) => item.id === preselectedCustomerId && Number(item.receivableTwd) > 0)
-      : undefined) ?? receivables[0];
+      ? state.customers.find((item) => item.id === preselectedCustomerId && item.isActive)
+      : undefined) ??
+    eligible.find((item) => Number(item.receivableTwd) > 0) ??
+    eligible[0];
   return {
     customerId: String(customer?.id ?? ""),
     accountId: String(twdAccounts[0]?.id ?? ""),
-    amountTwd: customer?.receivableTwd ?? ""
+    amountTwd: customer && Number(customer.receivableTwd) > 0 ? customer.receivableTwd : ""
   };
 }
 
@@ -50,10 +56,7 @@ export function SettlementModalHost() {
   const [error, setError] = React.useState("");
   const [form, setForm] = React.useState<SettlementFormState>(() => buildSettlementForm(state));
 
-  const receivables = React.useMemo(
-    () => state.customers.filter((customer) => Number(customer.receivableTwd) > 0),
-    [state.customers]
-  );
+  const eligibleCustomers = React.useMemo(() => settlementEligibleCustomers(state), [state.customers]);
   const twdAccounts = React.useMemo(
     () => state.accounts.filter((account) => account.currency === "TWD" && account.isActive),
     [state.accounts]
@@ -129,8 +132,8 @@ export function SettlementModalHost() {
           </Button>
         </CardHeader>
         <CardContent className="p-4">
-          {receivables.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">目前無待收帳款</p>
+          {eligibleCustomers.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">目前無待收或多付客戶</p>
           ) : twdAccounts.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">請先至帳務管理建立台幣帳戶</p>
           ) : (
@@ -150,7 +153,7 @@ export function SettlementModalHost() {
                   }}
                   required
                 >
-                  {receivables.map((customer) => {
+                  {eligibleCustomers.map((customer) => {
                     const info = describeReceivable(customer.receivableTwd);
                     return (
                       <option key={customer.id} value={customer.id}>

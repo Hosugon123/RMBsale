@@ -4,6 +4,7 @@ import {
   addSettlement,
   createOpeningReceivable,
   createSeedState,
+  reverseOperation,
   sortedReceivableLedgerWithBalances,
   totals
 } from "../lib/localStore";
@@ -100,5 +101,29 @@ describe("settlement overpay flow", () => {
     expect(customer.receivableTwd).toBe("-40000.00");
     expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 40,000.00");
     expect(totals(state).receivable).toBe(sumPendingReceivable(state.customers));
+  });
+
+  it("restores sale status and balances when reversing an overpay settlement", () => {
+    const state = createSeedState();
+    const customer = state.customers.find((item) => item.name === "阿明")!;
+    const account = state.accounts.find((item) => item.id === 1)!;
+    const receivableBefore = customer.receivableTwd;
+    const balanceBefore = account.balance;
+
+    addSettlement(state, { customerId: customer.id, accountId: account.id, amountTwd: "50000" });
+    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(state.sales[0].settlementStatus).toBe("settled");
+
+    const settlementEntry = state.ledger.find(
+      (entry) => entry.entryType === "收帳" && entry.accountId === account.id && !entry.isReversal
+    );
+    reverseOperation(state, { entityType: "settlement", entityId: settlementEntry!.relatedId! });
+
+    expect(customer.receivableTwd).toBe(receivableBefore);
+    expect(account.balance).toBe(balanceBefore);
+    expect(state.sales[0].settlementStatus).toBe("unsettled");
+    expect(
+      state.ledger.some((entry) => entry.isReversal && entry.description.includes("作廢收帳"))
+    ).toBe(true);
   });
 });
