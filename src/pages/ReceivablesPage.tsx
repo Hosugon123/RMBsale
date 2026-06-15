@@ -24,7 +24,7 @@ import { isDepositPurchase, isPurchasePayable, purchasePaymentStatusLabel } from
 import { fieldControlClass } from "../lib/formStyles";
 import { describeReceivable, fmtReceivableBalance, sumPendingReceivable } from "../lib/receivableDisplay";
 import Decimal from "decimal.js";
-import { cn, d, fmtMoney } from "../lib/utils";
+import { cn, d, fmtMoney, parseMoneyInput } from "../lib/utils";
 import type { Account, Customer, Purchase } from "../lib/types";
 
 const fieldSelectClass = fieldControlClass;
@@ -107,18 +107,33 @@ function PayPurchaseForm({
   onRequestConfirm,
   payError
 }: PayPurchaseFormProps) {
+  const paymentInput = parseMoneyInput(payForm.amountTwd);
   const paymentPreview = React.useMemo(() => {
     if (!selectedPayable) {
-      return { payment: d(0), afterRemaining: d(0), overPay: false };
+      return { payment: d(0), afterRemaining: d(0), overPay: false, inputInvalid: false };
     }
     const remaining = d(selectedPayableRemaining);
-    const payment = payForm.amountTwd.trim() ? d(payForm.amountTwd) : d(0);
+    const payment = paymentInput ?? d(0);
     return {
       payment,
       afterRemaining: Decimal.max(0, remaining.sub(payment)),
-      overPay: payment.gt(remaining)
+      overPay: paymentInput !== null && payment.gt(remaining),
+      inputInvalid: payForm.amountTwd.trim().length > 0 && paymentInput === null
     };
-  }, [payForm.amountTwd, selectedPayable, selectedPayableRemaining]);
+  }, [payForm.amountTwd, paymentInput, selectedPayable, selectedPayableRemaining]);
+  const paymentHint = !payForm.amountTwd.trim()
+    ? "請輸入付款金額"
+    : paymentPreview.inputInvalid
+      ? "金額格式不正確"
+      : paymentPreview.payment.lte(0)
+        ? "付款金額須大於 0"
+        : "";
+  const canPay =
+    Boolean(selectedPayable) &&
+    Boolean(payForm.accountId) &&
+    paymentInput !== null &&
+    paymentInput.gt(0) &&
+    !paymentPreview.overPay;
 
   if (payables.length === 0) {
     return <p className="py-4 text-center text-sm text-muted-foreground">目前無待付款買入</p>;
@@ -129,9 +144,10 @@ function PayPurchaseForm({
       className="min-w-0 space-y-3 sm:space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!selectedPayable || !payForm.accountId || !payForm.amountTwd.trim()) return;
+        if (!canPay) return;
         onRequestConfirm();
       }}
+      noValidate
     >
       <label className="block min-w-0 space-y-1 text-sm font-medium">
         <span>待付款買入</span>
@@ -140,11 +156,11 @@ function PayPurchaseForm({
           value={payForm.purchaseId}
           onChange={(event) => {
             const purchase = purchases.find((item) => item.id === Number(event.target.value));
-            setPayForm({
-              ...payForm,
+            setPayForm((current) => ({
+              ...current,
               purchaseId: event.target.value,
               amountTwd: purchase ? purchasePayableTwd(purchase) : ""
-            });
+            }));
           }}
         >
           {payables.map((purchase) => (
@@ -159,7 +175,7 @@ function PayPurchaseForm({
         <Select
           className={fieldSelectClass}
           value={payForm.accountId}
-          onChange={(event) => setPayForm({ ...payForm, accountId: event.target.value })}
+          onChange={(event) => setPayForm((current) => ({ ...current, accountId: event.target.value }))}
           required
         >
           <option value="">請選擇付款帳戶</option>
@@ -176,11 +192,11 @@ function PayPurchaseForm({
           className={fieldInputClass}
           inputMode="decimal"
           value={payForm.amountTwd}
-          onChange={(event) => setPayForm({ ...payForm, amountTwd: event.target.value })}
+          onChange={(event) => setPayForm((current) => ({ ...current, amountTwd: event.target.value }))}
           placeholder={selectedPayableRemaining}
-          required
         />
       </label>
+      {paymentHint ? <p className="text-sm text-muted-foreground">{paymentHint}</p> : null}
       {selectedPayable ? (
         <div className={cn(twd.surface, "space-y-3 text-sm sm:text-base")}>
           <div className="grid grid-cols-2 gap-3">
@@ -214,13 +230,7 @@ function PayPurchaseForm({
       {payError ? <p className="text-sm text-destructive">{payError}</p> : null}
       <Button
         className="h-10 w-full"
-        disabled={
-          !selectedPayable ||
-          !payForm.accountId ||
-          !payForm.amountTwd.trim() ||
-          paymentPreview.overPay ||
-          paymentPreview.payment.lte(0)
-        }
+        disabled={!canPay}
         type="submit"
       >
         <CheckCircle2 className="h-4 w-4" />

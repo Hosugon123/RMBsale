@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeReceivable, fmtReceivableBalance, resolveCustomerSettlementStatus, settlementReceivablePreview, sumPendingReceivable } from "../lib/receivableDisplay";
+import { parseMoneyInput } from "../lib/utils";
 
 describe("receivableDisplay", () => {
   it("shows overpay when balance is negative", () => {
@@ -26,6 +27,28 @@ describe("receivableDisplay", () => {
     expect(preview.isOverpay).toBe(true);
     expect(preview.overpayAmount.toFixed(2)).toBe("40000.00");
     expect(preview.after.toFixed(2)).toBe("-40000.00");
+  });
+
+  it("does not treat zero payment on overpaid customer as overpay", () => {
+    const preview = settlementReceivablePreview("-34199.95", "0");
+    expect(preview.isOverpay).toBe(false);
+    expect(preview.overpayAmount.toFixed(2)).toBe("0.00");
+    expect(preview.after.toFixed(2)).toBe("-34199.95");
+  });
+
+  it("does not treat zero payment on pending receivable as overpay", () => {
+    const preview = settlementReceivablePreview("15800.05", "0");
+    expect(preview.isOverpay).toBe(false);
+    expect(preview.after.toFixed(2)).toBe("15800.05");
+  });
+
+  it("parseMoneyInput rejects invalid form input without throwing", () => {
+    expect(parseMoneyInput("")).toBeNull();
+    expect(parseMoneyInput("0")!.toFixed()).toBe("0");
+    expect(parseMoneyInput("15800.05")?.toFixed(2)).toBe("15800.05");
+    expect(parseMoneyInput(".")).toBeNull();
+    expect(parseMoneyInput("-")).toBeNull();
+    expect(parseMoneyInput("abc")).toBeNull();
   });
 
   it("resolves settlement status from receivable and sales", () => {

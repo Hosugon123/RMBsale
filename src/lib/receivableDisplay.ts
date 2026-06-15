@@ -65,7 +65,7 @@ export function settlementReceivablePreview(receivableBefore: Decimal.Value, pay
   const before = receivableBalance(receivableBefore);
   const pay = receivableBalance(payment);
   const after = before.sub(pay);
-  const overpayAmount = pay.gt(before) ? pay.sub(before) : d(0);
+  const overpayAmount = before.gt(0) && pay.gt(before) ? pay.sub(before) : d(0);
   return {
     before,
     payment: pay,

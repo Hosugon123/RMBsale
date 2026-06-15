@@ -10,6 +10,22 @@ export function d(value: Decimal.Value) {
   return new Decimal(value || 0);
 }
 
+/** 解析表單金額字串；空字串或無效格式回傳 null，避免 Decimal 拋錯導致畫面崩潰。 */
+export function parseMoneyInput(input: string): Decimal | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    const value = new Decimal(trimmed);
+    return value.isFinite() ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function defaultSettlementAmount(receivableTwd: string) {
+  return Number(receivableTwd) > 0 ? receivableTwd : "";
+}
+
 export function fmtMoney(value: Decimal.Value, currency: "TWD" | "RMB" = "TWD") {
   const prefix = currency === "TWD" ? "NT$" : "¥";
   return `${prefix} ${d(value).toNumber().toLocaleString("zh-TW", {

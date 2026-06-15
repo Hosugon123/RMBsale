@@ -1,7 +1,6 @@
 import { receivable, twd } from "../lib/currencyStyles";
 import { describeReceivable, fmtReceivableBalance, settlementReceivablePreview } from "../lib/receivableDisplay";
-import { fmtMoney } from "../lib/utils";
-import { cn } from "../lib/utils";
+import { cn, d, fmtMoney, parseMoneyInput } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
@@ -30,7 +29,7 @@ export function SettlementConfirmModal({
 }: SettlementConfirmModalProps) {
   if (!open) return null;
 
-  const preview = settlementReceivablePreview(receivableBefore, amountTwd);
+  const preview = settlementReceivablePreview(receivableBefore, parseMoneyInput(amountTwd) ?? d(amountTwd));
   const afterInfo = describeReceivable(preview.after);
 
   return (
