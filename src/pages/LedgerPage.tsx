@@ -93,7 +93,7 @@ export function LedgerPage() {
         </CardContent>
       </Card>
 
-      <div className="grid min-w-0 max-w-full gap-4 xl:grid-cols-2">
+      <div className="min-w-0 max-w-full space-y-4">
         <Card className="min-w-0">
           <CardHeader>
             <CardTitle>台幣流水</CardTitle>
