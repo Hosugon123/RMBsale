@@ -1,6 +1,6 @@
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 export { validateSaleForm } from "../lib/formValidation";
-import { fmtMoney, fmtRate } from "../lib/utils";
+import { d, fmtMoney, fmtRate, parseMoneyInput } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
@@ -32,6 +32,8 @@ export function SaleConfirmModal({
   overlayClassName = "z-50"
 }: SaleConfirmModalProps) {
   if (!open) return null;
+  const parsedRmbAmount = parseMoneyInput(rmbAmount) ?? d(0);
+  const parsedExchangeRate = parseMoneyInput(exchangeRate) ?? d(0);
 
   return (
     <div
@@ -54,11 +56,11 @@ export function SaleConfirmModal({
             </p>
             <p>
               <span className="text-muted-foreground">RMB 金額：</span>
-              <span className={rmb.text}>{fmtMoney(rmbAmount, "RMB")}</span>
+              <span className={rmb.text}>{fmtMoney(parsedRmbAmount, "RMB")}</span>
             </p>
             <p>
               <span className="text-muted-foreground">售出匯率：</span>
-              {fmtRate(exchangeRate)}
+              {fmtRate(parsedExchangeRate)}
             </p>
             <p>
               <span className="text-muted-foreground">台幣應收：</span>

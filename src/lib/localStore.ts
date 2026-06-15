@@ -4,7 +4,7 @@ import { DEPOSIT_CHANNEL, isDepositPurchase } from "./purchaseUtils";
 import { ensureSpecialClientWalletState, reverseSpecialClientWalletEntry } from "./localSpecialClientWallet";
 import { resolveCustomerSettlementStatus } from "./receivableDisplay";
 import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
-import { d, nextId } from "./utils";
+import { d, nextId, parseMoneyInput } from "./utils";
 
 const KEY = "rmbsale.demo.state.v3";
 const now = () => new Date().toISOString();
@@ -1031,9 +1031,10 @@ export function updateSaleProfit(state: AppState, input: { saleId: number; profi
 export function addSettlement(state: AppState, input: { customerId: number; accountId: number; amountTwd: string; note?: string }) {
   const customer = state.customers.find((item) => item.id === input.customerId);
   if (!customer) throw new Error("找不到客戶");
-  if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
 
-  const amountTwd = money(input.amountTwd);
+  const amountTwd = money(amount);
   const settlementId = nextId(state.ledger);
   const note = input.note?.trim();
   const nextReceivable = d(customer.receivableTwd).sub(amountTwd);
@@ -1066,10 +1067,11 @@ export function createOpeningReceivable(state: AppState, input: { customerName: 
   const customerName = input.customerName.trim();
   if (!customerName) throw new Error("請輸入客戶名稱");
   if (!input.amountTwd.trim()) throw new Error("請輸入待收金額");
-  if (d(input.amountTwd).lte(0)) throw new Error("待收金額必須大於 0");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("待收金額必須大於 0");
 
   const customer = getOrCreateByName(state.customers, customerName, { receivableTwd: "0.00" });
-  const amountTwd = money(input.amountTwd);
+  const amountTwd = money(amount);
   const ledgerId = nextId(state.ledger);
   const note = input.note?.trim();
 
@@ -1094,9 +1096,10 @@ export function createOpeningReceivable(state: AppState, input: { customerName: 
 
 export function createOpeningProfit(state: AppState, input: { amountTwd: string; note?: string }) {
   if (!input.amountTwd.trim()) throw new Error("請輸入利潤金額");
-  if (d(input.amountTwd).lte(0)) throw new Error("利潤金額必須大於 0");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("利潤金額必須大於 0");
 
-  const amountTwd = money(input.amountTwd);
+  const amountTwd = money(amount);
   const ledgerId = nextId(state.ledger);
   const note = input.note?.trim();
 
@@ -1122,10 +1125,11 @@ export function payPurchase(state: AppState, input: { purchaseId: number; accoun
   if (isDepositPurchase(purchase)) throw new Error("人民幣入金不屬於買入付款，無需登記待付款或已付款");
   const remaining = d(purchase.twdCost).sub(purchase.paidTwd);
   if (remaining.lte(0)) throw new Error("此買入已付清");
-  if (d(input.amountTwd).lte(0)) throw new Error("金額必須大於 0");
-  if (remaining.lt(input.amountTwd)) throw new Error("付款金額超過應付餘額");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
+  if (remaining.lt(amount)) throw new Error("付款金額超過應付餘額");
 
-  const amountTwd = money(input.amountTwd);
+  const amountTwd = money(amount);
   purchase.paidTwd = money(d(purchase.paidTwd).add(amountTwd));
   purchase.paymentAccountId = input.accountId;
   if (d(purchase.paidTwd).gte(purchase.twdCost)) {
@@ -1689,9 +1693,11 @@ export function previewSaleProfit(
   const rmbAmount = input.rmbAmount.trim();
   const exchangeRate = input.exchangeRate.trim();
   if (!input.rmbAccountId || !rmbAmount || !exchangeRate) return null;
-  if (!d(rmbAmount).gt(0) || !d(exchangeRate).gt(0)) return null;
+  const parsedRmbAmount = parseMoneyInput(rmbAmount);
+  const parsedExchangeRate = parseMoneyInput(exchangeRate);
+  if (!parsedRmbAmount || !parsedExchangeRate || !parsedRmbAmount.gt(0) || !parsedExchangeRate.gt(0)) return null;
 
-  const twdAmount = money(d(rmbAmount).mul(exchangeRate));
+  const twdAmount = money(parsedRmbAmount.mul(parsedExchangeRate));
   const { costTwd, shortfallRmb } = allocateFifoPreview(state, input.rmbAccountId, rmbAmount);
   if (d(shortfallRmb).gt(0)) {
     return {

@@ -13,7 +13,7 @@ import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { fieldControlClass } from "../lib/formStyles";
-import { cn, d, fmtMoney, fmtRate } from "../lib/utils";
+import { cn, fmtMoney, fmtRate, parseMoneyInput } from "../lib/utils";
 
 const fieldSelectClass = fieldControlClass;
 const fieldInputClass = fieldControlClass;
@@ -61,7 +61,12 @@ export function PurchasePage() {
   const hasPresetSource = Boolean(sourcePresetId);
   const hasCustomSource = sourceCustom.length > 0;
   const channelName = sourceCustom.trim() || presetChannelName;
-  const cost = form.rmbAmount && form.exchangeRate ? d(form.rmbAmount).mul(form.exchangeRate).toFixed(2) : "0";
+  const previewRmbAmount = parseMoneyInput(form.rmbAmount);
+  const previewExchangeRate = parseMoneyInput(form.exchangeRate);
+  const cost =
+    previewRmbAmount && previewExchangeRate && previewRmbAmount.gt(0) && previewExchangeRate.gt(0)
+      ? previewRmbAmount.mul(previewExchangeRate).toFixed(2)
+      : "0";
   const [purchasePage, setPurchasePage] = React.useState(1);
   const purchasePageCount = Math.max(1, Math.ceil(state.purchases.length / PURCHASE_PAGE_SIZE));
 
@@ -363,11 +368,11 @@ export function PurchasePage() {
                 </p>
                 <p>
                   <span className="text-muted-foreground">RMB 金額：</span>
-                  <span className={rmb.text}>{fmtMoney(form.rmbAmount, "RMB")}</span>
+                  <span className={rmb.text}>{fmtMoney(previewRmbAmount ?? 0, "RMB")}</span>
                 </p>
                 <p>
                   <span className="text-muted-foreground">買入匯率：</span>
-                  {fmtRate(form.exchangeRate)}
+                  {fmtRate(previewExchangeRate ?? 0)}
                 </p>
                 <p>
                   <span className="text-muted-foreground">預估 TWD 成本：</span>

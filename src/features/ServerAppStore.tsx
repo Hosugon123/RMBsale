@@ -5,7 +5,7 @@ import { mergeBootstrapState } from "../lib/mergeBootstrapState";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
 import { resolveCustomerSettlementStatus } from "../lib/receivableDisplay";
-import { d } from "../lib/utils";
+import { d, parseMoneyInput } from "../lib/utils";
 import type { BusinessDataImport } from "../lib/dataImport";
 import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState, AppUser } from "../lib/types";
@@ -64,8 +64,8 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
   if (!customer) throw new Error("找不到客戶");
   const account = state.accounts.find((item) => item.id === input.accountId && item.currency === "TWD");
   if (!account) throw new Error("找不到 TWD 帳戶");
-  const amount = d(input.amountTwd);
-  if (amount.lte(0)) throw new Error("金額必須大於 0");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
 
   const amountTwd = money(amount);
   const nextReceivable = money(d(customer.receivableTwd).sub(amountTwd));

@@ -315,6 +315,7 @@ export function ReceivablesPage() {
   const selectedPayable = state.purchases.find((purchase) => purchase.id === Number(payForm.purchaseId));
   const selectedPayableRemaining = selectedPayable ? purchasePayableTwd(selectedPayable) : "0.00";
   const selectedPaymentAccount = twdAccounts.find((account) => account.id === Number(payForm.accountId));
+  const openingAmount = parseMoneyInput(openingForm.amountTwd);
 
   const openPayModal = () => {
     setPayError("");
@@ -344,11 +345,12 @@ export function ReceivablesPage() {
     try {
       if (!openingForm.customerName.trim()) throw new Error("請輸入客戶名稱");
       if (!openingForm.amountTwd.trim()) throw new Error("請輸入待收金額");
-      if (d(openingForm.amountTwd).lte(0)) throw new Error("待收金額必須大於 0");
+      const amount = parseMoneyInput(openingForm.amountTwd);
+      if (!amount || amount.lte(0)) throw new Error("待收金額必須大於 0");
       await runMutation(() =>
         createOpeningReceivable({
           customerName: openingForm.customerName,
-          amountTwd: openingForm.amountTwd,
+          amountTwd: amount.toFixed(2),
           note: openingForm.note
         })
       );
@@ -656,7 +658,7 @@ export function ReceivablesPage() {
               <div className={cn(receivable.surface, "text-sm")}>
                 <p className={receivable.surfaceLabel}>新增後客戶待收會增加</p>
                 <p className={cn("mt-1 text-xl font-semibold tabular-nums", receivable.text)}>
-                  {fmtMoney(openingForm.amountTwd || 0)}
+                  {fmtMoney(openingAmount ?? 0)}
                 </p>
               </div>
               {openingError ? <p className="text-sm text-destructive">{openingError}</p> : null}

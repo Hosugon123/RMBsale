@@ -18,7 +18,7 @@ import type {
   SpecialClientWalletEntryTypeFilter,
   SpecialClientWalletQuery
 } from "../lib/specialClientWalletTypes";
-import { cn, d, fmtDirectionalMoney, fmtMoney } from "../lib/utils";
+import { cn, d, fmtDirectionalMoney, fmtMoney, parseMoneyInput } from "../lib/utils";
 import Decimal from "decimal.js";
 
 const fieldClass = fieldControlClass;
@@ -32,8 +32,8 @@ function todayIsoDate() {
 }
 
 function pctToRate(pct: string) {
-  const value = d(pct || "0");
-  if (value.lte(0)) return "0";
+  const value = parseMoneyInput(pct) ?? d(0);
+  if (value.lt(0)) return "0";
   return value.div(100).toFixed(6);
 }
 
@@ -42,9 +42,10 @@ function rateToPct(rate: string) {
 }
 
 function calcPreview(grossRmb: string, feeRatePct: string) {
-  const gross = d(grossRmb || "0");
+  const gross = parseMoneyInput(grossRmb) ?? d(0);
   if (gross.lte(0)) return { feeRmb: "0.00", netCreditRmb: "0.00" };
-  const rate = d(pctToRate(feeRatePct));
+  const feeRate = parseMoneyInput(feeRatePct) ?? d(0);
+  const rate = Decimal.max(feeRate, 0).div(100);
   const fee = gross.mul(rate);
   return { feeRmb: fee.toFixed(2), netCreditRmb: gross.sub(fee).toFixed(2) };
 }
@@ -266,8 +267,24 @@ export function SpecialClientWalletPage() {
       setDepositError("請選擇入帳公司 RMB 帳戶");
       return;
     }
-    if (d(depositForm.grossRmb).lte(0)) {
+    const grossRmb = parseMoneyInput(depositForm.grossRmb);
+    if (!grossRmb || grossRmb.lte(0)) {
       setDepositError("結匯 RMB 金額必須大於 0");
+      return;
+    }
+    const feeRatePct = parseMoneyInput(depositForm.feeRatePct);
+    if (!feeRatePct || feeRatePct.lt(0)) {
+      setDepositError("服務費率格式不正確");
+      return;
+    }
+    const usdAmount = depositForm.usdAmount.trim() ? parseMoneyInput(depositForm.usdAmount) : null;
+    if (depositForm.usdAmount.trim() && (!usdAmount || usdAmount.lte(0))) {
+      setDepositError("USD 金額格式不正確");
+      return;
+    }
+    const usdToRmbRate = depositForm.usdToRmbRate.trim() ? parseMoneyInput(depositForm.usdToRmbRate) : null;
+    if (depositForm.usdToRmbRate.trim() && (!usdToRmbRate || usdToRmbRate.lte(0))) {
+      setDepositError("USD/RMB 匯率格式不正確");
       return;
     }
     if (depositForm.usdAmount.trim() && depositForm.usdToRmbRate.trim()) {
@@ -278,13 +295,13 @@ export function SpecialClientWalletPage() {
     const body: SpecialClientDepositBody = {
       clientId: Number(selectedClientId),
       entryDate: depositForm.entryDate,
-      grossRmb: d(depositForm.grossRmb).toFixed(2),
-      feeRate: pctToRate(depositForm.feeRatePct),
+      grossRmb: grossRmb.toFixed(2),
+      feeRate: feeRatePct.div(100).toFixed(6),
       cashAccountId: Number(depositForm.cashAccountId),
       note: depositForm.note.trim() || undefined
     };
-    if (depositForm.usdAmount.trim()) body.usdAmount = d(depositForm.usdAmount).toFixed(2);
-    if (depositForm.usdToRmbRate.trim()) body.usdToRmbRate = new Decimal(depositForm.usdToRmbRate).toFixed(6);
+    if (usdAmount) body.usdAmount = usdAmount.toFixed(2);
+    if (usdToRmbRate) body.usdToRmbRate = usdToRmbRate.toFixed(6);
 
     try {
       setSubmitting("deposit");
@@ -312,7 +329,8 @@ export function SpecialClientWalletPage() {
       setPayoutError("請選擇付款公司 RMB 帳戶");
       return;
     }
-    if (d(payoutForm.payoutRmb).lte(0)) {
+    const payoutRmb = parseMoneyInput(payoutForm.payoutRmb);
+    if (!payoutRmb || payoutRmb.lte(0)) {
       setPayoutError("代付 RMB 金額必須大於 0");
       return;
     }
@@ -320,7 +338,7 @@ export function SpecialClientWalletPage() {
     const body: SpecialClientPayoutBody = {
       clientId: Number(selectedClientId),
       entryDate: payoutForm.entryDate,
-      payoutRmb: d(payoutForm.payoutRmb).toFixed(2),
+      payoutRmb: payoutRmb.toFixed(2),
       cashAccountId: Number(payoutForm.cashAccountId),
       purpose: payoutForm.purpose.trim() || undefined,
       note: payoutForm.note.trim() || undefined

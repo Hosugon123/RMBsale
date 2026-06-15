@@ -301,12 +301,15 @@ export async function createSettlement(input: {
   amountTwd: string;
   note?: string;
 }, actor: Actor) {
+  const amount = money(input.amountTwd);
+  if (amount.lte(0)) throw new Error("收款金額須大於 0");
+  const amountTwd = toDbMoney(amount);
   const db = getDb();
   return db.transaction(async (tx) => {
     const [settlement] = await tx.insert(settlements).values({
       customerId: input.customerId,
       accountId: input.accountId,
-      amountTwd: toDbMoney(input.amountTwd),
+      amountTwd,
       note: input.note,
       operatorId: actor.id
     }).returning();
@@ -316,7 +319,7 @@ export async function createSettlement(input: {
       .from(customers)
       .where(eq(customers.id, input.customerId));
     const customerName = customerBefore?.name ?? "客戶";
-    const receivableAfterPreview = money(customerBefore?.receivableTwd ?? 0).sub(input.amountTwd);
+    const receivableAfterPreview = money(customerBefore?.receivableTwd ?? 0).sub(amount);
     let description = input.note?.trim()
       ? `收帳：${customerName}（${input.note.trim()}）`
       : `收帳：${customerName}`;
@@ -328,7 +331,7 @@ export async function createSettlement(input: {
     }
 
     await tx.update(customers).set({
-      receivableTwd: sql`${customers.receivableTwd} - ${toDbMoney(input.amountTwd)}`
+      receivableTwd: sql`${customers.receivableTwd} - ${amountTwd}`
     }).where(eq(customers.id, input.customerId));
 
     await tx.insert(ledgerEntries).values({
@@ -338,7 +341,7 @@ export async function createSettlement(input: {
       relatedId: settlement.id,
       direction: "out",
       currency: "TWD",
-      amount: toDbMoney(input.amountTwd),
+      amount: amountTwd,
       description,
       operatorId: actor.id
     });
@@ -347,7 +350,7 @@ export async function createSettlement(input: {
       tx,
       input.accountId,
       "TWD",
-      input.amountTwd,
+      amountTwd,
       "in",
       "settlements",
       settlement.id,
@@ -778,13 +781,15 @@ export async function payPurchasePayment(
     await assertPurchasePayable(tx, purchase);
     assertPurchaseEditable(purchase);
     if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
-    if (Number(input.amountTwd) <= 0) throw new Error("金額必須大於 0");
-    if (Number(input.amountTwd) > Number(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
+    const amount = money(input.amountTwd);
+    if (amount.lte(0)) throw new Error("金額必須大於 0");
+    if (amount.gt(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
+    const amountTwd = toDbMoney(amount);
 
     await tx
       .update(purchases)
       .set({
-        paymentStatus: Number(input.amountTwd) >= Number(purchase.twdCost) ? "paid" : "unpaid",
+        paymentStatus: amount.gte(purchase.twdCost) ? "paid" : "unpaid",
         paymentAccountId: input.accountId
       })
       .where(eq(purchases.id, purchase.id));
@@ -795,7 +800,7 @@ export async function payPurchasePayment(
       entryType: "應付付款",
       purchaseId: purchase.id,
       direction: "out",
-      amount: input.amountTwd,
+      amount: amountTwd,
       description: `支付買入款：${channelName ?? "未命名渠道"}`,
       operatorId: actor.id
     });
@@ -804,7 +809,7 @@ export async function payPurchasePayment(
       tx,
       input.accountId,
       "TWD",
-      `-${input.amountTwd}`,
+      amount.neg().toFixed(2),
       "out",
       "purchases",
       purchase.id,
@@ -817,7 +822,7 @@ export async function payPurchasePayment(
       action: AuditAction.CREATE_PURCHASE_PAYMENT,
       targetType: "purchase",
       targetId: purchase.id,
-      after: { purchaseId: purchase.id, amountTwd: input.amountTwd, accountId: input.accountId },
+      after: { purchaseId: purchase.id, amountTwd, accountId: input.accountId },
       actor
     });
 

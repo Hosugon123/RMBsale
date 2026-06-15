@@ -1,4 +1,4 @@
-import { d } from "./utils";
+import { parseMoneyInput } from "./utils";
 
 export type PaymentStatusChoice = "" | "paid" | "unpaid";
 
@@ -13,9 +13,11 @@ export function validateSaleForm(input: {
   if (!input.customerName) return "請選擇常用客戶或填寫其他客戶";
   if (!input.rmbAccountId) return "請選擇扣款 RMB 帳戶";
   if (!input.rmbAmount.trim()) return "請輸入 RMB 金額";
-  if (!d(input.rmbAmount).gt(0)) return "RMB 金額須大於 0";
+  const rmbAmount = parseMoneyInput(input.rmbAmount);
+  if (!rmbAmount || !rmbAmount.gt(0)) return "RMB 金額須大於 0";
   if (!input.exchangeRate.trim()) return "請輸入售出匯率";
-  if (!d(input.exchangeRate).gt(0)) return "售出匯率須大於 0";
+  const exchangeRate = parseMoneyInput(input.exchangeRate);
+  if (!exchangeRate || !exchangeRate.gt(0)) return "售出匯率須大於 0";
   if (input.profitError) return input.profitError;
   return null;
 }
@@ -33,8 +35,10 @@ export function validatePurchaseForm(input: {
   if (!input.paymentStatus) return "請選擇付款狀態";
   if (input.paymentStatus === "paid" && !input.paymentAccountId) return "已付款時請選擇付款台幣帳戶";
   if (!input.rmbAmount.trim()) return "請輸入 RMB 金額";
-  if (!d(input.rmbAmount).gt(0)) return "RMB 金額須大於 0";
+  const rmbAmount = parseMoneyInput(input.rmbAmount);
+  if (!rmbAmount || !rmbAmount.gt(0)) return "RMB 金額須大於 0";
   if (!input.exchangeRate.trim()) return "請輸入買入匯率";
-  if (!d(input.exchangeRate).gt(0)) return "買入匯率須大於 0";
+  const exchangeRate = parseMoneyInput(input.exchangeRate);
+  if (!exchangeRate || !exchangeRate.gt(0)) return "買入匯率須大於 0";
   return null;
 }

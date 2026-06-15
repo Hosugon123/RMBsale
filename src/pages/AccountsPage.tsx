@@ -15,7 +15,7 @@ import { openAccountTransferModal } from "../components/TransferModalHost";
 import { useAppStore } from "../features/AppStore";
 import { sortedLedgerWithBalances } from "../lib/localStore";
 import { rmb, twd } from "../lib/currencyStyles";
-import { cn, d, fmtMoney } from "../lib/utils";
+import { cn, d, fmtMoney, parseMoneyInput } from "../lib/utils";
 import { runMutation } from "../lib/runMutation";
 
 type AccountCashForm = {
@@ -261,6 +261,12 @@ export function AccountsPage() {
   const { resolveVoidTarget, requestVoid, pending, error: voidError, cancelVoid, confirmVoid } = useLedgerVoid();
   const voidProps = { resolveVoidTarget, onVoid: requestVoid };
   const modalAccount = cashModal ? state.accounts.find((account) => account.id === cashModal.accountId) : undefined;
+  const modalAmount = parseMoneyInput(modalForm.amount);
+  const modalExchangeRate = parseMoneyInput(modalForm.exchangeRate);
+  const modalRmbPreview =
+    modalAmount && modalExchangeRate && modalAmount.gt(0) && modalExchangeRate.gt(0)
+      ? modalAmount.mul(modalExchangeRate)
+      : null;
 
   const openCashModal = (accountId: number, direction: "in" | "out") => {
     setModalForm(emptyCashForm);
@@ -701,11 +707,11 @@ export function AccountsPage() {
                       onChange={(event) => setModalForm((current) => ({ ...current, exchangeRate: event.target.value }))}
                       required
                     />
-                    {modalForm.amount && modalForm.exchangeRate && d(modalForm.amount).gt(0) && d(modalForm.exchangeRate).gt(0) ? (
+                    {modalRmbPreview ? (
                       <p className="text-sm text-muted-foreground">
                         {cashModal.direction === "in"
-                          ? `入庫成本：${fmtMoney(d(modalForm.amount).mul(modalForm.exchangeRate))}（建立新 FIFO 批次）`
-                          : `名目等值：${fmtMoney(d(modalForm.amount).mul(modalForm.exchangeRate))}；出金成本依 FIFO 舊批次計算`}
+                          ? `入庫成本：${fmtMoney(modalRmbPreview)}（建立新 FIFO 批次）`
+                          : `名目等值：${fmtMoney(modalRmbPreview)}；出金成本依 FIFO 舊批次計算`}
                       </p>
                     ) : null}
                   </>

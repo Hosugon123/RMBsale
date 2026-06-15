@@ -1,6 +1,6 @@
 import { twd } from "../lib/currencyStyles";
 import Decimal from "decimal.js";
-import { d, fmtMoney } from "../lib/utils";
+import { d, fmtMoney, parseMoneyInput } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
@@ -29,7 +29,8 @@ export function PayPurchaseConfirmModal({
 }: PayPurchaseConfirmModalProps) {
   if (!open) return null;
 
-  const afterRemaining = Decimal.max(0, d(payableRemaining).sub(amountTwd));
+  const paymentAmount = parseMoneyInput(amountTwd) ?? d(0);
+  const afterRemaining = Decimal.max(0, d(payableRemaining).sub(paymentAmount));
 
   return (
     <div
@@ -52,7 +53,7 @@ export function PayPurchaseConfirmModal({
             </p>
             <p>
               <span className="text-muted-foreground">本次付款：</span>
-              <span className={twd.text}>{fmtMoney(amountTwd)}</span>
+              <span className={twd.text}>{fmtMoney(paymentAmount)}</span>
             </p>
             <p>
               <span className="text-muted-foreground">付款前待付餘額：</span>

@@ -29,7 +29,8 @@ export function SettlementConfirmModal({
 }: SettlementConfirmModalProps) {
   if (!open) return null;
 
-  const preview = settlementReceivablePreview(receivableBefore, parseMoneyInput(amountTwd) ?? d(amountTwd));
+  const paymentAmount = parseMoneyInput(amountTwd) ?? d(0);
+  const preview = settlementReceivablePreview(receivableBefore, paymentAmount);
   const afterInfo = describeReceivable(preview.after);
 
   return (

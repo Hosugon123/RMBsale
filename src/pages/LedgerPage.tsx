@@ -15,7 +15,7 @@ import {
   sortedLedgerWithBalances,
   sortedProfitLedgerWithBalances
 } from "../lib/localStore";
-import { cn, d, fmtMoney } from "../lib/utils";
+import { cn, fmtMoney, parseMoneyInput } from "../lib/utils";
 
 export function LedgerPage() {
   const { state, summary, createOpeningProfit } = useAppStore();
@@ -24,6 +24,7 @@ export function LedgerPage() {
   const [openingProfitOpen, setOpeningProfitOpen] = React.useState(false);
   const [openingProfitForm, setOpeningProfitForm] = React.useState({ amountTwd: "", note: "" });
   const [openingProfitError, setOpeningProfitError] = React.useState("");
+  const openingProfitAmount = parseMoneyInput(openingProfitForm.amountTwd);
   const voidProps = {
     resolveVoidTarget,
     onVoid: requestVoid,
@@ -66,8 +67,9 @@ export function LedgerPage() {
   const submitOpeningProfit = async () => {
     try {
       if (!openingProfitForm.amountTwd.trim()) throw new Error("請輸入利潤金額");
-      if (d(openingProfitForm.amountTwd).lte(0)) throw new Error("利潤金額必須大於 0");
-      await runMutation(() => createOpeningProfit(openingProfitForm));
+      const amount = parseMoneyInput(openingProfitForm.amountTwd);
+      if (!amount || amount.lte(0)) throw new Error("利潤金額必須大於 0");
+      await runMutation(() => createOpeningProfit({ ...openingProfitForm, amountTwd: amount.toFixed(2) }));
       setOpeningProfitOpen(false);
       setOpeningProfitForm({ amountTwd: "", note: "" });
       setOpeningProfitError("");
@@ -233,7 +235,7 @@ export function LedgerPage() {
               <div className="rounded-md border border-pending/20 bg-pending/10 p-3 text-sm">
                 <p className="text-xs text-pending/80">新增後未分利潤會增加</p>
                 <p className={cn("mt-1 text-xl font-semibold tabular-nums", profitStyle.text)}>
-                  {fmtMoney(openingProfitForm.amountTwd || 0)}
+                  {fmtMoney(openingProfitAmount ?? 0)}
                 </p>
               </div>
               {openingProfitError ? <p className="text-sm text-destructive">{openingProfitError}</p> : null}
