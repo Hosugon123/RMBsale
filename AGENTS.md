@@ -11,6 +11,15 @@ The project maintainer is not a professional software engineer. For **non-trivia
 
 Skip deep industry research only for obvious, low-risk edits (copy, styling, renaming) that do not affect business rules or system behavior.
 
+## Git Sync Policy
+
+At the start of every new operation, check whether the local branch is synchronized with GitHub before reading or editing project files. The maintainer often switches devices and uses multiple assistants, so stale local code is a real risk.
+
+1. Run `git fetch origin` and inspect `git status --short --branch` before starting the actual task.
+2. If the local branch is behind, pull the remote changes with a safe fast-forward workflow before making edits.
+3. If the local branch has local changes or diverged history, do not overwrite anything. Report the state briefly and work with the existing changes, only asking the maintainer when the conflict blocks the task.
+4. Mention when the repository was already synchronized so the maintainer knows the work started from the latest code.
+
 ## Verification Policy
 
 Avoid expensive reruns for every small change.
