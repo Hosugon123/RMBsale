@@ -15,7 +15,7 @@ import {
   sortedLedgerWithBalances,
   sortedProfitLedgerWithBalances
 } from "../lib/localStore";
-import { cn, fmtMoney, parseMoneyInput } from "../lib/utils";
+import { cn, fmtMoney, parseMoneyInput, toTwdMoney } from "../lib/utils";
 
 export function LedgerPage() {
   const { state, summary, createOpeningProfit } = useAppStore();
@@ -69,7 +69,7 @@ export function LedgerPage() {
       if (!openingProfitForm.amountTwd.trim()) throw new Error("請輸入利潤金額");
       const amount = parseMoneyInput(openingProfitForm.amountTwd);
       if (!amount || amount.lte(0)) throw new Error("利潤金額必須大於 0");
-      await runMutation(() => createOpeningProfit({ ...openingProfitForm, amountTwd: amount.toFixed(2) }));
+      await runMutation(() => createOpeningProfit({ ...openingProfitForm, amountTwd: toTwdMoney(amount) }));
       setOpeningProfitOpen(false);
       setOpeningProfitForm({ amountTwd: "", note: "" });
       setOpeningProfitError("");

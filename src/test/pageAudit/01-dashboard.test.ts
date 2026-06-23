@@ -31,7 +31,7 @@ describe("page audit 1/8 儀表板", () => {
     assertDashboardTotals(state);
     expect(topPendingReceivableCustomers(state).some((item) => item.id === customer.id)).toBe(false);
     expect(sumPendingReceivable(state.customers)).toBe(
-      d(pendingBefore).sub("15800.05").toFixed(2)
+      d(pendingBefore).sub("15801.00").toFixed(2)
     );
   });
 

@@ -25,14 +25,14 @@ describe("settlement overpay flow", () => {
     const twdBefore = twdAccount.balance;
     const pendingBefore = sumPendingReceivable(state.customers);
 
-    expect(receivableBefore).toBe("15800.05");
+    expect(receivableBefore).toBe("15801.00");
     expect(customer.receivableTwd).toBe(state.sales[0].twdAmount);
     expect(state.sales[0].settlementStatus).toBe("unsettled");
 
     const preview = settlementReceivablePreview(receivableBefore, "50000");
     expect(preview.isOverpay).toBe(true);
-    expect(preview.overpayAmount.toFixed(2)).toBe("34199.95");
-    expect(preview.after.toFixed(2)).toBe("-34199.95");
+    expect(preview.overpayAmount.toFixed(2)).toBe("34199.00");
+    expect(preview.after.toFixed(2)).toBe("-34199.00");
 
     addSettlement(state, {
       customerId: customer.id,
@@ -41,13 +41,13 @@ describe("settlement overpay flow", () => {
       note: "客戶先多付"
     });
 
-    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(customer.receivableTwd).toBe("-34199.00");
     expect(describeReceivable(customer.receivableTwd)).toMatchObject({
       statusLabel: "多付",
       statusTone: "overpaid",
-      displayAmount: "34199.95"
+      displayAmount: "34199.00"
     });
-    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 34,199.95");
+    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 34,199");
     expect(state.sales.every((sale) => sale.customerId !== customer.id || sale.settlementStatus === "settled")).toBe(
       true
     );
@@ -60,14 +60,14 @@ describe("settlement overpay flow", () => {
 
     const settlementEntry = state.ledger.find((entry) => entry.entryType === "收帳");
     expect(settlementEntry?.description).toContain("多付");
-    expect(settlementEntry?.description).toContain("34199.95");
+    expect(settlementEntry?.description).toContain("34199.00");
     expect(settlementEntry?.amount).toBe("50000.00");
 
     const settlementRow = sortedReceivableLedgerWithBalances(state).find(
       (entry) => entry.customerId === customer.id && entry.entryType === "收帳"
     );
-    expect(settlementRow?.balanceBefore).toBe("15800.05");
-    expect(settlementRow?.balanceAfter).toBe("-34199.95");
+    expect(settlementRow?.balanceBefore).toBe("15801.00");
+    expect(settlementRow?.balanceAfter).toBe("-34199.00");
   });
 
   it("allows further settlement when customer already overpaid", () => {
@@ -75,18 +75,18 @@ describe("settlement overpay flow", () => {
     const customer = state.customers.find((item) => item.name === "阿明")!;
 
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
-    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(customer.receivableTwd).toBe("-34199.00");
 
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "1000" });
-    expect(customer.receivableTwd).toBe("-35199.95");
-    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 35,199.95");
+    expect(customer.receivableTwd).toBe("-35199.00");
+    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 35,199");
   });
 
   it("settles exactly without overpay when payment matches receivable", () => {
     const state = createSeedState();
     const customer = state.customers.find((item) => item.name === "阿明")!;
 
-    addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "15800.05" });
+    addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "15801.00" });
     expect(customer.receivableTwd).toBe("0.00");
     expect(describeReceivable(customer.receivableTwd).statusLabel).toBe("已結清");
     expect(state.sales[0].settlementStatus).toBe("settled");
@@ -99,7 +99,7 @@ describe("settlement overpay flow", () => {
 
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
     expect(customer.receivableTwd).toBe("-40000.00");
-    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 40,000.00");
+    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 40,000");
     expect(totals(state).receivable).toBe(sumPendingReceivable(state.customers));
   });
 
@@ -111,7 +111,7 @@ describe("settlement overpay flow", () => {
     const balanceBefore = account.balance;
 
     addSettlement(state, { customerId: customer.id, accountId: account.id, amountTwd: "50000" });
-    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(customer.receivableTwd).toBe("-34199.00");
     expect(state.sales[0].settlementStatus).toBe("settled");
 
     const settlementEntry = state.ledger.find(

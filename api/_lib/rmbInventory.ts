@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNull, lte, ne } from "drizzle-orm";
 import Decimal from "decimal.js";
 import type { DbTx } from "./db.js";
-import { toDbMoney, toDbRate } from "./money.js";
+import { toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { channels, purchases, rmbLots, accounts } from "./schema.js";
 
 const INVENTORY_SYNC_CHANNEL = "庫存對齊";
@@ -64,7 +64,7 @@ export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
 
     const exchangeRate = await estimateAccountUnitCost(tx, account.id);
     const rmbAmount = money(gap);
-    const twdCost = money(gap.mul(exchangeRate));
+    const twdCost = toDbTwd(gap.mul(exchangeRate));
 
     const [purchase] = await tx
       .insert(purchases)
@@ -73,7 +73,7 @@ export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
         depositAccountId: account.id,
         rmbAmount: toDbMoney(rmbAmount),
         exchangeRate: toDbRate(exchangeRate),
-        twdCost: toDbMoney(twdCost),
+        twdCost: toDbTwd(twdCost),
         paymentStatus: "paid",
         operatorId
       })

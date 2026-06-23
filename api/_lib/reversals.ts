@@ -1,6 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
-import { calcTwd, toDbMoney, toDbRate } from "./money.js";
+import { calcTwd, toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
 import { reverseRmbLotTransfer } from "./rmbInventory.js";
@@ -486,7 +486,7 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
           depositAccountId: entry.accountId,
           rmbAmount: entry.amount,
           exchangeRate: toDbRate(exchangeRate),
-          twdCost: toDbMoney(twdCost),
+          twdCost: toDbTwd(twdCost),
           paymentStatus: "paid",
           operatorId: actor.id
         })

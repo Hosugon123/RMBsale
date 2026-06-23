@@ -12,7 +12,7 @@ import {
   purchases,
   sales
 } from "./schema.js";
-import { toDbMoney } from "./money.js";
+import { toDbMoney, toDbTwd } from "./money.js";
 
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
@@ -65,11 +65,11 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
 
   const payload = {
     snapshotDate,
-    totalTwdBalance: toDbMoney(twdRow?.total ?? "0"),
+    totalTwdBalance: toDbTwd(twdRow?.total ?? "0"),
     totalRmbBalance: toDbMoney(rmbRow?.total ?? "0"),
-    totalReceivablesTwd: toDbMoney(recvRow?.total ?? "0"),
+    totalReceivablesTwd: toDbTwd(recvRow?.total ?? "0"),
     totalReceivablesRmb: toDbMoney(unsettledRmb?.total ?? "0"),
-    totalPayablesTwd: toDbMoney(payableRow?.total ?? "0"),
+    totalPayablesTwd: toDbTwd(payableRow?.total ?? "0"),
     totalPayablesRmb: "0.00",
     openSalesCount: Number(openSales?.total ?? 0),
     openPurchasesCount: Number(openPurchases?.total ?? 0),

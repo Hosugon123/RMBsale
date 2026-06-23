@@ -36,7 +36,7 @@ export function SalesEntry() {
   useEffect(() => {
     const r = parseFloat(rmbAmount) || 0;
     const e = parseFloat(exchangeRate) || 0;
-    setTwdReceivable(Math.round(r * e * 100) / 100);
+    setTwdReceivable(Math.ceil(r * e));
     if (r <= 0 || e <= 0) {
       setProfitPreview(null);
       return;

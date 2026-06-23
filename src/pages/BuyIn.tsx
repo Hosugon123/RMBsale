@@ -23,7 +23,7 @@ export function BuyIn() {
     load();
   }, [load]);
 
-  const twdCost = Math.round((parseFloat(rmbAmount) || 0) * (parseFloat(exchangeRate) || 0) * 100) / 100;
+  const twdCost = Math.ceil((parseFloat(rmbAmount) || 0) * (parseFloat(exchangeRate) || 0));
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

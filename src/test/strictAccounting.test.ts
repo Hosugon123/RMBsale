@@ -162,8 +162,8 @@ describe("strict accounting and ledger integrity", () => {
     const customerRow = rows.find((entry) => entry.customerId === 1 && !entry.accountId);
     const accountRow = rows.find((entry) => entry.accountId === 1);
     expect(customerRow?.relatedId).toBe(accountRow?.relatedId);
-    expect(customerRow?.amount).toBe("1234.56");
-    expect(accountRow?.amount).toBe("1234.56");
+    expect(customerRow?.amount).toBe("1235.00");
+    expect(accountRow?.amount).toBe("1235.00");
     expect(customerRow?.direction).toBe("out");
     expect(accountRow?.direction).toBe("in");
     assertStrictAccounting(state);

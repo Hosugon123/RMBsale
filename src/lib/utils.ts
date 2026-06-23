@@ -10,6 +10,16 @@ export function d(value: Decimal.Value) {
   return new Decimal(value || 0);
 }
 
+export function roundUpTwdValue(value: Decimal.Value) {
+  const amount = d(value);
+  const rounded = amount.abs().ceil();
+  return amount.isNegative() ? rounded.neg() : rounded;
+}
+
+export function toTwdMoney(value: Decimal.Value) {
+  return roundUpTwdValue(value).toFixed(2);
+}
+
 /** 解析表單金額字串；空字串或無效格式回傳 null，避免 Decimal 拋錯導致畫面崩潰。 */
 export function parseMoneyInput(input: string): Decimal | null {
   const trimmed = input.trim();
@@ -28,9 +38,10 @@ export function defaultSettlementAmount(receivableTwd: string) {
 
 export function fmtMoney(value: Decimal.Value, currency: "TWD" | "RMB" = "TWD") {
   const prefix = currency === "TWD" ? "NT$" : "¥";
-  return `${prefix} ${d(value).toNumber().toLocaleString("zh-TW", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+  const displayValue = currency === "TWD" ? roundUpTwdValue(value) : d(value);
+  return `${prefix} ${displayValue.toNumber().toLocaleString("zh-TW", {
+    minimumFractionDigits: currency === "TWD" ? 0 : 2,
+    maximumFractionDigits: currency === "TWD" ? 0 : 2
   })}`;
 }
 

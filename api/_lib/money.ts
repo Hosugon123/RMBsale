@@ -10,8 +10,18 @@ export function toCents(value: Decimal.Value) {
   return money(value).toDecimalPlaces(2);
 }
 
+export function twdMoney(value: Decimal.Value) {
+  const amount = money(value);
+  const rounded = amount.abs().ceil();
+  return amount.isNegative() ? rounded.neg() : rounded;
+}
+
 export function toDbMoney(value: Decimal.Value) {
   return toCents(value).toFixed(2);
+}
+
+export function toDbTwd(value: Decimal.Value) {
+  return twdMoney(value).toFixed(2);
 }
 
 export function toDbRate(value: Decimal.Value) {
@@ -19,7 +29,7 @@ export function toDbRate(value: Decimal.Value) {
 }
 
 export function calcTwd(rmbAmount: Decimal.Value, exchangeRate: Decimal.Value) {
-  return toCents(money(rmbAmount).mul(exchangeRate));
+  return twdMoney(money(rmbAmount).mul(exchangeRate));
 }
 
 export type FifoLotInput = {
@@ -49,7 +59,7 @@ export function allocateFifo(
     if (available.lte(0)) continue;
 
     const allocated = Decimal.min(available, remaining);
-    const cost = toCents(allocated.mul(lot.unitCostTwd));
+    const cost = twdMoney(allocated.mul(lot.unitCostTwd));
 
     allocations.push({
       lotId: lot.id,
@@ -66,11 +76,11 @@ export function allocateFifo(
 
   return {
     allocations,
-    totalCostTwd: toDbMoney(totalCost),
+    totalCostTwd: toDbTwd(totalCost),
     shortfallRmb: remaining.gt(0) ? remaining.toFixed(2) : "0.00"
   };
 }
 
 export function calcProfit(twdAmount: Decimal.Value, costTwd: Decimal.Value) {
-  return toDbMoney(money(twdAmount).sub(costTwd));
+  return toDbTwd(money(twdAmount).sub(costTwd));
 }

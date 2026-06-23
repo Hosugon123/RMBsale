@@ -4,7 +4,7 @@ import { DEPOSIT_CHANNEL, isDepositPurchase } from "./purchaseUtils";
 import { ensureSpecialClientWalletState, reverseSpecialClientWalletEntry } from "./localSpecialClientWallet";
 import { resolveCustomerSettlementStatus } from "./receivableDisplay";
 import type { AppState, AppUser, Currency, LedgerEntry, PermissionKey, Purchase, User } from "./types";
-import { d, nextId, parseMoneyInput } from "./utils";
+import { d, nextId, parseMoneyInput, toTwdMoney } from "./utils";
 
 const KEY = "rmbsale.demo.state.v3";
 const now = () => new Date().toISOString();
@@ -17,6 +17,7 @@ export function setTransactionTimestamp(iso: string | null) {
 
 const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
+const twdMoney = (value: Decimal.Value) => toTwdMoney(value);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
 
 function customerHasActiveSettlements(state: AppState, customerId: number) {
@@ -170,7 +171,7 @@ function normalizeState(state: AppState): AppState {
 export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd" | "channelName" | "status">) {
   if (purchase.status === "reversed") return "0.00";
   if (isDepositPurchase(purchase)) return "0.00";
-  return money(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
+  return twdMoney(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
 }
 
 function ensureProfitLedgerEntries(state: AppState) {
@@ -293,7 +294,7 @@ function ensurePayableLedgerEntries(state: AppState) {
       .reduce((sum, entry) => sum.add(entry.amount), d(0));
     const needOut = d(purchase.paidTwd);
     if (needOut.gt(recordedOut)) {
-      const gap = money(needOut.sub(recordedOut));
+      const gap = twdMoney(needOut.sub(recordedOut));
       state.ledger.push({
         id: nextId(state.ledger),
         createdAt: purchase.createdAt,
@@ -329,7 +330,7 @@ export function createSeedState(): AppState {
       { id: 4, holderId: 2, holderName: "團隊帳戶", name: "支付寶 RMB", currency: "RMB", balance: "58500.00", profitBalance: "0.00", isActive: true }
     ],
     customers: [
-      { id: 1, name: "阿明", receivableTwd: "15800.05", isActive: true },
+      { id: 1, name: "阿明", receivableTwd: "15801.00", isActive: true },
       { id: 2, name: "老王", receivableTwd: "0.00", isActive: true }
     ],
     channels: [
@@ -341,7 +342,7 @@ export function createSeedState(): AppState {
       { id: 2, channelId: 2, channelName: "熟客換匯", paymentAccountId: 1, depositAccountId: 2, rmbAmount: "38000.00", exchangeRate: "4.390000", twdCost: "166820.00", paidTwd: "166820.00", paymentStatus: "paid", operatorName: "admin", createdAt: now() }
     ],
     sales: [
-      { id: 1, customerId: 1, customerName: "阿明", rmbAccountId: 4, rmbAmount: "3500.00", exchangeRate: "4.514300", twdAmount: "15800.05", costTwd: "15470.00", profitTwd: "330.05", settlementStatus: "unsettled", operatorName: "admin", createdAt: now() }
+      { id: 1, customerId: 1, customerName: "阿明", rmbAccountId: 4, rmbAmount: "3500.00", exchangeRate: "4.514300", twdAmount: "15801.00", costTwd: "15470.00", profitTwd: "331.00", settlementStatus: "unsettled", operatorName: "admin", createdAt: now() }
     ],
     saleAllocations: [
       { id: 1, saleId: 1, lotId: 1, purchaseId: 1, channelName: "交易所 A", allocatedRmb: "3500.00", unitCostTwd: "4.420000", costTwd: "15470.00", createdAt: now() }
@@ -352,8 +353,8 @@ export function createSeedState(): AppState {
     ],
     ledger: [
       { id: 1, createdAt: now(), entryType: "售出", accountId: 4, customerId: 1, direction: "out", currency: "RMB", amount: "3500.00", description: "售出 RMB 給阿明", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
-      { id: 2, createdAt: now(), entryType: "應收", customerId: 1, direction: "in", currency: "TWD", amount: "15800.05", description: "阿明應收增加", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
-      { id: 3, createdAt: now(), entryType: "利潤", customerId: 1, direction: "in", currency: "TWD", amount: "330.05", description: "阿明 售出利潤", operatorName: "admin", relatedTable: "sales", relatedId: 1 }
+      { id: 2, createdAt: now(), entryType: "應收", customerId: 1, direction: "in", currency: "TWD", amount: "15801.00", description: "阿明應收增加", operatorName: "admin", relatedTable: "sales", relatedId: 1 },
+      { id: 3, createdAt: now(), entryType: "利潤", customerId: 1, direction: "in", currency: "TWD", amount: "331.00", description: "阿明 售出利潤", operatorName: "admin", relatedTable: "sales", relatedId: 1 }
     ],
     specialClients: [{ id: 1, name: "儲值客戶", feeRate: "0.011000", isActive: true }],
     specialClientWalletEntries: []
@@ -863,7 +864,7 @@ export function addPurchase(state: AppState, input: {
 }) {
   const channel = getOrCreateByName(state.channels, input.channelName);
   const rmbAmount = money(input.rmbAmount);
-  const twdCost = money(d(input.rmbAmount).mul(input.exchangeRate));
+  const twdCost = twdMoney(d(input.rmbAmount).mul(input.exchangeRate));
   const purchase = {
     id: nextId(state.purchases),
     channelId: channel.id,
@@ -939,10 +940,10 @@ export function addPurchase(state: AppState, input: {
 
 export function addSale(state: AppState, input: { customerName: string; rmbAccountId: number; rmbAmount: string; exchangeRate: string }) {
   const customer = getOrCreateByName(state.customers, input.customerName, { receivableTwd: "0.00" });
-  const twdAmount = money(d(input.rmbAmount).mul(input.exchangeRate));
+  const twdAmount = twdMoney(d(input.rmbAmount).mul(input.exchangeRate));
   const saleId = nextId(state.sales);
   const allocation = consumeRmbLotsStrict(state, input.rmbAccountId, input.rmbAmount);
-  const profitTwd = money(d(twdAmount).sub(allocation.costTwd));
+  const profitTwd = twdMoney(d(twdAmount).sub(allocation.costTwd));
   const sale = {
     id: saleId,
     customerId: customer.id,
@@ -951,7 +952,7 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
     rmbAmount: money(input.rmbAmount),
     exchangeRate: rate(input.exchangeRate),
     twdAmount,
-    costTwd: money(allocation.costTwd),
+    costTwd: twdMoney(allocation.costTwd),
     profitTwd,
     settlementStatus: "unsettled" as const,
     operatorName: currentOperator(state),
@@ -966,7 +967,7 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
       createdAt: sale.createdAt
     });
   });
-  customer.receivableTwd = money(d(customer.receivableTwd).add(twdAmount));
+  customer.receivableTwd = twdMoney(d(customer.receivableTwd).add(twdAmount));
   mutateAccount(state, input.rmbAccountId, "RMB", d(input.rmbAmount).neg().toFixed(2), "out", "售出", sale.id, `售出 RMB 給${customer.name}`);
   addLedger(state, { entryType: "應收", customerId: customer.id, direction: "in", currency: "TWD", amount: twdAmount, description: `${customer.name} 應收增加`, relatedTable: "sales", relatedId: sale.id });
   if (d(profitTwd).gt(0)) {
@@ -991,7 +992,7 @@ export function updateSaleProfit(state: AppState, input: { saleId: number; profi
   if (!input.profitTwd.trim()) throw new Error("請輸入利潤");
   if (d(input.profitTwd).lt(0)) throw new Error("利潤不可小於 0");
 
-  const profitTwd = money(input.profitTwd);
+  const profitTwd = twdMoney(input.profitTwd);
   sale.profitTwd = profitTwd;
 
   const existing = state.ledger.find(
@@ -1034,20 +1035,20 @@ export function addSettlement(state: AppState, input: { customerId: number; acco
   const amount = parseMoneyInput(input.amountTwd);
   if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
 
-  const amountTwd = money(amount);
+  const amountTwd = twdMoney(amount);
   const settlementId = nextId(state.ledger);
   const note = input.note?.trim();
   const nextReceivable = d(customer.receivableTwd).sub(amountTwd);
   const description =
     nextReceivable.lt(0) && note
-      ? `收帳：${customer.name}（${note}｜多付 ${money(nextReceivable.abs())}）`
+      ? `收帳：${customer.name}（${note}｜多付 ${twdMoney(nextReceivable.abs())}）`
       : nextReceivable.lt(0)
-        ? `收帳：${customer.name}（多付 ${money(nextReceivable.abs())}）`
+        ? `收帳：${customer.name}（多付 ${twdMoney(nextReceivable.abs())}）`
         : note
           ? `收帳：${customer.name}（${note}）`
           : `收帳：${customer.name}`;
 
-  customer.receivableTwd = money(nextReceivable);
+  customer.receivableTwd = twdMoney(nextReceivable);
   addLedger(state, {
     entryType: "收帳",
     customerId: customer.id,
@@ -1071,12 +1072,12 @@ export function createOpeningReceivable(state: AppState, input: { customerName: 
   if (!amount || amount.lte(0)) throw new Error("待收金額必須大於 0");
 
   const customer = getOrCreateByName(state.customers, customerName, { receivableTwd: "0.00" });
-  const amountTwd = money(amount);
+  const amountTwd = twdMoney(amount);
   const ledgerId = nextId(state.ledger);
   const note = input.note?.trim();
 
   customer.isActive = true;
-  customer.receivableTwd = money(d(customer.receivableTwd).add(amountTwd));
+  customer.receivableTwd = twdMoney(d(customer.receivableTwd).add(amountTwd));
   state.ledger.unshift({
     id: ledgerId,
     createdAt: txNow(),
@@ -1099,7 +1100,7 @@ export function createOpeningProfit(state: AppState, input: { amountTwd: string;
   const amount = parseMoneyInput(input.amountTwd);
   if (!amount || amount.lte(0)) throw new Error("利潤金額必須大於 0");
 
-  const amountTwd = money(amount);
+  const amountTwd = twdMoney(amount);
   const ledgerId = nextId(state.ledger);
   const note = input.note?.trim();
 
@@ -1129,8 +1130,8 @@ export function payPurchase(state: AppState, input: { purchaseId: number; accoun
   if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
   if (remaining.lt(amount)) throw new Error("付款金額超過應付餘額");
 
-  const amountTwd = money(amount);
-  purchase.paidTwd = money(d(purchase.paidTwd).add(amountTwd));
+  const amountTwd = twdMoney(amount);
+  purchase.paidTwd = twdMoney(d(purchase.paidTwd).add(amountTwd));
   purchase.paymentAccountId = input.accountId;
   if (d(purchase.paidTwd).gte(purchase.twdCost)) {
     purchase.paidTwd = purchase.twdCost;
@@ -1169,7 +1170,7 @@ function addRmbDepositLot(
   exchangeRate: string
 ) {
   const channel = getOrCreateByName(state.channels, DEPOSIT_CHANNEL);
-  const twdCost = money(d(rmbAmount).mul(exchangeRate));
+  const twdCost = twdMoney(d(rmbAmount).mul(exchangeRate));
   const purchase = {
     id: nextId(state.purchases),
     channelId: channel.id,
@@ -1220,9 +1221,10 @@ export function adjustAccount(
   const account = state.accounts.find((item) => item.id === input.accountId);
   if (!account) throw new Error("找不到帳戶");
   if (d(input.amount).lte(0)) throw new Error("金額必須大於 0");
+  const amount = account.currency === "TWD" ? twdMoney(input.amount) : money(input.amount);
   if (input.direction === "out" && input.withdrawType === "profit") {
     if (account.currency !== "TWD") throw new Error("分潤只能從台幣帳戶提取");
-    if (d(totals(state).profit).lt(input.amount)) throw new Error("可提取利潤不足");
+    if (d(totals(state).profit).lt(amount)) throw new Error("可提取利潤不足");
   }
 
   const note = input.note?.trim();
@@ -1234,21 +1236,21 @@ export function adjustAccount(
     }
 
     if (input.direction === "in") {
-      const { purchase, twdCost } = addRmbDepositLot(state, account.id, money(input.amount), rate(input.exchangeRate));
+      const { purchase, twdCost } = addRmbDepositLot(state, account.id, amount, rate(input.exchangeRate));
       const description = `${account.holderName} / ${account.name} 入金 @${rate(input.exchangeRate)}，帳面成本 ${twdCost} TWD${noteSuffix}`;
-      mutateAccount(state, account.id, "RMB", money(input.amount), "in", "入金", purchase.id, description, "入金");
+      mutateAccount(state, account.id, "RMB", amount, "in", "入金", purchase.id, description, "入金");
       saveState(state);
       return state;
     }
 
-    const allocation = consumeRmbLotsStrict(state, account.id, money(input.amount));
-    const nominalTwd = money(d(input.amount).mul(input.exchangeRate));
+    const allocation = consumeRmbLotsStrict(state, account.id, amount);
+    const nominalTwd = twdMoney(d(amount).mul(input.exchangeRate));
     const description = `${account.holderName} / ${account.name} 撤資 @${rate(input.exchangeRate)}，FIFO 成本 ${allocation.costTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;
     mutateAccount(
       state,
       account.id,
       "RMB",
-      d(input.amount).neg().toFixed(2),
+      d(amount).neg().toFixed(2),
       "out",
       "撤資",
       nextId(state.ledger),
@@ -1261,9 +1263,9 @@ export function adjustAccount(
 
   const entryType = input.direction === "in" ? "入金" : input.withdrawType === "profit" ? "分潤" : "撤資";
   const relatedTable = input.direction === "out" && input.withdrawType === "profit" ? "profit" : entryType;
-  const amount = input.direction === "in" ? input.amount : d(input.amount).neg().toFixed(2);
+  const signedAmount = input.direction === "in" ? amount : d(amount).neg().toFixed(2);
   const description = `${account.holderName} / ${account.name} ${entryType}${noteSuffix}`;
-  mutateAccount(state, account.id, account.currency, amount, input.direction, relatedTable, nextId(state.ledger), description, entryType);
+  mutateAccount(state, account.id, account.currency, signedAmount, input.direction, relatedTable, nextId(state.ledger), description, entryType);
   saveState(state);
   return state;
 }
@@ -1531,7 +1533,7 @@ export function reconcileLocalRmbLotInventory(state: AppState) {
 
     const exchangeRate = estimateAccountUnitCost(state, account.id);
     const rmbAmount = money(gap);
-    const twdCost = money(gap.mul(exchangeRate));
+    const twdCost = twdMoney(gap.mul(exchangeRate));
     const purchaseId = nextId(state.purchases);
     state.purchases.unshift({
       id: purchaseId,
@@ -1654,8 +1656,9 @@ export function addTransfer(state: AppState, input: { fromAccountId: number; toA
     });
   }
 
-  mutateAccount(state, from.id, from.currency, d(input.amount).neg().toFixed(2), "out", "內轉", transferId, `轉出至 ${to.holderName} / ${to.name}`);
-  mutateAccount(state, to.id, to.currency, input.amount, "in", "內轉", transferId, `由 ${from.holderName} / ${from.name} 轉入`);
+  const amount = from.currency === "TWD" ? twdMoney(input.amount) : money(input.amount);
+  mutateAccount(state, from.id, from.currency, d(amount).neg().toFixed(2), "out", "內轉", transferId, `轉出至 ${to.holderName} / ${to.name}`);
+  mutateAccount(state, to.id, to.currency, amount, "in", "內轉", transferId, `由 ${from.holderName} / ${from.name} 轉入`);
   return state;
 }
 
@@ -1697,7 +1700,7 @@ export function previewSaleProfit(
   const parsedExchangeRate = parseMoneyInput(exchangeRate);
   if (!parsedRmbAmount || !parsedExchangeRate || !parsedRmbAmount.gt(0) || !parsedExchangeRate.gt(0)) return null;
 
-  const twdAmount = money(parsedRmbAmount.mul(parsedExchangeRate));
+  const twdAmount = twdMoney(parsedRmbAmount.mul(parsedExchangeRate));
   const { costTwd, shortfallRmb } = allocateFifoPreview(state, input.rmbAccountId, rmbAmount);
   if (d(shortfallRmb).gt(0)) {
     return {
@@ -1709,7 +1712,7 @@ export function previewSaleProfit(
   }
   return {
     twdAmount,
-    profitTwd: money(d(twdAmount).sub(costTwd)),
+    profitTwd: twdMoney(d(twdAmount).sub(costTwd)),
     profitWarning: null,
     profitError: null as string | null
   };
@@ -1725,7 +1728,7 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);
-    const allocatedCostTwd = allocated.mul(lot.unitCostTwd);
+    const allocatedCostTwd = twdMoney(allocated.mul(lot.unitCostTwd));
     lot.remainingRmb = money(d(lot.remainingRmb).sub(allocated));
     costTwd = costTwd.add(allocatedCostTwd);
     items.push({
@@ -1734,11 +1737,11 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
       channelName: lot.channelName,
       allocatedRmb: money(allocated),
       unitCostTwd: rate(lot.unitCostTwd),
-      costTwd: money(allocatedCostTwd)
+      costTwd: twdMoney(allocatedCostTwd)
     });
     remaining = remaining.sub(allocated);
   }
-  return { costTwd: money(costTwd), items, shortfallRmb: money(remaining) };
+  return { costTwd: twdMoney(costTwd), items, shortfallRmb: money(remaining) };
 }
 
 function inferSaleAllocations(state: AppState) {
@@ -1758,7 +1761,7 @@ function inferSaleAllocations(state: AppState) {
       if (remaining.lte(0)) break;
       if (item.lot.accountId !== sale.rmbAccountId || item.availableSoldRmb.lte(0)) continue;
       const allocated = Decimal.min(remaining, item.availableSoldRmb);
-      const costTwd = allocated.mul(item.lot.unitCostTwd);
+      const costTwd = toTwdMoney(allocated.mul(item.lot.unitCostTwd));
       allocations.push({
         id: nextId(allocations),
         saleId: sale.id,
@@ -1767,7 +1770,7 @@ function inferSaleAllocations(state: AppState) {
         channelName: item.lot.channelName,
         allocatedRmb: money(allocated),
         unitCostTwd: rate(item.lot.unitCostTwd),
-        costTwd: money(costTwd),
+        costTwd: twdMoney(costTwd),
         createdAt: sale.createdAt
       });
       item.availableSoldRmb = item.availableSoldRmb.sub(allocated);
@@ -1782,8 +1785,9 @@ function mutateAccount(state: AppState, accountId: number, currency: Currency, a
   const account = state.accounts.find((item) => item.id === accountId);
   if (!account) throw new Error("找不到帳戶");
   if (account.currency !== currency) throw new Error("帳戶幣別不符");
-  account.balance = money(d(account.balance).add(amount));
-  addLedger(state, { entryType, accountId, direction, currency, amount: d(amount).abs().toFixed(2), relatedTable, relatedId, description });
+  const normalize = currency === "TWD" ? twdMoney : money;
+  account.balance = normalize(d(account.balance).add(amount));
+  addLedger(state, { entryType, accountId, direction, currency, amount: normalize(d(amount).abs()), relatedTable, relatedId, description });
 }
 
 function addLedger(state: AppState, input: Omit<LedgerEntry, "id" | "createdAt" | "operatorName">) {
@@ -1805,7 +1809,8 @@ function reverseAccountLedger(
   const account = state.accounts.find((item) => item.id === original.accountId);
   if (!account) throw new Error("找不到帳戶");
   const signed = original.direction === "in" ? d(original.amount).neg() : d(original.amount);
-  account.balance = money(d(account.balance).add(signed));
+  const normalize = original.currency === "TWD" ? twdMoney : money;
+  account.balance = normalize(d(account.balance).add(signed));
   addLedger(state, {
     entryType,
     accountId: original.accountId,

@@ -93,7 +93,7 @@ describe("local demo store", () => {
     const next = deleteCustomer(state, { customerId: customer.id });
     expect(next.customers.find((item) => item.id === customer.id)?.isActive).toBe(false);
     expect(next.sales.some((sale) => sale.customerId === customer.id)).toBe(true);
-    expect(next.customers.find((item) => item.id === customer.id)?.receivableTwd).toBe("15800.05");
+    expect(next.customers.find((item) => item.id === customer.id)?.receivableTwd).toBe("15801.00");
   });
 
   it("previews sale profit with fifo cost", () => {
@@ -158,15 +158,15 @@ describe("local demo store", () => {
     const next = updateSaleProfit(state, { saleId, profitTwd: "888.88" });
     const profitEntry = next.ledger.find((entry) => entry.entryType === "利潤" && entry.relatedId === saleId);
 
-    expect(next.sales[0].profitTwd).toBe("888.88");
+    expect(next.sales[0].profitTwd).toBe("889.00");
     expect(profitEntry).toMatchObject({
       direction: "in",
       currency: "TWD",
-      amount: "888.88"
+      amount: "889.00"
     });
     expect(sortedProfitLedgerWithBalances(next)[0]).toMatchObject({
       entryType: "利潤",
-      amount: "888.88"
+      amount: "889.00"
     });
   });
 
@@ -186,7 +186,7 @@ describe("local demo store", () => {
     expect(profitRow).toMatchObject({
       subjectLabel: "累計利潤",
       balanceBefore: "0.00",
-      balanceAfter: "330.05",
+      balanceAfter: "331.00",
       balanceCurrency: "TWD"
     });
   });
@@ -320,7 +320,7 @@ describe("local demo store", () => {
     const state = createSeedState();
     const customer = state.customers.find((item) => item.name === "阿明")!;
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
-    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(customer.receivableTwd).toBe("-34199.00");
     expect(state.ledger[0]?.description).toContain("多付");
   });
 
@@ -640,7 +640,7 @@ describe("local demo store", () => {
     expect(receivableEntry).toMatchObject({
       subjectLabel: "阿明",
       balanceBefore: "0.00",
-      balanceAfter: "15800.05",
+      balanceAfter: "15801.00",
       balanceCurrency: "TWD"
     });
   });
@@ -648,15 +648,15 @@ describe("local demo store", () => {
   it("tracks profit withdrawals separately from capital withdrawals", () => {
     const state = createSeedState();
 
-    expect(totals(state).profitEarned).toBe("330.05");
-    expect(totals(state).profit).toBe("330.05");
+    expect(totals(state).profitEarned).toBe("331.00");
+    expect(totals(state).profit).toBe("331.00");
     expect(totals(state).walletDepositProfitRmb).toBe("0.00");
     adjustAccount(state, { accountId: 1, direction: "out", amount: "100", withdrawType: "profit", note: "owner payout" });
 
     expect(state.accounts.find((account) => account.id === 1)?.balance).toBe("119900.00");
     expect(totals(state).twd).toBe("379900.00");
-    expect(totals(state).profitEarned).toBe("330.05");
-    expect(totals(state).profit).toBe("230.05");
+    expect(totals(state).profitEarned).toBe("331.00");
+    expect(totals(state).profit).toBe("231.00");
     expect(state.ledger[0]).toMatchObject({ entryType: "分潤", relatedTable: "profit", accountId: 1, direction: "out", currency: "TWD", amount: "100.00" });
     expect(profitLedger(state).map((entry) => entry.direction)).toEqual(["out", "in"]);
   });

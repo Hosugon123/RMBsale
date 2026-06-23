@@ -94,13 +94,13 @@ describe("receivable accounting invariants", () => {
     const account = state.accounts.find((item) => item.id === 1)!;
 
     addSettlement(state, { customerId: customer.id, accountId: account.id, amountTwd: "1000" });
-    expect(customer.receivableTwd).toBe("14800.05");
+    expect(customer.receivableTwd).toBe("14801.00");
     expect(state.sales[0].settlementStatus).toBe("partial");
 
     const entityId = settlementEntityId(state, account.id);
     reverseOperation(state, { entityType: "settlement", entityId });
 
-    expect(customer.receivableTwd).toBe("15800.05");
+    expect(customer.receivableTwd).toBe("15801.00");
     expect(state.sales[0].settlementStatus).toBe("unsettled");
     assertAllCustomersConsistent(state);
   });
@@ -132,9 +132,9 @@ describe("receivable accounting invariants", () => {
       exchangeRate: "4.5"
     });
     const customer = state.customers.find((item) => item.name === "阿明")!;
-    expect(customer!.receivableTwd).toBe("20300.05");
+    expect(customer!.receivableTwd).toBe("20301.00");
 
-    addSettlement(state, { customerId: customer!.id, accountId: twdAccount.id, amountTwd: "20300.05" });
+    addSettlement(state, { customerId: customer!.id, accountId: twdAccount.id, amountTwd: "20301.00" });
     expect(customer!.receivableTwd).toBe("0.00");
     expect(state.sales.every((sale) => sale.customerId !== customer!.id || sale.settlementStatus === "settled")).toBe(
       true
@@ -142,7 +142,7 @@ describe("receivable accounting invariants", () => {
 
     const entityId = settlementEntityId(state, twdAccount.id);
     reverseOperation(state, { entityType: "settlement", entityId });
-    expect(customer!.receivableTwd).toBe("20300.05");
+    expect(customer!.receivableTwd).toBe("20301.00");
     expect(
       state.sales.filter((sale) => sale.customerId === customer!.id).every((sale) => sale.settlementStatus === "unsettled")
     ).toBe(true);
@@ -155,7 +155,7 @@ describe("receivable accounting invariants", () => {
     const rmbAccount = state.accounts.find((account) => account.currency === "RMB")!;
 
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
-    expect(customer.receivableTwd).toBe("-34199.95");
+    expect(customer.receivableTwd).toBe("-34199.00");
 
     addSale(state, {
       customerName: "阿明",
@@ -163,7 +163,7 @@ describe("receivable accounting invariants", () => {
       rmbAmount: "1000",
       exchangeRate: "4.5"
     });
-    expect(customer.receivableTwd).toBe("-29699.95");
+    expect(customer.receivableTwd).toBe("-29699.00");
     const activeSales = state.sales.filter((sale) => sale.customerId === customer.id && sale.status !== "reversed");
     expect(activeSales.every((sale) => sale.settlementStatus === "settled")).toBe(true);
     assertAllCustomersConsistent(state);

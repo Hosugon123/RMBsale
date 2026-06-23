@@ -5,7 +5,7 @@ import { mergeBootstrapState } from "../lib/mergeBootstrapState";
 import { serverApi } from "../lib/serverApi";
 import { getSessionUser, totals } from "../lib/localStore";
 import { resolveCustomerSettlementStatus } from "../lib/receivableDisplay";
-import { d, parseMoneyInput } from "../lib/utils";
+import { d, parseMoneyInput, toTwdMoney } from "../lib/utils";
 import type { BusinessDataImport } from "../lib/dataImport";
 import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState, AppUser } from "../lib/types";
@@ -55,8 +55,8 @@ function stateFromPartial(patch: Partial<AppState> & { sessionUserId?: number })
   };
 }
 
-function money(value: unknown) {
-  return d(value as never).toDecimalPlaces(2).toFixed(2);
+function twdMoney(value: unknown) {
+  return toTwdMoney(value as never);
 }
 
 function applyOptimisticSettlement(state: AppState, input: SettlementInput, sessionUser: AppUser): AppState {
@@ -67,18 +67,18 @@ function applyOptimisticSettlement(state: AppState, input: SettlementInput, sess
   const amount = parseMoneyInput(input.amountTwd);
   if (!amount || amount.lte(0)) throw new Error("金額必須大於 0");
 
-  const amountTwd = money(amount);
-  const nextReceivable = money(d(customer.receivableTwd).sub(amountTwd));
-  const nextBalance = money(d(account.balance).add(amountTwd));
+  const amountTwd = twdMoney(amount);
+  const nextReceivable = twdMoney(d(customer.receivableTwd).sub(amountTwd));
+  const nextBalance = twdMoney(d(account.balance).add(amountTwd));
   const now = new Date().toISOString();
   const tempId = -Date.now();
   const note = input.note?.trim();
   const overpay = d(nextReceivable).lt(0);
   const description =
     overpay && note
-      ? `收帳：${customer.name}（${note}｜多付 ${money(d(nextReceivable).abs())}）`
+      ? `收帳：${customer.name}（${note}｜多付 ${twdMoney(d(nextReceivable).abs())}）`
       : overpay
-        ? `收帳：${customer.name}（多付 ${money(d(nextReceivable).abs())}）`
+        ? `收帳：${customer.name}（多付 ${twdMoney(d(nextReceivable).abs())}）`
         : note
           ? `收帳：${customer.name}（${note}）`
           : `收帳：${customer.name}`;

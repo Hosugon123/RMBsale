@@ -18,7 +18,7 @@ import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 import { fieldControlClass } from "../lib/formStyles";
-import { cn, fmtMoney, fmtRate, parseMoneyInput } from "../lib/utils";
+import { cn, fmtMoney, fmtRate, parseMoneyInput, toTwdMoney } from "../lib/utils";
 import type { Sale } from "../lib/types";
 
 const fieldSelectClass = fieldControlClass;
@@ -122,7 +122,7 @@ export function SalePage() {
       if (!profitForm.trim()) throw new Error("請輸入利潤");
       const profitAmount = parseMoneyInput(profitForm);
       if (!profitAmount || profitAmount.lt(0)) throw new Error("利潤不可小於 0");
-      await runMutation(() => updateSaleProfit({ saleId: editingSale.id, profitTwd: profitAmount.toFixed(2) }));
+      await runMutation(() => updateSaleProfit({ saleId: editingSale.id, profitTwd: toTwdMoney(profitAmount) }));
       setEditingSale(null);
       setProfitForm("");
       setProfitError("");

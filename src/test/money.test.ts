@@ -2,8 +2,8 @@
 import { allocateFifo, calcProfit, calcTwd } from "../../api/_lib/money";
 
 describe("money calculations", () => {
-  it("calculates TWD with two decimals", () => {
-    expect(calcTwd("3500", "4.5143").toFixed(2)).toBe("15800.05");
+  it("rounds TWD up to a whole number", () => {
+    expect(calcTwd("3500", "4.5143").toFixed(2)).toBe("15801.00");
   });
 
   it("allocates FIFO lots and cost", () => {

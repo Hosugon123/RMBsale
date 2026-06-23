@@ -1,6 +1,6 @@
 import { and, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
-import { money, toDbMoney } from "./money.js";
+import { money, toDbTwd, twdMoney } from "./money.js";
 import { customers, ledgerEntries, sales } from "./schema.js";
 
 export async function insertSaleProfitLedger(
@@ -13,7 +13,7 @@ export async function insertSaleProfitLedger(
     operatorId: number;
   }
 ) {
-  if (money(params.profitTwd).lte(0)) return;
+  if (twdMoney(params.profitTwd).lte(0)) return;
 
   await tx.insert(ledgerEntries).values({
     entryType: "利潤",
@@ -22,7 +22,7 @@ export async function insertSaleProfitLedger(
     relatedId: params.saleId,
     direction: "in",
     currency: "TWD",
-    amount: toDbMoney(params.profitTwd),
+    amount: toDbTwd(params.profitTwd),
     description: `${params.customerName} 售出利潤`,
     operatorId: params.operatorId
   });
@@ -38,7 +38,7 @@ export async function syncSaleProfitLedger(
     operatorId: number;
   }
 ) {
-  const profit = money(params.profitTwd);
+  const profit = twdMoney(params.profitTwd);
   if (profit.lt(0)) throw new Error("利潤不可小於 0");
 
   const [existing] = await tx
@@ -61,7 +61,7 @@ export async function syncSaleProfitLedger(
 
   const values = {
     customerId: params.customerId,
-    amount: toDbMoney(profit),
+    amount: toDbTwd(profit),
     description: `${params.customerName} 售出利潤`,
     operatorId: params.operatorId
   };

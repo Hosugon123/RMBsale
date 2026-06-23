@@ -13,7 +13,7 @@ import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { fieldControlClass } from "../lib/formStyles";
-import { cn, fmtMoney, fmtRate, parseMoneyInput } from "../lib/utils";
+import { cn, fmtMoney, fmtRate, parseMoneyInput, toTwdMoney } from "../lib/utils";
 
 const fieldSelectClass = fieldControlClass;
 const fieldInputClass = fieldControlClass;
@@ -65,7 +65,7 @@ export function PurchasePage() {
   const previewExchangeRate = parseMoneyInput(form.exchangeRate);
   const cost =
     previewRmbAmount && previewExchangeRate && previewRmbAmount.gt(0) && previewExchangeRate.gt(0)
-      ? previewRmbAmount.mul(previewExchangeRate).toFixed(2)
+      ? toTwdMoney(previewRmbAmount.mul(previewExchangeRate))
       : "0";
   const [purchasePage, setPurchasePage] = React.useState(1);
   const purchasePageCount = Math.max(1, Math.ceil(state.purchases.length / PURCHASE_PAGE_SIZE));

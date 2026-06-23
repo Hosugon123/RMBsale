@@ -382,7 +382,9 @@ export interface UserRow {
 }
 
 export function formatTwd(n: number) {
-  return `NT$ ${n.toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  const value = Number.isFinite(n) ? n : 0;
+  const rounded = Math.sign(value || 1) * Math.ceil(Math.abs(value));
+  return `NT$ ${rounded.toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function formatRmb(n: number) {

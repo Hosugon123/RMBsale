@@ -9,7 +9,7 @@ describe("receivableDisplay", () => {
       statusTone: "overpaid",
       displayAmount: "40000.00"
     });
-    expect(fmtReceivableBalance("-40000")).toBe("多付 NT$ 40,000.00");
+    expect(fmtReceivableBalance("-40000")).toBe("多付 NT$ 40,000");
   });
 
   it("sums only pending receivables", () => {
@@ -30,16 +30,16 @@ describe("receivableDisplay", () => {
   });
 
   it("does not treat zero payment on overpaid customer as overpay", () => {
-    const preview = settlementReceivablePreview("-34199.95", "0");
+    const preview = settlementReceivablePreview("-34199.00", "0");
     expect(preview.isOverpay).toBe(false);
     expect(preview.overpayAmount.toFixed(2)).toBe("0.00");
-    expect(preview.after.toFixed(2)).toBe("-34199.95");
+    expect(preview.after.toFixed(2)).toBe("-34199.00");
   });
 
   it("does not treat zero payment on pending receivable as overpay", () => {
-    const preview = settlementReceivablePreview("15800.05", "0");
+    const preview = settlementReceivablePreview("15801.00", "0");
     expect(preview.isOverpay).toBe(false);
-    expect(preview.after.toFixed(2)).toBe("15800.05");
+    expect(preview.after.toFixed(2)).toBe("15801.00");
   });
 
   it("parseMoneyInput rejects invalid form input without throwing", () => {

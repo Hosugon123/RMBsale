@@ -47,7 +47,7 @@ describe("page audit 4/8 應收應付", () => {
     const customer = state.customers.find((item) => item.name === "應收頁客戶")!;
     addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "50000" });
     expect(customer.receivableTwd).toBe("-40000.00");
-    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 40,000.00");
+    expect(fmtReceivableBalance(customer.receivableTwd)).toBe("多付 NT$ 40,000");
     assertCustomerReceivableLedger(state, customer.id);
     assertDashboardTotals(state);
   });
@@ -79,7 +79,7 @@ describe("page audit 4/8 應收應付", () => {
       (row) => row.entryType === "收帳" && row.accountId === 1 && !row.isReversal
     );
     reverseOperation(state, { entityType: "settlement", entityId: entry!.relatedId! });
-    expect(customer.receivableTwd).toBe("15800.05");
+    expect(customer.receivableTwd).toBe("15801.00");
     assertCustomerReceivableLedger(state, customer.id);
 
     const receivableRows = sortedReceivableLedgerWithBalances(state).filter(

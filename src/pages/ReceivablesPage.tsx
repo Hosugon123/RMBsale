@@ -24,7 +24,7 @@ import { isDepositPurchase, isPurchasePayable, purchasePaymentStatusLabel } from
 import { fieldControlClass } from "../lib/formStyles";
 import { describeReceivable, fmtReceivableBalance, sumPendingReceivable } from "../lib/receivableDisplay";
 import Decimal from "decimal.js";
-import { cn, d, fmtMoney, parseMoneyInput } from "../lib/utils";
+import { cn, d, fmtMoney, parseMoneyInput, toTwdMoney } from "../lib/utils";
 import type { Account, Customer, Purchase } from "../lib/types";
 
 const fieldSelectClass = fieldControlClass;
@@ -350,7 +350,7 @@ export function ReceivablesPage() {
       await runMutation(() =>
         createOpeningReceivable({
           customerName: openingForm.customerName,
-          amountTwd: amount.toFixed(2),
+          amountTwd: toTwdMoney(amount),
           note: openingForm.note
         })
       );
@@ -364,11 +364,13 @@ export function ReceivablesPage() {
 
   const confirmPayPurchase = async () => {
     try {
+      const amount = parseMoneyInput(payForm.amountTwd);
+      if (!amount || amount.lte(0)) throw new Error("付款金額必須大於 0");
       await runMutation(() =>
       payPurchase({
         purchaseId: Number(payForm.purchaseId),
         accountId: Number(payForm.accountId),
-        amountTwd: payForm.amountTwd
+        amountTwd: toTwdMoney(amount)
       }));
       setPayConfirmOpen(false);
       setPayModalOpen(false);
