@@ -166,7 +166,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">帳務流水</h3>
             <div className="overflow-x-auto rounded-md border">
-              <PaginatedLedgerTable entries={customerLedgerRows} emptyMessage="尚無帳務流水" />
+              <PaginatedLedgerTable entries={customerLedgerRows} emptyMessage="尚無帳務流水" showBalances />
             </div>
           </section>
         </CardContent>
