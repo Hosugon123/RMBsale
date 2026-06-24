@@ -164,7 +164,7 @@ export async function createSale(input: {
       .where(and(eq(rmbLots.accountId, input.rmbAccountId), gt(rmbLots.remainingRmb, "0")))
       .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
-    const allocation = allocateFifo(lots, input.rmbAmount, { allowShort: true });
+    const allocation = allocateFifo(lots, input.rmbAmount);
     const profitTwd = calcProfit(twdAmount, allocation.totalCostTwd);
 
     const [sale] = await tx.insert(sales).values({

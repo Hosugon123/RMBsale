@@ -1725,6 +1725,11 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
   const lots = state.rmbLots
     .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const availableRmb = lots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+  if (availableRmb.lt(remaining)) {
+    return { costTwd: "0.00", items, shortfallRmb: money(remaining.sub(availableRmb)) };
+  }
+
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);

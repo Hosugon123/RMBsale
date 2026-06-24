@@ -114,6 +114,59 @@ describe("local demo store", () => {
     expect(accountFifoRmb(state, 2)).toBe("39000.00");
   });
 
+  it("reverses an RMB internal transfer and restores account FIFO inventory", () => {
+    const state = createSeedState();
+    const from = state.accounts.find((account) => account.id === 4)!;
+    const to = state.accounts.find((account) => account.id === 2)!;
+    const fromBalanceBefore = from.balance;
+    const toBalanceBefore = to.balance;
+    const fromFifoBefore = accountFifoRmb(state, from.id);
+    const toFifoBefore = accountFifoRmb(state, to.id);
+
+    addTransfer(state, { fromAccountId: from.id, toAccountId: to.id, amount: "1000" });
+    const transferId = state.ledger.find(
+      (entry) => entry.accountId === from.id && entry.currency === "RMB" && entry.direction === "out" && !entry.isReversal
+    )!.relatedId!;
+
+    reverseOperation(state, { entityType: "transfer", entityId: transferId });
+
+    expect(from.balance).toBe(fromBalanceBefore);
+    expect(to.balance).toBe(toBalanceBefore);
+    expect(accountFifoRmb(state, from.id)).toBe(fromFifoBefore);
+    expect(accountFifoRmb(state, to.id)).toBe(toFifoBefore);
+  });
+
+  it("does not consume FIFO lots when a sale exceeds available RMB inventory", () => {
+    const state = createSeedState();
+    const account = state.accounts.find((item) => item.id === 4)!;
+    account.balance = "1000.00";
+    state.rmbLots = [
+      {
+        id: 100,
+        purchaseId: 100,
+        accountId: account.id,
+        channelName: "test",
+        originalRmb: "500.00",
+        remainingRmb: "500.00",
+        unitCostTwd: "4.500000",
+        exchangeRate: "4.500000",
+        createdAt: "2026-06-01T00:00:00.000Z"
+      }
+    ];
+
+    expect(() =>
+      addSale(state, {
+        customerName: "shortfall customer",
+        rmbAccountId: account.id,
+        rmbAmount: "600",
+        exchangeRate: "4.7"
+      })
+    ).toThrow("RMB");
+
+    expect(state.rmbLots[0].remainingRmb).toBe("500.00");
+    expect(state.sales).toHaveLength(1);
+  });
+
   it("reconciles fifo inventory when account balance exceeds lots", () => {
     const state = createSeedState();
     const account = state.accounts.find((item) => item.id === 4)!;
