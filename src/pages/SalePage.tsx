@@ -14,7 +14,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { NumberPagination } from "../components/NumberPagination";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
-import { previewSaleProfit, accountFifoRmb } from "../lib/localStore";
+import { previewSaleProfit } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 import { fieldControlClass } from "../lib/formStyles";
@@ -25,10 +25,8 @@ const fieldSelectClass = fieldControlClass;
 const fieldInputClass = fieldControlClass;
 const SALE_PAGE_SIZE = 20;
 
-function accountOptionLabel(holderName: string, name: string, balance: string, fifoRmb: string) {
-  const balanceLabel = fmtMoney(balance, "RMB");
-  if (fifoRmb === balance) return `${holderName}/${name} (${balanceLabel})`;
-  return `${holderName}/${name} (餘額 ${balanceLabel} · 可售 ${fmtMoney(fifoRmb, "RMB")})`;
+function accountOptionLabel(holderName: string, name: string, balance: string) {
+  return `${holderName}/${name} (${fmtMoney(balance, "RMB")})`;
 }
 
 function settlementLabel(status: string) {
@@ -185,7 +183,7 @@ export function SalePage() {
                 <option value="">請選擇帳戶</option>
                 {rmbAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {accountOptionLabel(account.holderName, account.name, account.balance, accountFifoRmb(state, account.id))}
+                    {accountOptionLabel(account.holderName, account.name, account.balance)}
                   </option>
                 ))}
               </Select>

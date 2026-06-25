@@ -1,8 +1,8 @@
-import { and, asc, desc, eq, isNull, lte, ne } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import Decimal from "decimal.js";
 import type { DbTx } from "./db.js";
 import { toDbMoney, toDbRate, toDbTwd } from "./money.js";
-import { channels, purchases, rmbLots, accounts } from "./schema.js";
+import { accounts, channels, purchases, rmbLots } from "./schema.js";
 
 const INVENTORY_SYNC_CHANNEL = "庫存對齊";
 
@@ -17,11 +17,10 @@ async function ensureSyncChannel(tx: DbTx) {
   return created.id;
 }
 
-async function estimateAccountUnitCost(tx: DbTx, accountId: number) {
+async function estimateGlobalUnitCost(tx: DbTx) {
   const lots = await tx
     .select({ remainingRmb: rmbLots.remainingRmb, unitCostTwd: rmbLots.unitCostTwd })
-    .from(rmbLots)
-    .where(eq(rmbLots.accountId, accountId));
+    .from(rmbLots);
 
   let totalRmb = new Decimal(0);
   let totalCost = new Decimal(0);
@@ -36,145 +35,88 @@ async function estimateAccountUnitCost(tx: DbTx, accountId: number) {
   const [recentPurchase] = await tx
     .select({ exchangeRate: purchases.exchangeRate })
     .from(purchases)
-    .where(eq(purchases.depositAccountId, accountId))
     .orderBy(desc(purchases.createdAt))
     .limit(1);
   return recentPurchase ? String(recentPurchase.exchangeRate) : "4.500000";
 }
 
-/** 帳戶餘額高於 FIFO 可售量時補批次（庫存盤點／對齊）。 */
-export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
-  const channelId = await ensureSyncChannel(tx);
-  const [channel] = await tx.select({ name: channels.name }).from(channels).where(eq(channels.id, channelId));
-  const channelName = channel?.name ?? INVENTORY_SYNC_CHANNEL;
+async function reduceGlobalLotsFifo(tx: DbTx, amount: Decimal) {
+  let remaining = amount;
+  const lots = await tx.select().from(rmbLots).orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
+  for (const lot of lots) {
+    if (remaining.lte(0)) break;
+    const available = new Decimal(lot.remainingRmb);
+    if (available.lte(0)) continue;
+
+    const reduce = Decimal.min(available, remaining);
+    await tx
+      .update(rmbLots)
+      .set({ remainingRmb: toDbMoney(available.sub(reduce)) })
+      .where(eq(rmbLots.id, lot.id));
+    remaining = remaining.sub(reduce);
+  }
+}
+
+/** Align the global RMB FIFO cost pool to current RMB account balances without changing account balances. */
+export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
   const rmbAccounts = await tx
-    .select({ id: accounts.id, balance: accounts.balance })
+    .select({ id: accounts.id, balance: accounts.balance, isActive: accounts.isActive })
     .from(accounts)
     .where(eq(accounts.currency, "RMB"));
+  if (!rmbAccounts.length) return;
 
-  for (const account of rmbAccounts) {
-    const lotRows = await tx
-      .select({ remainingRmb: rmbLots.remainingRmb })
-      .from(rmbLots)
-      .where(eq(rmbLots.accountId, account.id));
-    const lotTotal = lotRows.reduce((sum, row) => sum.add(row.remainingRmb), new Decimal(0));
-    const gap = new Decimal(account.balance).sub(lotTotal);
-    if (gap.lte(0.01)) continue;
+  const accountTotal = rmbAccounts.reduce((sum, account) => sum.add(account.balance), new Decimal(0));
+  const lotRows = await tx.select({ remainingRmb: rmbLots.remainingRmb }).from(rmbLots);
+  const lotTotal = lotRows.reduce((sum, row) => sum.add(row.remainingRmb), new Decimal(0));
+  const gap = accountTotal.sub(lotTotal);
 
-    const exchangeRate = await estimateAccountUnitCost(tx, account.id);
-    const rmbAmount = money(gap);
-    const twdCost = toDbTwd(gap.mul(exchangeRate));
+  if (gap.abs().lte(0.01)) return;
 
-    const [purchase] = await tx
-      .insert(purchases)
-      .values({
-        channelId,
-        depositAccountId: account.id,
-        rmbAmount: toDbMoney(rmbAmount),
-        exchangeRate: toDbRate(exchangeRate),
-        twdCost: toDbTwd(twdCost),
-        paymentStatus: "paid",
-        operatorId
-      })
-      .returning();
-
-    await tx.insert(rmbLots).values({
-      purchaseId: purchase.id,
-      accountId: account.id,
-      originalRmb: toDbMoney(rmbAmount),
-      remainingRmb: toDbMoney(rmbAmount),
-      unitCostTwd: toDbRate(exchangeRate),
-      exchangeRate: toDbRate(exchangeRate)
-    });
+  if (gap.lt(0)) {
+    await reduceGlobalLotsFifo(tx, gap.abs());
+    return;
   }
+
+  const channelId = await ensureSyncChannel(tx);
+  const depositAccount = rmbAccounts.find((account) => account.isActive) ?? rmbAccounts[0];
+  const exchangeRate = await estimateGlobalUnitCost(tx);
+  const rmbAmount = money(gap);
+  const twdCost = toDbTwd(gap.mul(exchangeRate));
+
+  const [purchase] = await tx
+    .insert(purchases)
+    .values({
+      channelId,
+      depositAccountId: depositAccount.id,
+      rmbAmount: toDbMoney(rmbAmount),
+      exchangeRate: toDbRate(exchangeRate),
+      twdCost,
+      paymentStatus: "paid",
+      operatorId
+    })
+    .returning();
+
+  await tx.insert(rmbLots).values({
+    purchaseId: purchase.id,
+    accountId: depositAccount.id,
+    originalRmb: toDbMoney(rmbAmount),
+    remainingRmb: toDbMoney(rmbAmount),
+    unitCostTwd: toDbRate(exchangeRate),
+    exchangeRate: toDbRate(exchangeRate)
+  });
 }
 
 export async function transferRmbLots(
   tx: DbTx,
   input: { fromAccountId: number; toAccountId: number; amount: string; transferId: number }
 ) {
-  let remaining = new Decimal(input.amount);
-  const lots = await tx
-    .select()
-    .from(rmbLots)
-    .where(eq(rmbLots.accountId, input.fromAccountId))
-    .orderBy(asc(rmbLots.createdAt));
-
-  for (const lot of lots) {
-    if (remaining.lte(0)) break;
-    const available = new Decimal(lot.remainingRmb);
-    if (available.lte(0)) continue;
-    const move = Decimal.min(available, remaining);
-    if (move.lte(0)) continue;
-
-    if (move.eq(available)) {
-      await tx
-        .update(rmbLots)
-        .set({ accountId: input.toAccountId, transferId: input.transferId })
-        .where(eq(rmbLots.id, lot.id));
-    } else {
-      await tx
-        .update(rmbLots)
-        .set({ remainingRmb: toDbMoney(available.sub(move)) })
-        .where(eq(rmbLots.id, lot.id));
-      await tx.insert(rmbLots).values({
-        purchaseId: lot.purchaseId,
-        accountId: input.toAccountId,
-        originalRmb: toDbMoney(move),
-        remainingRmb: toDbMoney(move),
-        unitCostTwd: lot.unitCostTwd,
-        exchangeRate: lot.exchangeRate,
-        createdAt: lot.createdAt,
-        transferId: input.transferId
-      });
-    }
-    remaining = remaining.sub(move);
-  }
-
-  if (remaining.gt(0)) {
-    throw new Error(
-      `RMB 可轉庫存不足 ${money(remaining)} RMB。帳戶餘額與 FIFO 庫存不一致，請聯絡管理員對齊庫存`
-    );
-  }
+  void tx;
+  void input;
 }
 
 export async function reverseRmbLotTransfer(tx: DbTx, transferId: number, fromAccountId: number) {
-  const movedLots = await tx.select().from(rmbLots).where(eq(rmbLots.transferId, transferId));
-  if (!movedLots.length) return;
-
-  for (const lot of movedLots) {
-    if (new Decimal(lot.remainingRmb).lt(lot.originalRmb)) {
-      throw new Error("轉帳批次已被售出或動用，無法作廢轉帳");
-    }
-
-    const [sourceLot] = await tx
-      .select()
-      .from(rmbLots)
-      .where(
-        and(
-          ne(rmbLots.id, lot.id),
-          eq(rmbLots.purchaseId, lot.purchaseId),
-          eq(rmbLots.accountId, fromAccountId),
-          eq(rmbLots.unitCostTwd, lot.unitCostTwd),
-          isNull(rmbLots.transferId)
-        )
-      )
-      .limit(1);
-
-    if (sourceLot) {
-      await tx
-        .update(rmbLots)
-        .set({ remainingRmb: toDbMoney(new Decimal(sourceLot.remainingRmb).add(lot.remainingRmb)) })
-        .where(eq(rmbLots.id, sourceLot.id));
-      await tx.update(rmbLots).set({ remainingRmb: "0.00", transferId: null }).where(eq(rmbLots.id, lot.id));
-    } else {
-      await tx
-        .update(rmbLots)
-        .set({ accountId: fromAccountId, transferId: null })
-        .where(eq(rmbLots.id, lot.id));
-    }
-  }
-
-  await tx.delete(rmbLots).where(lte(rmbLots.remainingRmb, "0"));
+  void tx;
+  void transferId;
+  void fromAccountId;
 }

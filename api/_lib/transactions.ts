@@ -2,7 +2,6 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { allocateFifo, calcProfit, calcTwd, money, toDbMoney, toDbRate, toDbTwd, twdMoney } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
-import { reverseRmbLotTransfer, transferRmbLots } from "./rmbInventory.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
 import { getAvailableProfitTwd, insertSaleProfitLedger, syncSaleProfitLedger } from "./profitLedger.js";
@@ -156,12 +155,18 @@ export async function createSale(input: {
       set: { isActive: true }
     }).returning({ id: customers.id }))[0].id;
 
+    const [rmbAccount] = await tx.select().from(accounts).where(eq(accounts.id, input.rmbAccountId));
+    if (!rmbAccount || rmbAccount.currency !== "RMB") throw new Error("請選擇 RMB 帳戶");
+    if (money(rmbAccount.balance).lt(input.rmbAmount)) {
+      throw new Error(`RMB 帳戶餘額不足，尚缺 ${toDbMoney(money(input.rmbAmount).sub(rmbAccount.balance))} RMB`);
+    }
+
     const lots = await tx.select({
       id: rmbLots.id,
       remainingRmb: rmbLots.remainingRmb,
       unitCostTwd: rmbLots.unitCostTwd
     }).from(rmbLots)
-      .where(and(eq(rmbLots.accountId, input.rmbAccountId), gt(rmbLots.remainingRmb, "0")))
+      .where(gt(rmbLots.remainingRmb, "0"))
       .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
     const allocation = allocateFifo(lots, input.rmbAmount);
@@ -496,15 +501,6 @@ export async function createTransfer(input: {
       operatorId: actor.id
     }).returning();
 
-    if (from.currency === "RMB") {
-      await transferRmbLots(tx, {
-        fromAccountId: input.fromAccountId,
-        toAccountId: input.toAccountId,
-        amount: input.amount,
-        transferId: transfer.id
-      });
-    }
-
     const transferNote = input.note?.trim() ? `轉帳：${input.note.trim()}` : "帳戶轉帳";
     await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${transferAmount}`, "out", "transfer", transfer.id, actor.id, transferNote);
     await addAccountDelta(tx, input.toAccountId, to.currency as Currency, transferAmount, "in", "transfer", transfer.id, actor.id, transferNote);
@@ -634,7 +630,7 @@ async function consumeRmbLotsFifo(tx: DbTx, accountId: number, rmbAmount: string
       unitCostTwd: rmbLots.unitCostTwd
     })
     .from(rmbLots)
-    .where(and(eq(rmbLots.accountId, accountId), gt(rmbLots.remainingRmb, "0")))
+    .where(gt(rmbLots.remainingRmb, "0"))
     .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
   const allocation = allocateFifo(lots, rmbAmount);
@@ -713,6 +709,9 @@ export async function createAccountAdjustment(
         return depositResult;
       }
 
+      if (money(account.balance).lt(input.amount)) {
+        throw new Error(`RMB 帳戶餘額不足，尚缺 ${toDbMoney(money(input.amount).sub(account.balance))} RMB`);
+      }
       const allocation = await consumeRmbLotsFifo(tx, account.id, input.amount);
       const nominalTwd = toDbTwd(calcTwd(input.amount, input.exchangeRate));
       const description = `${account.name} 撤資 @${toDbRate(input.exchangeRate)}，FIFO 成本 ${allocation.totalCostTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;

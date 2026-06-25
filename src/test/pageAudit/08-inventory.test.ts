@@ -35,7 +35,7 @@ describe("page audit 8/8 FIFO 庫存", () => {
     const state = createSeedState();
     const rmbAccount = state.accounts.find((account) => account.id === 4)!;
     const lotsBefore = state.rmbLots
-      .filter((lot) => lot.accountId === rmbAccount.id && d(lot.remainingRmb).gt(0))
+      .filter((lot) => d(lot.remainingRmb).gt(0))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const oldest = lotsBefore[0];
     const remainingBefore = oldest.remainingRmb;
@@ -65,15 +65,18 @@ describe("page audit 8/8 FIFO 庫存", () => {
     expect(allocation?.purchaseId).toBeTruthy();
   });
 
-  it("RMB transfer moves lot quantities between accounts", () => {
+  it("RMB transfer keeps the global FIFO pool unchanged", () => {
     const state = createSeedState();
     const from = state.accounts.find((account) => account.id === 4)!;
     const to = state.accounts.find((account) => account.id === 2)!;
-    const fromBefore = accountFifoRmb(state, from.id);
-    const toBefore = accountFifoRmb(state, to.id);
+    const fifoBefore = accountFifoRmb(state, from.id);
+    const fromBalanceBefore = from.balance;
+    const toBalanceBefore = to.balance;
     addTransfer(state, { fromAccountId: from.id, toAccountId: to.id, amount: "1000" });
-    expect(accountFifoRmb(state, from.id)).toBe(d(fromBefore).sub("1000").toFixed(2));
-    expect(accountFifoRmb(state, to.id)).toBe(d(toBefore).add("1000").toFixed(2));
+    expect(accountFifoRmb(state, from.id)).toBe(fifoBefore);
+    expect(accountFifoRmb(state, to.id)).toBe(fifoBefore);
+    expect(from.balance).toBe(d(fromBalanceBefore).sub("1000").toFixed(2));
+    expect(to.balance).toBe(d(toBalanceBefore).add("1000").toFixed(2));
     assertAccountFifoMatchesLots(state, from.id);
     assertAccountFifoMatchesLots(state, to.id);
     assertDashboardTotals(state);

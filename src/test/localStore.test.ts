@@ -106,12 +106,16 @@ describe("local demo store", () => {
     expect(preview).toMatchObject({ twdAmount: "4500.00", profitTwd: "80.00", profitError: null });
   });
 
-  it("moves FIFO lots on RMB internal transfer", () => {
+  it("keeps the global FIFO pool unchanged on RMB internal transfer", () => {
     const state = createSeedState();
-    const fromFifoBefore = accountFifoRmb(state, 4);
+    const fifoBefore = accountFifoRmb(state, 4);
+    const from = state.accounts.find((account) => account.id === 4)!;
+    const to = state.accounts.find((account) => account.id === 2)!;
     addTransfer(state, { fromAccountId: 4, toAccountId: 2, amount: "1000" });
-    expect(accountFifoRmb(state, 4)).toBe(d(fromFifoBefore).sub(1000).toDecimalPlaces(2).toFixed(2));
-    expect(accountFifoRmb(state, 2)).toBe("39000.00");
+    expect(accountFifoRmb(state, 4)).toBe(fifoBefore);
+    expect(accountFifoRmb(state, 2)).toBe(fifoBefore);
+    expect(from.balance).toBe("57500.00");
+    expect(to.balance).toBe("39000.00");
   });
 
   it("reverses an RMB internal transfer and restores account FIFO inventory", () => {
@@ -173,7 +177,7 @@ describe("local demo store", () => {
     account.balance = "20000.00";
     state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
     reconcileLocalRmbLotInventory(state);
-    expect(accountFifoRmb(state, 4)).toBe("20000.00");
+    expect(accountFifoRmb(state, 4)).toBe("58000.00");
     const preview = previewSaleProfit(state, {
       rmbAccountId: 4,
       rmbAmount: "3000",
@@ -590,7 +594,7 @@ describe("local demo store", () => {
 
   it("links RMB deposit to FIFO lots and withdraws by FIFO", () => {
     const state = createSeedState();
-    const beforeLots = state.rmbLots.filter((lot) => lot.accountId === 2).reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+    const beforeLots = state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
 
     adjustAccount(state, { accountId: 2, direction: "in", amount: "10000", exchangeRate: "4.50", note: "補庫" });
     expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("48000.00");
@@ -603,7 +607,7 @@ describe("local demo store", () => {
 
     adjustAccount(state, { accountId: 2, direction: "out", amount: "5000", exchangeRate: "4.55" });
     expect(state.accounts.find((account) => account.id === 2)?.balance).toBe("43000.00");
-    const afterLots = state.rmbLots.filter((lot) => lot.accountId === 2).reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+    const afterLots = state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
     expect(afterLots.toFixed(2)).toBe(beforeLots.add(10000).sub(5000).toFixed(2));
   });
 

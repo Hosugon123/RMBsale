@@ -942,6 +942,11 @@ export function addSale(state: AppState, input: { customerName: string; rmbAccou
   const customer = getOrCreateByName(state.customers, input.customerName, { receivableTwd: "0.00" });
   const twdAmount = twdMoney(d(input.rmbAmount).mul(input.exchangeRate));
   const saleId = nextId(state.sales);
+  const account = state.accounts.find((item) => item.id === input.rmbAccountId);
+  if (!account || account.currency !== "RMB") throw new Error("請選擇 RMB 帳戶");
+  if (d(account.balance).lt(input.rmbAmount)) {
+    throw new Error(`RMB 帳戶餘額不足，尚缺 ${money(d(input.rmbAmount).sub(account.balance))} RMB`);
+  }
   const allocation = consumeRmbLotsStrict(state, input.rmbAccountId, input.rmbAmount);
   const profitTwd = twdMoney(d(twdAmount).sub(allocation.costTwd));
   const sale = {
@@ -1243,6 +1248,9 @@ export function adjustAccount(
       return state;
     }
 
+    if (d(account.balance).lt(amount)) {
+      throw new Error(`RMB 帳戶餘額不足，尚缺 ${money(d(amount).sub(account.balance))} RMB`);
+    }
     const allocation = consumeRmbLotsStrict(state, account.id, amount);
     const nominalTwd = twdMoney(d(amount).mul(input.exchangeRate));
     const description = `${account.holderName} / ${account.name} 撤資 @${rate(input.exchangeRate)}，FIFO 成本 ${allocation.costTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;
@@ -1495,23 +1503,26 @@ export function addAccount(state: AppState, input: { holderId: number; name: str
 }
 
 export function accountFifoRmb(state: AppState, accountId: number): string {
+  void accountId;
   return money(
     state.rmbLots
-      .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
+      .filter((lot) => d(lot.remainingRmb).gt(0))
       .reduce((sum, lot) => sum.add(lot.remainingRmb), d(0))
   );
 }
 
+
 const INVENTORY_SYNC_CHANNEL = "庫存對齊";
 
 function estimateAccountUnitCost(state: AppState, accountId: number): string {
-  const lots = state.rmbLots.filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0));
+  void accountId;
+  const lots = state.rmbLots.filter((lot) => d(lot.remainingRmb).gt(0));
   if (lots.length) {
     const totalRmb = lots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
     const totalCost = lots.reduce((sum, lot) => sum.add(d(lot.remainingRmb).mul(lot.unitCostTwd)), d(0));
     if (totalRmb.gt(0)) return rate(totalCost.div(totalRmb));
   }
-  const recentPurchase = state.purchases.find((purchase) => purchase.depositAccountId === accountId);
+  const recentPurchase = state.purchases[0];
   if (recentPurchase) return recentPurchase.exchangeRate;
   return "4.500000";
 }
@@ -1522,122 +1533,60 @@ export function reconcileLocalRmbLotInventory(state: AppState) {
     addChannel(state, { name: INVENTORY_SYNC_CHANNEL });
   }
   const channel = state.channels.find((item) => item.name === INVENTORY_SYNC_CHANNEL)!;
-  let added = false;
+  const rmbAccounts = state.accounts.filter((item) => item.currency === "RMB");
+  const accountTotal = rmbAccounts.reduce((sum, account) => sum.add(account.balance), d(0));
+  const lotTotal = state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
+  const gap = accountTotal.sub(lotTotal);
+  if (gap.abs().lte(0.01)) return;
 
-  for (const account of state.accounts.filter((item) => item.currency === "RMB")) {
-    const lotTotal = state.rmbLots
-      .filter((lot) => lot.accountId === account.id)
-      .reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
-    const gap = d(account.balance).sub(lotTotal);
-    if (gap.lte(0.01)) continue;
-
-    const exchangeRate = estimateAccountUnitCost(state, account.id);
-    const rmbAmount = money(gap);
-    const twdCost = twdMoney(gap.mul(exchangeRate));
-    const purchaseId = nextId(state.purchases);
-    state.purchases.unshift({
-      id: purchaseId,
-      channelId: channel.id,
-      channelName: channel.name,
-      depositAccountId: account.id,
-      rmbAmount,
-      exchangeRate: rate(exchangeRate),
-      twdCost,
-      paidTwd: twdCost,
-      paymentStatus: "paid",
-      operatorName: currentOperator(state),
-      createdAt: txNow()
-    });
-    state.rmbLots.push({
-      id: nextId(state.rmbLots),
-      purchaseId,
-      accountId: account.id,
-      channelName: channel.name,
-      originalRmb: rmbAmount,
-      remainingRmb: rmbAmount,
-      unitCostTwd: rate(exchangeRate),
-      exchangeRate: rate(exchangeRate),
-      createdAt: txNow()
-    });
-    added = true;
+  if (gap.lt(0)) {
+    let remaining = gap.abs();
+    const lots = [...state.rmbLots].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+    for (const lot of lots) {
+      if (remaining.lte(0)) break;
+      const available = d(lot.remainingRmb);
+      if (available.lte(0)) continue;
+      const reduce = Decimal.min(available, remaining);
+      lot.remainingRmb = money(available.sub(reduce));
+      remaining = remaining.sub(reduce);
+    }
+    saveState(state);
+    return;
   }
 
-  if (added) saveState(state);
+  const account = rmbAccounts.find((item) => item.isActive) ?? rmbAccounts[0];
+  if (!account) return;
+  const exchangeRate = estimateAccountUnitCost(state, account.id);
+  const rmbAmount = money(gap);
+  const twdCost = twdMoney(gap.mul(exchangeRate));
+  const purchaseId = nextId(state.purchases);
+  state.purchases.unshift({
+    id: purchaseId,
+    channelId: channel.id,
+    channelName: channel.name,
+    depositAccountId: account.id,
+    rmbAmount,
+    exchangeRate: rate(exchangeRate),
+    twdCost,
+    paidTwd: twdCost,
+    paymentStatus: "paid",
+    operatorName: currentOperator(state),
+    createdAt: txNow()
+  });
+  state.rmbLots.push({
+    id: nextId(state.rmbLots),
+    purchaseId,
+    accountId: account.id,
+    channelName: channel.name,
+    originalRmb: rmbAmount,
+    remainingRmb: rmbAmount,
+    unitCostTwd: rate(exchangeRate),
+    exchangeRate: rate(exchangeRate),
+    createdAt: txNow()
+  });
+  saveState(state);
 }
 
-function transferRmbLots(
-  state: AppState,
-  input: { fromAccountId: number; toAccountId: number; amount: string; transferId: number }
-) {
-  let remaining = d(input.amount);
-  const lots = state.rmbLots
-    .filter((lot) => lot.accountId === input.fromAccountId && d(lot.remainingRmb).gt(0))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-  for (const lot of lots) {
-    if (remaining.lte(0)) break;
-    const available = d(lot.remainingRmb);
-    const move = Decimal.min(remaining, available);
-    if (move.lte(0)) continue;
-
-    if (move.eq(available)) {
-      lot.accountId = input.toAccountId;
-      lot.transferId = input.transferId;
-    } else {
-      lot.remainingRmb = money(available.sub(move));
-      state.rmbLots.push({
-        id: nextId(state.rmbLots),
-        purchaseId: lot.purchaseId,
-        accountId: input.toAccountId,
-        channelName: lot.channelName,
-        originalRmb: money(move),
-        remainingRmb: money(move),
-        unitCostTwd: lot.unitCostTwd,
-        exchangeRate: lot.exchangeRate,
-        createdAt: lot.createdAt,
-        transferId: input.transferId
-      });
-    }
-    remaining = remaining.sub(move);
-  }
-
-  if (remaining.gt(0)) {
-    throw new Error(
-      `RMB 可轉庫存不足 ${money(remaining)} RMB。帳戶餘額與 FIFO 庫存不一致，請重新整理後再試`
-    );
-  }
-}
-
-function reverseRmbLotTransfer(state: AppState, transferId: number, fromAccountId: number) {
-  const movedLots = state.rmbLots.filter((lot) => lot.transferId === transferId);
-  if (!movedLots.length) return;
-
-  for (const lot of movedLots) {
-    if (d(lot.remainingRmb).lt(lot.originalRmb)) {
-      throw new Error("轉帳批次已被售出或動用，無法作廢轉帳");
-    }
-
-    const sourceLot = state.rmbLots.find(
-      (row) =>
-        row.id !== lot.id &&
-        row.purchaseId === lot.purchaseId &&
-        row.accountId === fromAccountId &&
-        row.unitCostTwd === lot.unitCostTwd &&
-        row.transferId == null
-    );
-
-    if (sourceLot) {
-      sourceLot.remainingRmb = money(d(sourceLot.remainingRmb).add(lot.remainingRmb));
-      lot.remainingRmb = "0.00";
-      lot.transferId = undefined;
-    } else {
-      lot.accountId = fromAccountId;
-      lot.transferId = undefined;
-    }
-  }
-
-  state.rmbLots = state.rmbLots.filter((lot) => d(lot.remainingRmb).gt(0));
-}
 
 export function addTransfer(state: AppState, input: { fromAccountId: number; toAccountId: number; amount: string; note?: string }) {
   const from = state.accounts.find((a) => a.id === input.fromAccountId);
@@ -1646,15 +1595,6 @@ export function addTransfer(state: AppState, input: { fromAccountId: number; toA
   if (from.currency !== to.currency) throw new Error("帳戶內轉必須使用相同幣別");
   if (d(input.amount).lte(0)) throw new Error("金額必須大於 0");
   const transferId = nextId(state.ledger);
-
-  if (from.currency === "RMB") {
-    transferRmbLots(state, {
-      fromAccountId: from.id,
-      toAccountId: to.id,
-      amount: money(input.amount),
-      transferId
-    });
-  }
 
   const amount = from.currency === "TWD" ? twdMoney(input.amount) : money(input.amount);
   mutateAccount(state, from.id, from.currency, d(amount).neg().toFixed(2), "out", "內轉", transferId, `轉出至 ${to.holderName} / ${to.name}`);
@@ -1675,10 +1615,11 @@ function getOrCreateByName<T extends { id: number; name: string; isActive: boole
 }
 
 function allocateFifoPreview(state: AppState, accountId: number, requestedRmb: string) {
+  void accountId;
   let remaining = d(requestedRmb);
   let costTwd = d(0);
   const lots = state.rmbLots
-    .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
+    .filter((lot) => d(lot.remainingRmb).gt(0))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const lot of lots) {
     if (remaining.lte(0)) break;
@@ -1701,6 +1642,16 @@ export function previewSaleProfit(
   if (!parsedRmbAmount || !parsedExchangeRate || !parsedRmbAmount.gt(0) || !parsedExchangeRate.gt(0)) return null;
 
   const twdAmount = twdMoney(parsedRmbAmount.mul(parsedExchangeRate));
+  const account = state.accounts.find((item) => item.id === input.rmbAccountId);
+  if (!account || account.currency !== "RMB") return null;
+  if (d(account.balance).lt(parsedRmbAmount)) {
+    return {
+      twdAmount,
+      profitTwd: null,
+      profitWarning: null,
+      profitError: `RMB 帳戶餘額不足，尚缺 ${money(parsedRmbAmount.sub(account.balance))} RMB`
+    };
+  }
   const { costTwd, shortfallRmb } = allocateFifoPreview(state, input.rmbAccountId, rmbAmount);
   if (d(shortfallRmb).gt(0)) {
     return {
@@ -1719,11 +1670,12 @@ export function previewSaleProfit(
 }
 
 function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: string) {
+  void accountId;
   let remaining = d(requestedRmb);
   let costTwd = d(0);
   const items: Array<{ lotId: number; purchaseId: number; channelName: string; allocatedRmb: string; unitCostTwd: string; costTwd: string }> = [];
   const lots = state.rmbLots
-    .filter((lot) => lot.accountId === accountId && d(lot.remainingRmb).gt(0))
+    .filter((lot) => d(lot.remainingRmb).gt(0))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const availableRmb = lots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
   if (availableRmb.lt(remaining)) {
@@ -1941,10 +1893,6 @@ export function reverseOperation(
           row.accountId
       );
       if (ledgers.length === 0) throw new Error("找不到轉帳紀錄或已作廢");
-      const outLedger = ledgers.find((row) => row.direction === "out");
-      if (outLedger?.currency === "RMB" && outLedger.accountId) {
-        reverseRmbLotTransfer(state, input.entityId, outLedger.accountId);
-      }
       ledgers.forEach((row) => reverseAccountLedger(state, row, `作廢轉帳 #${input.entityId}`, "轉帳作廢"));
       break;
     }

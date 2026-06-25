@@ -18,8 +18,8 @@ describe("AppStoreProvider", () => {
     const { result } = renderHook(() => useAppStore(), { wrapper });
     act(() => {
       const account = result.current.state.accounts.find((a) => a.id === 4)!;
-      account.balance = "0.00";
-      result.current.state.rmbLots = result.current.state.rmbLots.filter((lot) => lot.accountId !== 4);
+      account.balance = "500.00";
+      result.current.state.rmbLots = [];
     });
 
     const salesBefore = result.current.state.sales.length;

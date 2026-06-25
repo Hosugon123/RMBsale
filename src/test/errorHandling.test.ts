@@ -60,8 +60,8 @@ describe("store error handling (no partial apply on failure)", () => {
 
   it("rejects sale when RMB inventory is insufficient", () => {
     const state = createSeedState();
-    state.accounts.find((a) => a.id === 4)!.balance = "0.00";
-    state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
+    state.accounts.find((a) => a.id === 4)!.balance = "1000.00";
+    state.rmbLots = [];
 
     const result = simulateCommit(state, (draft) =>
       addSale(draft, {

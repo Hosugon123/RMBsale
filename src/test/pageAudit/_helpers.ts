@@ -48,11 +48,9 @@ export function assertCustomerReceivableLedger(state: AppState, customerId: numb
 }
 
 export function assertAccountFifoMatchesLots(state: AppState, accountId: number) {
-  const fromLots = state.rmbLots
-    .filter((lot) => lot.accountId === accountId)
-    .reduce((sum, lot) => sum.add(lot.remainingRmb), d(0))
-    .toFixed(2);
-  expect(accountFifoRmb(state, accountId)).toBe(fromLots);
+  void accountId;
+  expect(accountFifoRmb(state, accountId)).toBe(sumLotRemainingRmb(state));
+  expect(sumLotRemainingRmb(state)).toBe(sumAccountBalances(state, "RMB"));
 }
 
 export function topPendingReceivableCustomers(state: AppState, limit = 5) {
