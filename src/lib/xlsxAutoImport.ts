@@ -12,7 +12,11 @@ export function isXlsxImportApplied() {
 export async function loadXlsxImportPayload(): Promise<BusinessDataImport | null> {
   const res = await fetch("/import-from-xlsx.json", { cache: "no-store" });
   if (!res.ok) return null;
-  return parseBusinessImportJson(await res.text());
+  const raw = await res.text();
+  const contentType = res.headers.get("content-type") ?? "";
+  const trimmed = raw.trimStart();
+  if (!contentType.includes("json") && !trimmed.startsWith("{")) return null;
+  return parseBusinessImportJson(raw);
 }
 
 export function formatImportNotice(payload: BusinessDataImport) {
