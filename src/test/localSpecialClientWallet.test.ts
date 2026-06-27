@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createSpecialClient,
   createSpecialClientDeposit,
   createSpecialClientPayout,
   getSpecialClientWallet,
@@ -14,6 +15,15 @@ describe("local special client wallet", () => {
     expect(wallet.clients).toHaveLength(1);
     expect(wallet.clients[0]?.name).toBe("儲值客戶");
     expect(wallet.rmbAccounts.length).toBeGreaterThan(0);
+  });
+
+  it("creates a manual special client and selects it", () => {
+    const state = createSeedState();
+    const wallet = createSpecialClient(state, { name: "0107", feeRate: "0.011000" });
+
+    expect(wallet.clients.some((client) => client.name === "0107")).toBe(true);
+    expect(wallet.selectedClientId).toBe(state.specialClients.find((client) => client.name === "0107")?.id);
+    expect(wallet.summary.balanceRmb).toBe("0.00");
   });
 
   it("deposit credits balance, cash account, and profit ledger", () => {

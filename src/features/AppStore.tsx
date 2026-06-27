@@ -47,6 +47,7 @@ import {
 import type { ReversalEntityType } from "../lib/reversalUi";
 import type { AppState, AppUser, PermissionKey } from "../lib/types";
 import type {
+  CreateSpecialClientBody,
   SpecialClientDepositBody,
   SpecialClientPayoutBody,
   SpecialClientReverseBody,
@@ -54,6 +55,7 @@ import type {
   SpecialClientWalletQuery
 } from "../lib/specialClientWalletTypes";
 import {
+  createSpecialClient,
   createSpecialClientDeposit,
   createSpecialClientPayout,
   getSpecialClientWallet,
@@ -105,6 +107,7 @@ export type AppStore = {
   setUserActive: (userId: number, isActive: boolean) => void | Promise<void>;
   reverseOperation: (input: { entityType: ReversalEntityType; entityId: number }) => void | Promise<void>;
   loadSpecialClientWallet: (query?: SpecialClientWalletQuery) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
+  createSpecialClient: (body: CreateSpecialClientBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
   specialClientDeposit: (body: SpecialClientDepositBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
   specialClientPayout: (body: SpecialClientPayoutBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
   specialClientReverse: (body: SpecialClientReverseBody) => SpecialClientWalletData | Promise<SpecialClientWalletData>;
@@ -225,6 +228,13 @@ function LocalAppStoreProvider({ children }: { children: React.ReactNode }) {
     setUserActive: (userId, isActive) => commit((draft) => setUserActive(draft, userId, isActive)),
     reverseOperation: (input) => commit((draft) => reverseOperation(draft, input)),
     loadSpecialClientWallet: (query) => getSpecialClientWallet(state, query),
+    createSpecialClient: (body) => {
+      let result!: SpecialClientWalletData;
+      commit((draft) => {
+        result = createSpecialClient(draft, body);
+      });
+      return result;
+    },
     specialClientDeposit: (body) => {
       let result!: SpecialClientWalletData;
       commit((draft) => {

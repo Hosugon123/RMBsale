@@ -1,4 +1,5 @@
 import type {
+  CreateSpecialClientBody,
   SpecialClientDepositBody,
   SpecialClientPayoutBody,
   SpecialClientReverseBody,
@@ -75,6 +76,12 @@ export const serverApi = {
 
   specialClientWallet: (params?: SpecialClientWalletQuery) =>
     request<SpecialClientWalletData>(`special-client-wallet${buildSpecialClientWalletQuery(params)}`),
+
+  createSpecialClient: (body: CreateSpecialClientBody) =>
+    request<SpecialClientWalletData>("special-client-wallet", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
 
   specialClientDeposit: (body: SpecialClientDepositBody) =>
     request<SpecialClientWalletData>("special-client-wallet/deposit", {

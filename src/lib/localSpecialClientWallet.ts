@@ -7,6 +7,7 @@ import {
   reversalStatusLabel
 } from "./specialClientWalletShared";
 import type {
+  CreateSpecialClientBody,
   SpecialClientDepositBody,
   SpecialClientPayoutBody,
   SpecialClientReverseBody,
@@ -51,6 +52,34 @@ export function ensureSpecialClientWalletState(state: AppState) {
   if (!state.specialClientWalletEntries) {
     state.specialClientWalletEntries = [];
   }
+}
+
+export function createSpecialClient(state: AppState, input: CreateSpecialClientBody) {
+  if (!state.specialClients) state.specialClients = [];
+  if (!state.specialClientWalletEntries) state.specialClientWalletEntries = [];
+
+  const name = input.name.trim();
+  if (!name) throw new Error("請輸入客戶名稱");
+
+  const feeRate = input.feeRate?.trim() || DEFAULT_SPECIAL_CLIENT.feeRate;
+  if (d(feeRate).lt(0)) throw new Error("服務費率不可小於 0");
+
+  const existing = state.specialClients.find((client) => client.name === name);
+  if (existing) {
+    if (existing.isActive) throw new Error("儲值客戶已存在");
+    existing.isActive = true;
+    existing.feeRate = feeRate;
+    return getSpecialClientWallet(state, { clientId: existing.id });
+  }
+
+  const client = {
+    id: nextId(state.specialClients),
+    name,
+    feeRate,
+    isActive: true
+  };
+  state.specialClients.push(client);
+  return getSpecialClientWallet(state, { clientId: client.id });
 }
 
 function getClientBalance(state: AppState, clientId: number) {

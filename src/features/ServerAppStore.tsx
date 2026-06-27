@@ -405,6 +405,11 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       afterMutation("reversal");
     },
     loadSpecialClientWallet: (query) => serverApi.specialClientWallet(query),
+    createSpecialClient: async (body) => {
+      const data = await serverApi.createSpecialClient(body);
+      afterMutation("adjustment");
+      return data;
+    },
     specialClientDeposit: async (body) => {
       const data = await serverApi.specialClientDeposit(body);
       afterMutation("adjustment");

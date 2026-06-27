@@ -1,10 +1,19 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import {
+  createSpecialClient,
   getSpecialClientWallet,
   type WalletEntryTypeFilter,
   type WalletQueryParams
 } from "../_lib/specialClientWallet.js";
-import { ok, requireUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
+import {
+  getClientMeta,
+  handleRouteError,
+  methodNotAllowed,
+  ok,
+  readJson,
+  requireUser,
+  requireWriteAccess
+} from "../_lib/http.js";
 
 function parseQuery(req: VercelRequest): WalletQueryParams {
   const q = req.query ?? {};
@@ -33,12 +42,25 @@ function parseQuery(req: VercelRequest): WalletQueryParams {
 }
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "GET") return methodNotAllowed(res);
   try {
-    requireUser(req);
-    const data = await getSpecialClientWallet(parseQuery(req));
-    return ok(res, data);
+    if (req.method === "GET") {
+      requireUser(req);
+      const data = await getSpecialClientWallet(parseQuery(req));
+      return ok(res, data);
+    }
+
+    if (req.method === "POST") {
+      const user = await requireWriteAccess(req);
+      const body = await readJson<{ name?: string; feeRate?: string | null }>(req);
+      const data = await createSpecialClient(
+        { name: body.name ?? "", feeRate: body.feeRate ?? undefined },
+        { id: user.id, ...getClientMeta(req) }
+      );
+      return ok(res, data, 201);
+    }
+
+    return methodNotAllowed(res);
   } catch (error) {
-    return handleRouteError(res, error, { fallback: "讀取失敗", validationStatus: 400 });
+    return handleRouteError(res, error, { fallback: "讀取儲值客戶資料失敗", validationStatus: 400 });
   }
 }

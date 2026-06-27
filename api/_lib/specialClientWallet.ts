@@ -26,6 +26,11 @@ export type WalletQueryParams = {
   entryType?: WalletEntryTypeFilter;
 };
 
+type CreateClientInput = {
+  name: string;
+  feeRate?: string | null;
+};
+
 type DepositInput = {
   clientId: number;
   entryDate: string;
@@ -317,6 +322,45 @@ export async function getSpecialClientWallet(params: WalletQueryParams = {}) {
     selectedClientId: activeClientId ?? null,
     rmbAccounts
   };
+}
+
+export async function createSpecialClient(input: CreateClientInput, actor: AuditActor) {
+  const name = input.name?.trim();
+  if (!name) throw new Error("請輸入客戶名稱");
+
+  const feeRate = input.feeRate?.trim() || "0.011000";
+  if (money(feeRate).lt(0)) throw new Error("服務費率不可小於 0");
+
+  const db = getDb();
+  const client = await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(specialClients).where(eq(specialClients.name, name)).limit(1);
+
+    if (existing?.isActive) throw new Error("儲值客戶已存在");
+
+    const [row] = existing
+      ? await tx
+          .update(specialClients)
+          .set({ isActive: true, feeRate: toDbRate(feeRate), updatedAt: new Date() })
+          .where(eq(specialClients.id, existing.id))
+          .returning()
+      : await tx
+          .insert(specialClients)
+          .values({ name, feeRate: toDbRate(feeRate), isActive: true })
+          .returning();
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_SPECIAL_CLIENT,
+      targetType: "special_client",
+      targetId: row.id,
+      before: existing ?? undefined,
+      after: row,
+      actor
+    });
+
+    return row;
+  });
+
+  return getSpecialClientWallet({ clientId: client.id });
 }
 
 export async function createSpecialClientDeposit(input: DepositInput, actor: AuditActor) {

@@ -82,6 +82,11 @@ export type SpecialClientWalletData = {
   rmbAccounts: SpecialClientWalletRmbAccount[];
 };
 
+export type CreateSpecialClientBody = {
+  name: string;
+  feeRate?: string;
+};
+
 export type SpecialClientDepositBody = {
   clientId: number;
   entryDate: string;

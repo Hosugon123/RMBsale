@@ -153,6 +153,12 @@ export const api = {
     );
   },
 
+  createSpecialClient: (body: import('./specialClientWalletTypes').CreateSpecialClientBody) =>
+    request<import('./specialClientWalletTypes').SpecialClientWalletData>('special-client-wallet', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   specialClientDeposit: (body: import('./specialClientWalletTypes').SpecialClientDepositBody) =>
     request<import('./specialClientWalletTypes').SpecialClientWalletData>('special-client-wallet/deposit', {
       method: 'POST',

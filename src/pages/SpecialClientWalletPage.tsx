@@ -1,5 +1,6 @@
 import * as React from "react";
-import { AlertCircle, Download, Loader2, RotateCcw, Wallet, X } from "lucide-react";
+import { AlertCircle, Download, Loader2, Plus, RotateCcw, Wallet, X } from "lucide-react";
+import Decimal from "decimal.js";
 import { useAppStore } from "../features/AppStore";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -7,10 +8,11 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { fieldControlClass } from "../lib/formStyles";
+import { canWriteLedger } from "../lib/permissions";
 import { runMutation } from "../lib/runMutation";
 import { serverApi, useServerDataMode } from "../lib/serverApi";
-import { canWriteLedger } from "../lib/permissions";
 import type {
+  CreateSpecialClientBody,
   SpecialClientDepositBody,
   SpecialClientPayoutBody,
   SpecialClientWalletData,
@@ -19,7 +21,6 @@ import type {
   SpecialClientWalletQuery
 } from "../lib/specialClientWalletTypes";
 import { cn, d, fmtDirectionalMoney, fmtMoney, parseMoneyInput } from "../lib/utils";
-import Decimal from "decimal.js";
 
 const fieldClass = fieldControlClass;
 
@@ -53,25 +54,25 @@ function calcPreview(grossRmb: string, feeRatePct: string) {
 function balanceHint(balance: string) {
   const value = d(balance);
   if (value.gt(0)) {
-    return { text: `可代付額度 ${fmtMoney(value, "RMB")}`, className: "text-emerald-600 dark:text-emerald-400" };
+    return { text: `尚可代付 ${fmtMoney(value, "RMB")}`, className: "text-emerald-600 dark:text-emerald-400" };
   }
   if (value.eq(0)) {
     return { text: "已無剩餘額度", className: "text-muted-foreground" };
   }
   return {
-    text: `已超付 ${fmtMoney(value.abs(), "RMB")}，客戶欠公司款`,
+    text: `已超付 ${fmtMoney(value.abs(), "RMB")}`,
     className: "text-destructive"
   };
 }
 
 function entrySummary(entry: SpecialClientWalletEntry) {
   if (entry.type === "reversal" && entry.originalEntryId) {
-    return entry.vendorName ? `沖銷代付 · ${entry.vendorName}` : `沖銷 #${entry.originalEntryId}`;
+    return entry.vendorName ? `沖銷代付：${entry.vendorName}` : `沖銷 #${entry.originalEntryId}`;
   }
   if (entry.type === "deposit") {
     const parts = [`結匯 ${fmtMoney(entry.grossRmb ?? 0, "RMB")}`];
     if (entry.usdAmount) parts.unshift(`USD ${entry.usdAmount}`);
-    return parts.join(" · ");
+    return parts.join(" / ");
   }
   return entry.vendorName ?? entry.purpose ?? "代付";
 }
@@ -94,6 +95,7 @@ export function SpecialClientWalletPage() {
     refresh,
     sessionUser,
     loadSpecialClientWallet,
+    createSpecialClient,
     specialClientDeposit,
     specialClientPayout,
     specialClientReverse
@@ -102,9 +104,11 @@ export function SpecialClientWalletPage() {
   const [error, setError] = React.useState<string>();
   const [wallet, setWallet] = React.useState<SpecialClientWalletData | null>(null);
   const [selectedClientId, setSelectedClientId] = React.useState<string>("");
+  const [clientFormOpen, setClientFormOpen] = React.useState(false);
+  const [clientError, setClientError] = React.useState<string>();
   const [depositError, setDepositError] = React.useState<string>();
   const [payoutError, setPayoutError] = React.useState<string>();
-  const [submitting, setSubmitting] = React.useState<"deposit" | "payout" | "reverse" | "export" | null>(null);
+  const [submitting, setSubmitting] = React.useState<"client" | "deposit" | "payout" | "reverse" | "export" | null>(null);
   const [filters, setFilters] = React.useState({
     dateFrom: "",
     dateTo: "",
@@ -113,6 +117,11 @@ export function SpecialClientWalletPage() {
   const [reverseTarget, setReverseTarget] = React.useState<SpecialClientWalletEntry | null>(null);
   const [reverseReason, setReverseReason] = React.useState("");
   const [reverseError, setReverseError] = React.useState("");
+
+  const [clientForm, setClientForm] = React.useState({
+    name: "",
+    feeRatePct: "1.1"
+  });
 
   const [depositForm, setDepositForm] = React.useState({
     entryDate: todayIsoDate(),
@@ -148,7 +157,7 @@ export function SpecialClientWalletPage() {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "讀取失敗");
+        setError(err instanceof Error ? err.message : "讀取儲值客戶資料失敗");
       } finally {
         setLoading(false);
       }
@@ -171,7 +180,7 @@ export function SpecialClientWalletPage() {
 
   const exportExcel = async () => {
     if (!serverMode) {
-      setError("本機 demo 模式不支援 Excel 匯出，請改用線上環境");
+      setError("目前 demo 模式不支援匯出 Excel，請在正式環境使用。");
       return;
     }
     setError(undefined);
@@ -197,11 +206,47 @@ export function SpecialClientWalletPage() {
     }
   };
 
+  const submitClient = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setClientError(undefined);
+    const name = clientForm.name.trim();
+    if (!name) {
+      setClientError("請輸入客戶名稱");
+      return;
+    }
+    const feeRatePct = parseMoneyInput(clientForm.feeRatePct);
+    if (!feeRatePct || feeRatePct.lt(0)) {
+      setClientError("服務費率不可小於 0");
+      return;
+    }
+
+    const body: CreateSpecialClientBody = {
+      name,
+      feeRate: pctToRate(clientForm.feeRatePct)
+    };
+
+    try {
+      setSubmitting("client");
+      await runMutation(async () => {
+        const data = await createSpecialClient(body);
+        setWallet(data);
+        if (data.selectedClientId) setSelectedClientId(String(data.selectedClientId));
+        setClientForm({ name: "", feeRatePct: "1.1" });
+        setClientFormOpen(false);
+        await refresh();
+      });
+    } catch (err) {
+      setClientError(err instanceof Error ? err.message : "新增客戶失敗");
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
   const submitReverse = async () => {
     if (!reverseTarget) return;
     setReverseError("");
     if (!reverseReason.trim()) {
-      setReverseError("請填寫沖銷原因");
+      setReverseError("請輸入作廢原因");
       return;
     }
     try {
@@ -264,7 +309,7 @@ export function SpecialClientWalletPage() {
       return;
     }
     if (!depositForm.cashAccountId) {
-      setDepositError("請選擇入帳公司 RMB 帳戶");
+      setDepositError("請選擇入帳的 RMB 帳戶");
       return;
     }
     const grossRmb = parseMoneyInput(depositForm.grossRmb);
@@ -274,17 +319,17 @@ export function SpecialClientWalletPage() {
     }
     const feeRatePct = parseMoneyInput(depositForm.feeRatePct);
     if (!feeRatePct || feeRatePct.lt(0)) {
-      setDepositError("服務費率格式不正確");
+      setDepositError("服務費率不可小於 0");
       return;
     }
     const usdAmount = depositForm.usdAmount.trim() ? parseMoneyInput(depositForm.usdAmount) : null;
     if (depositForm.usdAmount.trim() && (!usdAmount || usdAmount.lte(0))) {
-      setDepositError("USD 金額格式不正確");
+      setDepositError("USD 金額必須大於 0");
       return;
     }
     const usdToRmbRate = depositForm.usdToRmbRate.trim() ? parseMoneyInput(depositForm.usdToRmbRate) : null;
     if (depositForm.usdToRmbRate.trim() && (!usdToRmbRate || usdToRmbRate.lte(0))) {
-      setDepositError("USD/RMB 匯率格式不正確");
+      setDepositError("USD/RMB 匯率必須大於 0");
       return;
     }
     if (depositForm.usdAmount.trim() && depositForm.usdToRmbRate.trim()) {
@@ -326,7 +371,7 @@ export function SpecialClientWalletPage() {
       return;
     }
     if (!payoutForm.cashAccountId) {
-      setPayoutError("請選擇付款公司 RMB 帳戶");
+      setPayoutError("請選擇付款的 RMB 帳戶");
       return;
     }
     const payoutRmb = parseMoneyInput(payoutForm.payoutRmb);
@@ -363,33 +408,40 @@ export function SpecialClientWalletPage() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        載入特殊客戶儲值代付帳…
+        讀取特殊客戶儲值代付資料中...
       </div>
     );
   }
 
+  const hasClients = Boolean(wallet?.clients.length);
+  const shouldShowClientForm = clientFormOpen || !hasClients;
+
   return (
     <div className="space-y-4 pb-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">特殊客戶儲值代付帳</h1>
-          <p className="text-sm text-muted-foreground">記錄特殊客戶結匯儲值、代付與 1.1% 服務費利潤。</p>
+          <p className="text-sm text-muted-foreground">記錄特殊客戶結匯儲值、代付與服務費利潤。</p>
         </div>
-        {wallet?.clients.length ? (
-          <div className="w-full sm:w-56">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {hasClients ? (
             <Select
-              className={fieldClass}
+              className={cn(fieldClass, "sm:w-56")}
               value={selectedClientId}
               onChange={(e) => handleClientChange(e.target.value)}
             >
-              {wallet.clients.map((client) => (
+              {wallet?.clients.map((client) => (
                 <option key={client.id} value={client.id}>
                   {client.name}
                 </option>
               ))}
             </Select>
-          </div>
-        ) : null}
+          ) : null}
+          <Button type="button" variant={hasClients ? "outline" : "default"} onClick={() => setClientFormOpen(true)}>
+            <Plus className="h-4 w-4" />
+            新增客戶
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -399,11 +451,49 @@ export function SpecialClientWalletPage() {
         </div>
       ) : null}
 
-      {!wallet?.clients.length ? (
+      {shouldShowClientForm ? (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">尚未設定儲值客戶，請聯絡管理員。</CardContent>
+          <CardHeader>
+            <CardTitle className="text-base">新增儲值客戶</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_auto]" onSubmit={(e) => void submitClient(e)}>
+              <label className="space-y-1 text-sm">
+                <span>客戶名稱 *</span>
+                <Input
+                  className={fieldClass}
+                  value={clientForm.name}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="例如 0107"
+                  required
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span>服務費率 (%)</span>
+                <Input
+                  className={fieldClass}
+                  inputMode="decimal"
+                  value={clientForm.feeRatePct}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, feeRatePct: e.target.value }))}
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                <Button type="submit" disabled={submitting === "client" || !sessionUser}>
+                  {submitting === "client" ? "新增中..." : "確認新增"}
+                </Button>
+                {hasClients ? (
+                  <Button type="button" variant="outline" onClick={() => setClientFormOpen(false)}>
+                    取消
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+            {clientError ? <p className="mt-2 text-sm text-destructive">{clientError}</p> : null}
+          </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      {!hasClients ? null : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Card>
@@ -411,7 +501,7 @@ export function SpecialClientWalletPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">目前客戶餘額</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet.summary.balanceRmb, "RMB")}</p>
+                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet!.summary.balanceRmb, "RMB")}</p>
                 {balanceStatus ? <p className={cn("mt-1 text-sm", balanceStatus.className)}>{balanceStatus.text}</p> : null}
               </CardContent>
             </Card>
@@ -420,7 +510,7 @@ export function SpecialClientWalletPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">區間累計結匯 RMB</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet.summary.totalGrossRmb, "RMB")}</p>
+                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet!.summary.totalGrossRmb, "RMB")}</p>
               </CardContent>
             </Card>
             <Card>
@@ -428,7 +518,7 @@ export function SpecialClientWalletPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">區間累計代付 RMB</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet.summary.totalPayoutRmb, "RMB")}</p>
+                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet!.summary.totalPayoutRmb, "RMB")}</p>
               </CardContent>
             </Card>
             <Card>
@@ -436,7 +526,7 @@ export function SpecialClientWalletPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">區間服務費利潤</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet.summary.totalFeeRmb, "RMB")}</p>
+                <p className="text-2xl font-semibold tabular-nums">{fmtMoney(wallet!.summary.totalFeeRmb, "RMB")}</p>
               </CardContent>
             </Card>
           </div>
@@ -503,7 +593,7 @@ export function SpecialClientWalletPage() {
                     <span>入帳公司 RMB 帳戶 *</span>
                     <Select className={fieldClass} value={depositForm.cashAccountId} onChange={(e) => setDepositForm((p) => ({ ...p, cashAccountId: e.target.value }))} required>
                       <option value="">請選擇帳戶</option>
-                      {wallet.rmbAccounts.map((account) => (
+                      {wallet!.rmbAccounts.map((account) => (
                         <option key={account.id} value={account.id}>
                           {account.name}（{fmtMoney(account.balance, "RMB")}）
                         </option>
@@ -516,7 +606,7 @@ export function SpecialClientWalletPage() {
                   </label>
                   {depositError ? <p className="text-sm text-destructive">{depositError}</p> : null}
                   <Button type="submit" disabled={submitting === "deposit" || !sessionUser}>
-                    {submitting === "deposit" ? "提交中…" : "確認儲值"}
+                    {submitting === "deposit" ? "處理中..." : "確認儲值"}
                   </Button>
                 </form>
               </CardContent>
@@ -540,7 +630,7 @@ export function SpecialClientWalletPage() {
                     <span>付款公司 RMB 帳戶 *</span>
                     <Select className={fieldClass} value={payoutForm.cashAccountId} onChange={(e) => setPayoutForm((p) => ({ ...p, cashAccountId: e.target.value }))} required>
                       <option value="">請選擇帳戶</option>
-                      {wallet.rmbAccounts.map((account) => (
+                      {wallet!.rmbAccounts.map((account) => (
                         <option key={account.id} value={account.id}>
                           {account.name}（{fmtMoney(account.balance, "RMB")}）
                         </option>
@@ -557,7 +647,7 @@ export function SpecialClientWalletPage() {
                   </label>
                   {payoutError ? <p className="text-sm text-destructive">{payoutError}</p> : null}
                   <Button type="submit" disabled={submitting === "payout" || !sessionUser}>
-                    {submitting === "payout" ? "提交中…" : "確認代付"}
+                    {submitting === "payout" ? "處理中..." : "確認代付"}
                   </Button>
                 </form>
               </CardContent>
@@ -566,11 +656,11 @@ export function SpecialClientWalletPage() {
 
           <Card>
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base">流水對帳表</CardTitle>
+              <CardTitle className="text-base">帳務明細</CardTitle>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" disabled={submitting === "export"} onClick={() => void exportExcel()}>
                   <Download className="mr-1 h-4 w-4" />
-                  {submitting === "export" ? "匯出中…" : "匯出 Excel"}
+                  {submitting === "export" ? "匯出中..." : "匯出 Excel"}
                 </Button>
               </div>
             </CardHeader>
@@ -600,71 +690,80 @@ export function SpecialClientWalletPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-              {wallet.entries.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">尚無流水</p>
-              ) : (
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH>日期</TH>
-                      <TH>類型</TH>
-                      <TH>客戶</TH>
-                      <TH>廠商或摘要</TH>
-                      <TH>入帳/付款帳戶</TH>
-                      <TH>結匯 RMB</TH>
-                      <TH>服務費 RMB</TH>
-                      <TH>客戶實際入帳</TH>
-                      <TH>代付 RMB</TH>
-                      <TH>公司帳戶異動</TH>
-                      <TH>客戶餘額</TH>
-                      <TH>利潤流水</TH>
-                      <TH>沖銷狀態</TH>
-                      <TH>操作人員</TH>
-                      <TH>備註</TH>
-                      <TH>操作</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {wallet.entries.map((entry) => (
-                      <TR key={entry.id} className={entry.reversedAt ? "opacity-70" : undefined}>
-                        <TD>{entry.entryDate}</TD>
-                        <TD>
-                          <span className={cn(entry.type === "reversal" && "text-amber-600 dark:text-amber-400", entry.reversedAt && "text-muted-foreground line-through")}>
-                            {entry.typeLabel}
-                          </span>
-                        </TD>
-                        <TD>{entry.clientName}</TD>
-                        <TD>{entrySummary(entry)}</TD>
-                        <TD>{entry.cashAccountName}</TD>
-                        <TD>{entry.grossRmb ? fmtMoney(entry.grossRmb, "RMB") : "—"}</TD>
-                        <TD>{entry.feeRmb ? fmtMoney(entry.feeRmb, "RMB") : "—"}</TD>
-                        <TD>{entry.netCreditRmb ? fmtMoney(entry.netCreditRmb, "RMB") : "—"}</TD>
-                        <TD>{entry.payoutRmb ? fmtMoney(entry.payoutRmb, "RMB") : "—"}</TD>
-                        <TD>{fmtDirectionalMoney(entry.cashAccountDelta, "RMB", d(entry.cashAccountDelta).gte(0) ? "in" : "out")}</TD>
-                        <TD>{fmtMoney(entry.balanceAfterRmb, "RMB")}</TD>
-                        <TD>{entry.profitLedgerStatus}</TD>
-                        <TD>{entry.reversalStatus}</TD>
-                        <TD>{entry.operatorName?.trim() || entry.operatorUsername}</TD>
-                        <TD>{entry.note || entry.reverseReason || "—"}</TD>
-                        <TD>
-                          {entry.canReverse && canReverse ? (
-                            <Button type="button" size="sm" variant="outline" onClick={() => { setReverseTarget(entry); setReverseReason(""); setReverseError(""); }}>
-                              <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                              沖銷
-                            </Button>
-                          ) : entry.originalEntryId ? (
-                            <span className="text-xs text-muted-foreground">#{entry.originalEntryId}</span>
-                          ) : entry.reversalEntryId ? (
-                            <span className="text-xs text-muted-foreground">→ #{entry.reversalEntryId}</span>
-                          ) : (
-                            "—"
-                          )}
-                        </TD>
+                {wallet!.entries.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">尚無帳務明細</p>
+                ) : (
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>日期</TH>
+                        <TH>類型</TH>
+                        <TH>客戶</TH>
+                        <TH>摘要</TH>
+                        <TH>入帳/付款帳戶</TH>
+                        <TH>結匯 RMB</TH>
+                        <TH>服務費 RMB</TH>
+                        <TH>客戶實際入帳</TH>
+                        <TH>代付 RMB</TH>
+                        <TH>現金帳戶異動</TH>
+                        <TH>客戶餘額</TH>
+                        <TH>利潤流水</TH>
+                        <TH>沖銷狀態</TH>
+                        <TH>操作人員</TH>
+                        <TH>備註</TH>
+                        <TH>操作</TH>
                       </TR>
-                    ))}
-                  </TBody>
-                </Table>
-              )}
+                    </THead>
+                    <TBody>
+                      {wallet!.entries.map((entry) => (
+                        <TR key={entry.id} className={entry.reversedAt ? "opacity-70" : undefined}>
+                          <TD>{entry.entryDate}</TD>
+                          <TD>
+                            <span className={cn(entry.type === "reversal" && "text-amber-600 dark:text-amber-400", entry.reversedAt && "text-muted-foreground line-through")}>
+                              {entry.typeLabel}
+                            </span>
+                          </TD>
+                          <TD>{entry.clientName}</TD>
+                          <TD>{entrySummary(entry)}</TD>
+                          <TD>{entry.cashAccountName}</TD>
+                          <TD>{entry.grossRmb ? fmtMoney(entry.grossRmb, "RMB") : "-"}</TD>
+                          <TD>{entry.feeRmb ? fmtMoney(entry.feeRmb, "RMB") : "-"}</TD>
+                          <TD>{entry.netCreditRmb ? fmtMoney(entry.netCreditRmb, "RMB") : "-"}</TD>
+                          <TD>{entry.payoutRmb ? fmtMoney(entry.payoutRmb, "RMB") : "-"}</TD>
+                          <TD>{fmtDirectionalMoney(entry.cashAccountDelta, "RMB", d(entry.cashAccountDelta).gte(0) ? "in" : "out")}</TD>
+                          <TD>{fmtMoney(entry.balanceAfterRmb, "RMB")}</TD>
+                          <TD>{entry.profitLedgerStatus}</TD>
+                          <TD>{entry.reversalStatus}</TD>
+                          <TD>{entry.operatorName?.trim() || entry.operatorUsername}</TD>
+                          <TD>{entry.note || entry.reverseReason || "-"}</TD>
+                          <TD>
+                            {entry.canReverse && canReverse ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setReverseTarget(entry);
+                                  setReverseReason("");
+                                  setReverseError("");
+                                }}
+                              >
+                                <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                沖銷
+                              </Button>
+                            ) : entry.originalEntryId ? (
+                              <span className="text-xs text-muted-foreground">#{entry.originalEntryId}</span>
+                            ) : entry.reversalEntryId ? (
+                              <span className="text-xs text-muted-foreground">沖銷 #{entry.reversalEntryId}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -680,11 +779,11 @@ export function SpecialClientWalletPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    將沖銷 {reverseTarget.typeLabel} #{reverseTarget.id}（{entrySummary(reverseTarget)}）。此操作會新增反向流水，不可復原。
+                    確認要沖銷 {reverseTarget.typeLabel} #{reverseTarget.id}（{entrySummary(reverseTarget)}）嗎？系統會保留原始紀錄，並建立反向流水。
                   </p>
                   <label className="block space-y-1 text-sm">
                     <span>沖銷原因 *</span>
-                    <Input className={fieldClass} value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="請說明沖銷原因" />
+                    <Input className={fieldClass} value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="請輸入作廢原因" />
                   </label>
                   {reverseError ? <p className="text-sm text-destructive">{reverseError}</p> : null}
                   <div className="flex justify-end gap-2">
@@ -692,7 +791,7 @@ export function SpecialClientWalletPage() {
                       取消
                     </Button>
                     <Button type="button" variant="destructive" disabled={submitting === "reverse"} onClick={() => void submitReverse()}>
-                      {submitting === "reverse" ? "處理中…" : "確認沖銷"}
+                      {submitting === "reverse" ? "處理中..." : "確認沖銷"}
                     </Button>
                   </div>
                 </CardContent>
