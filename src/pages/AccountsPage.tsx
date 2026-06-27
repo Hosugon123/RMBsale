@@ -240,6 +240,7 @@ export function AccountsPage() {
   const [renameError, setRenameError] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget | null>(null);
   const [deleteError, setDeleteError] = React.useState("");
+  const [ledgerAccountId, setLedgerAccountId] = React.useState<number | null>(null);
 
   const holderGroups = React.useMemo(
     () =>
@@ -261,6 +262,11 @@ export function AccountsPage() {
   const { resolveVoidTarget, requestVoid, pending, error: voidError, cancelVoid, confirmVoid } = useLedgerVoid();
   const voidProps = { resolveVoidTarget, onVoid: requestVoid };
   const modalAccount = cashModal ? state.accounts.find((account) => account.id === cashModal.accountId) : undefined;
+  const ledgerAccount = ledgerAccountId ? state.accounts.find((account) => account.id === ledgerAccountId) : undefined;
+  const accountLedgerRows = React.useMemo(
+    () => (ledgerAccountId ? ledgerRows.filter((entry) => entry.accountId === ledgerAccountId) : []),
+    [ledgerAccountId, ledgerRows]
+  );
   const modalAmount = parseMoneyInput(modalForm.amount);
   const modalExchangeRate = parseMoneyInput(modalForm.exchangeRate);
   const modalRmbPreview =
@@ -460,7 +466,22 @@ export function AccountsPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-3 bg-muted/10 p-4 min-[520px]:grid-cols-2">
               {group.accounts.map((account) => (
-                <div key={account.id} className={cn("min-w-0 rounded-lg border p-3", accountCardSurface(account.currency))}>
+                <div
+                  key={account.id}
+                  role="button"
+                  tabIndex={0}
+                  className={cn(
+                    "min-w-0 cursor-pointer rounded-lg border p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    accountCardSurface(account.currency)
+                  )}
+                  onClick={() => setLedgerAccountId(account.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setLedgerAccountId(account.id);
+                    }
+                  }}
+                >
                   <p className={cn("truncate font-medium leading-snug", ACCOUNT_ROW.name)} title={account.name}>
                     {account.name}
                   </p>
@@ -471,7 +492,11 @@ export function AccountsPage() {
                     >
                       {account.currency}
                     </Badge>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div
+                      className="flex shrink-0 items-center gap-1"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
                       <CashActionsMenu
                         iconOnly
                         buttonClassName={cn(ACCOUNT_ROW.button, "w-8")}
@@ -535,6 +560,50 @@ export function AccountsPage() {
         onClose={cancelVoid}
         onConfirm={() => void confirmVoid()}
       />
+
+      {ledgerAccount ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={() => setLedgerAccountId(null)}
+        >
+          <Card className="max-h-[88vh] w-full max-w-6xl overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">
+                  {ledgerAccount.holderName} / {ledgerAccount.name} 帳戶流水
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                  目前餘額 {fmtMoney(ledgerAccount.balance, ledgerAccount.currency)}
+                </p>
+              </div>
+              <Button aria-label="關閉" onClick={() => setLedgerAccountId(null)} size="icon" variant="ghost">
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="max-h-[calc(88vh-5rem)] space-y-4 overflow-y-auto p-3 sm:p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">帳戶幣別</p>
+                  <p className={cn("mt-1 text-base font-semibold", ledgerAccount.currency === "RMB" ? rmb.text : twd.text)}>
+                    {ledgerAccount.currency}
+                  </p>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">流水筆數</p>
+                  <p className="mt-1 text-base font-semibold">{accountLedgerRows.length}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-md border">
+                <PaginatedLedgerTable
+                  entries={accountLedgerRows}
+                  emptyMessage="尚無帳戶流水"
+                  showBalances
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {renameTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={closeRenameModal}>
