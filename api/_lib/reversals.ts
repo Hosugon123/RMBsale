@@ -3,7 +3,7 @@ import { getDb, type DbTx } from "./db.js";
 import { calcTwd, toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
-import { reverseRmbLotTransfer } from "./rmbInventory.js";
+import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import {
   accounts,
@@ -354,10 +354,6 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
       .select({ currency: accounts.currency })
       .from(accounts)
       .where(eq(accounts.id, transfer.fromAccountId));
-    if (fromAccount?.currency === "RMB") {
-      await reverseRmbLotTransfer(tx, transferId, transfer.fromAccountId);
-    }
-
     const ledgers = await tx
       .select()
       .from(ledgerEntries)
@@ -382,6 +378,10 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
         row.id,
         "轉帳作廢"
       );
+    }
+
+    if (fromAccount?.currency === "RMB") {
+      await reconcileRmbLotInventory(tx, actor.id);
     }
 
     await tx

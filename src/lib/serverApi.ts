@@ -237,6 +237,19 @@ export const serverApi = {
 
   runBackup: () => request("admin/backups/run", { method: "POST" }),
 
+  reconcileRmbInventory: () =>
+    request<{
+      report: Array<{
+        accountId: number;
+        accountName: string;
+        balanceRmb: string;
+        inventoryBeforeRmb: string;
+        inventoryAfterRmb: string;
+        gapRmb: string;
+        action: "none" | "created_lot" | "reduced_lots";
+      }>;
+    }>("admin/rmb-inventory/reconcile", { method: "POST" }),
+
   backupDownloadUrl: (id: number) => `/api/admin/backups/download?id=${id}`
 };
 

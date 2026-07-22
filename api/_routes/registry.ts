@@ -22,6 +22,7 @@ import { handler as adminImport } from "./admin-import.js";
 import { handler as adminAuditLogs } from "./admin-audit-logs.js";
 import { handler as adminSnapshots } from "./admin-snapshots.js";
 import { handler as adminBackups } from "./admin-backups.js";
+import { handler as adminRmbInventory } from "./admin-rmb-inventory.js";
 import { handler as inventoryFifo } from "./inventory-fifo.js";
 import { handler as reportsExportCsv } from "./reports-export-csv.js";
 import { handler as reversals } from "./reversals.js";
@@ -75,6 +76,7 @@ export const routes: Record<string, RouteHandler> = {
   "admin/backups/run": adminBackups,
   "admin/backups/download": adminBackups,
   "admin/backups": adminBackups,
+  "admin/rmb-inventory/reconcile": adminRmbInventory,
   "admin/audit-logs": adminAuditLogs,
   "inventory/fifo": inventoryFifo,
   "reports/export.csv": reportsExportCsv,

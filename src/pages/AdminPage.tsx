@@ -10,7 +10,7 @@ import { ChannelListManager } from "../components/ChannelListManager";
 import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
 import { useAppStore } from "../features/AppStore";
-import { useServerDataMode } from "../lib/serverApi";
+import { serverApi, useServerDataMode } from "../lib/serverApi";
 import {
   detectLevel,
   LEVEL_PRESETS,
@@ -95,10 +95,12 @@ function UserPermissionEditor({
 
 export function AdminPage() {
   const serverMode = useServerDataMode();
-  const { state, sessionUser, resetDemo, clearData, importBusinessData, createUser, updateUser, setUserActive } =
+  const { state, sessionUser, resetDemo, clearData, importBusinessData, createUser, updateUser, setUserActive, refresh } =
     useAppStore();
   const importInputRef = React.useRef<HTMLInputElement>(null);
   const [importMessage, setImportMessage] = React.useState("");
+  const [inventoryRepairMessage, setInventoryRepairMessage] = React.useState("");
+  const [inventoryRepairing, setInventoryRepairing] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [createForm, setCreateForm] = React.useState(emptyCreateForm);
   const [createPermissions, setCreatePermissions] = React.useState<PermissionKey[]>([...LEVEL_PRESETS.operator.permissions]);
@@ -213,6 +215,26 @@ export function AdminPage() {
     }
   };
 
+  const repairRmbInventory = async () => {
+    setInventoryRepairMessage("");
+    setInventoryRepairing(true);
+    try {
+      const { report } = await serverApi.reconcileRmbInventory();
+      const changed = report.filter((item) => item.action !== "none");
+      await Promise.resolve(refresh());
+      if (!changed.length) {
+        setInventoryRepairMessage("人民幣庫存已檢查，所有 RMB 帳戶都與 FIFO 庫存一致。");
+        return;
+      }
+      const summary = changed.map((item) => `${item.accountName}：${item.gapRmb} RMB`).join("、");
+      setInventoryRepairMessage(`人民幣庫存已修復：${summary}`);
+    } catch (error) {
+      setInventoryRepairMessage(error instanceof Error ? error.message : "人民幣庫存修復失敗");
+    } finally {
+      setInventoryRepairing(false);
+    }
+  };
+
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -255,6 +277,18 @@ export function AdminPage() {
               <Trash2 className="h-4 w-4 shrink-0" />
               清除數據
             </Button>
+            {serverMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-full sm:w-auto"
+                disabled={inventoryRepairing}
+                onClick={() => void repairRmbInventory()}
+              >
+                <RefreshCw className="h-4 w-4 shrink-0" />
+                {inventoryRepairing ? "修復中" : "修復 RMB 庫存"}
+              </Button>
+            ) : null}
             {!serverMode ? (
               <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={resetDemo}>
                 <RefreshCw className="h-4 w-4 shrink-0" />
@@ -265,6 +299,9 @@ export function AdminPage() {
         </CardHeader>
         <CardContent className={cn(adminCardContent, "space-y-4 text-sm text-muted-foreground")}>
           <div className="space-y-2">
+            {inventoryRepairMessage ? (
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">{inventoryRepairMessage}</p>
+            ) : null}
             <p>本機 demo 將使用者與權限存在 localStorage，密碼僅供示範，正式環境請改用 API 雜湊儲存。</p>
             <p>
               <span className="font-medium text-foreground">清除數據</span>：刪除所有帳務紀錄，保留使用者，方便匯入試算表前測試。

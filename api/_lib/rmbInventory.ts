@@ -1,13 +1,29 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import Decimal from "decimal.js";
 import type { DbTx } from "./db.js";
 import { toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { accounts, channels, purchases, rmbLots } from "./schema.js";
 
-const INVENTORY_SYNC_CHANNEL = "庫存對齊";
+const INVENTORY_SYNC_CHANNEL = "庫存同步";
+const INVENTORY_SYNC_TOLERANCE_RMB = new Decimal("0.01");
+
+export type RmbInventoryReconcileReport = {
+  accountId: number;
+  accountName: string;
+  balanceRmb: string;
+  inventoryBeforeRmb: string;
+  inventoryAfterRmb: string;
+  gapRmb: string;
+  action: "none" | "created_lot" | "reduced_lots";
+};
 
 function money(value: Decimal.Value) {
   return new Decimal(value).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2);
+}
+
+function nonNegativeMoney(value: Decimal.Value) {
+  const amount = new Decimal(value);
+  return amount.lt(0) ? new Decimal(0) : amount;
 }
 
 async function ensureSyncChannel(tx: DbTx) {
@@ -17,38 +33,66 @@ async function ensureSyncChannel(tx: DbTx) {
   return created.id;
 }
 
-async function estimateGlobalUnitCost(tx: DbTx) {
-  const lots = await tx
+async function estimateUnitCost(tx: DbTx, accountId: number) {
+  const accountLots = await tx
     .select({ remainingRmb: rmbLots.remainingRmb, unitCostTwd: rmbLots.unitCostTwd })
-    .from(rmbLots);
+    .from(rmbLots)
+    .where(and(eq(rmbLots.accountId, accountId), gt(rmbLots.remainingRmb, "0")));
 
-  let totalRmb = new Decimal(0);
-  let totalCost = new Decimal(0);
-  for (const lot of lots) {
-    const remaining = new Decimal(lot.remainingRmb);
-    if (remaining.lte(0)) continue;
-    totalRmb = totalRmb.add(remaining);
-    totalCost = totalCost.add(remaining.mul(lot.unitCostTwd));
-  }
-  if (totalRmb.gt(0)) return toDbRate(totalCost.div(totalRmb));
+  const accountCost = weightedUnitCost(accountLots);
+  if (accountCost) return accountCost;
+
+  const globalLots = await tx
+    .select({ remainingRmb: rmbLots.remainingRmb, unitCostTwd: rmbLots.unitCostTwd })
+    .from(rmbLots)
+    .where(gt(rmbLots.remainingRmb, "0"));
+
+  const globalCost = weightedUnitCost(globalLots);
+  if (globalCost) return globalCost;
 
   const [recentPurchase] = await tx
     .select({ exchangeRate: purchases.exchangeRate })
     .from(purchases)
     .orderBy(desc(purchases.createdAt))
     .limit(1);
-  return recentPurchase ? String(recentPurchase.exchangeRate) : "4.500000";
+
+  return recentPurchase ? toDbRate(recentPurchase.exchangeRate) : "4.500000";
 }
 
-async function reduceGlobalLotsFifo(tx: DbTx, amount: Decimal) {
+function weightedUnitCost(lots: Array<{ remainingRmb: string; unitCostTwd: string }>) {
+  let totalRmb = new Decimal(0);
+  let totalCost = new Decimal(0);
+
+  for (const lot of lots) {
+    const remaining = new Decimal(lot.remainingRmb);
+    if (remaining.lte(0)) continue;
+    totalRmb = totalRmb.add(remaining);
+    totalCost = totalCost.add(remaining.mul(lot.unitCostTwd));
+  }
+
+  return totalRmb.gt(0) ? toDbRate(totalCost.div(totalRmb)) : null;
+}
+
+async function getAccountInventory(tx: DbTx, accountId: number) {
+  const rows = await tx
+    .select({ remainingRmb: rmbLots.remainingRmb })
+    .from(rmbLots)
+    .where(eq(rmbLots.accountId, accountId));
+
+  return rows.reduce((sum, row) => sum.add(row.remainingRmb), new Decimal(0));
+}
+
+async function reduceAccountLotsFifo(tx: DbTx, accountId: number, amount: Decimal) {
   let remaining = amount;
-  const lots = await tx.select().from(rmbLots).orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
+  const lots = await tx
+    .select({ id: rmbLots.id, remainingRmb: rmbLots.remainingRmb })
+    .from(rmbLots)
+    .where(and(eq(rmbLots.accountId, accountId), gt(rmbLots.remainingRmb, "0")))
+    .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const available = new Decimal(lot.remainingRmb);
-    if (available.lte(0)) continue;
-
     const reduce = Decimal.min(available, remaining);
     await tx
       .update(rmbLots)
@@ -58,37 +102,17 @@ async function reduceGlobalLotsFifo(tx: DbTx, amount: Decimal) {
   }
 }
 
-/** Align the global RMB FIFO cost pool to current RMB account balances without changing account balances. */
-export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
-  const rmbAccounts = await tx
-    .select({ id: accounts.id, balance: accounts.balance, isActive: accounts.isActive })
-    .from(accounts)
-    .where(eq(accounts.currency, "RMB"));
-  if (!rmbAccounts.length) return;
-
-  const accountTotal = rmbAccounts.reduce((sum, account) => sum.add(account.balance), new Decimal(0));
-  const lotRows = await tx.select({ remainingRmb: rmbLots.remainingRmb }).from(rmbLots);
-  const lotTotal = lotRows.reduce((sum, row) => sum.add(row.remainingRmb), new Decimal(0));
-  const gap = accountTotal.sub(lotTotal);
-
-  if (gap.abs().lte(0.01)) return;
-
-  if (gap.lt(0)) {
-    await reduceGlobalLotsFifo(tx, gap.abs());
-    return;
-  }
-
+async function createInventorySyncLot(tx: DbTx, accountId: number, amount: Decimal, operatorId: number) {
   const channelId = await ensureSyncChannel(tx);
-  const depositAccount = rmbAccounts.find((account) => account.isActive) ?? rmbAccounts[0];
-  const exchangeRate = await estimateGlobalUnitCost(tx);
-  const rmbAmount = money(gap);
-  const twdCost = toDbTwd(gap.mul(exchangeRate));
+  const exchangeRate = await estimateUnitCost(tx, accountId);
+  const rmbAmount = money(amount);
+  const twdCost = toDbTwd(new Decimal(rmbAmount).mul(exchangeRate));
 
   const [purchase] = await tx
     .insert(purchases)
     .values({
       channelId,
-      depositAccountId: depositAccount.id,
+      depositAccountId: accountId,
       rmbAmount: toDbMoney(rmbAmount),
       exchangeRate: toDbRate(exchangeRate),
       twdCost,
@@ -99,7 +123,7 @@ export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
 
   await tx.insert(rmbLots).values({
     purchaseId: purchase.id,
-    accountId: depositAccount.id,
+    accountId,
     originalRmb: toDbMoney(rmbAmount),
     remainingRmb: toDbMoney(rmbAmount),
     unitCostTwd: toDbRate(exchangeRate),
@@ -107,16 +131,51 @@ export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
   });
 }
 
-export async function transferRmbLots(
+async function reconcileRmbAccountInventory(
   tx: DbTx,
-  input: { fromAccountId: number; toAccountId: number; amount: string; transferId: number }
-) {
-  void tx;
-  void input;
+  account: { id: number; name: string; balance: string },
+  operatorId: number
+): Promise<RmbInventoryReconcileReport> {
+  const targetInventory = nonNegativeMoney(account.balance);
+  const inventoryBefore = await getAccountInventory(tx, account.id);
+  const gap = targetInventory.sub(inventoryBefore);
+
+  let action: RmbInventoryReconcileReport["action"] = "none";
+  if (gap.gt(INVENTORY_SYNC_TOLERANCE_RMB)) {
+    await createInventorySyncLot(tx, account.id, gap, operatorId);
+    action = "created_lot";
+  } else if (gap.lt(INVENTORY_SYNC_TOLERANCE_RMB.neg())) {
+    await reduceAccountLotsFifo(tx, account.id, gap.abs());
+    action = "reduced_lots";
+  }
+
+  const inventoryAfter = action === "none" ? inventoryBefore : await getAccountInventory(tx, account.id);
+  return {
+    accountId: account.id,
+    accountName: account.name,
+    balanceRmb: money(targetInventory),
+    inventoryBeforeRmb: money(inventoryBefore),
+    inventoryAfterRmb: money(inventoryAfter),
+    gapRmb: money(gap),
+    action
+  };
 }
 
-export async function reverseRmbLotTransfer(tx: DbTx, transferId: number, fromAccountId: number) {
-  void tx;
-  void transferId;
-  void fromAccountId;
+/**
+ * Align every RMB account's FIFO inventory to its account balance without changing account balances.
+ * This is intentionally account-level, not global, because sales and withdrawals must consume the
+ * same RMB account the operator selected.
+ */
+export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
+  const rmbAccounts = await tx
+    .select({ id: accounts.id, name: accounts.name, balance: accounts.balance })
+    .from(accounts)
+    .where(eq(accounts.currency, "RMB"))
+    .orderBy(asc(accounts.id));
+
+  const reports: RmbInventoryReconcileReport[] = [];
+  for (const account of rmbAccounts) {
+    reports.push(await reconcileRmbAccountInventory(tx, account, operatorId));
+  }
+  return reports;
 }

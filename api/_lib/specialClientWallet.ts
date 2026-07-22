@@ -16,6 +16,7 @@ import {
   profitLedgerStatusLabel,
   reversalStatusLabel
 } from "./specialClientWalletLabels.js";
+import { reconcileRmbLotInventory } from "./rmbInventory.js";
 
 export type WalletEntryTypeFilter = "all" | "deposit" | "payout" | "reversal";
 
@@ -409,6 +410,8 @@ export async function createSpecialClientDeposit(input: DepositInput, actor: Aud
       "特殊客戶儲值"
     );
 
+    await reconcileRmbLotInventory(tx, actor.id ?? 0);
+
     const profitDescription = `特殊客戶代付服務費｜客戶：${client.name}｜結匯 ${fmtRmbAmount(breakdown.grossRmb)}｜費率 ${formatFeeRatePercent(breakdown.feeRate)}`;
     const [profitEntry] = await tx
       .insert(ledgerEntries)
@@ -486,6 +489,8 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
       `特殊客戶代付 ${client.name} → ${vendorLabel} ${fmtRmbAmount(payoutRmb)}`,
       "特殊客戶代付"
     );
+
+    await reconcileRmbLotInventory(tx, actor.id ?? 0);
 
     await writeAudit(tx, {
       action: AuditAction.CREATE_SPECIAL_CLIENT_PAYOUT,
@@ -583,6 +588,8 @@ export async function reverseSpecialClientWalletEntry(
         cashLedger?.id
       );
 
+      await reconcileRmbLotInventory(tx, actor.id ?? 0);
+
       if (original.profitLedgerId) {
         await assertProfitLedgerNotReversed(tx, original.profitLedgerId);
         const profitDescription = `沖銷特殊客戶代付服務費｜客戶：${client.name}｜結匯 ${fmtRmbAmount(original.grossRmb ?? "0")}｜費率 ${formatFeeRatePercent(original.feeRate ?? "0.011")}`;
@@ -656,6 +663,7 @@ export async function reverseSpecialClientWalletEntry(
         "特殊客戶沖銷",
         cashLedger?.id
       );
+      await reconcileRmbLotInventory(tx, actor.id ?? 0);
     } else {
       throw new Error("不支援的流水類型");
     }
