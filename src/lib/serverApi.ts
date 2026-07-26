@@ -9,6 +9,7 @@ import type {
 import type { AppState, AppUser, PermissionKey } from "./types";
 import type { BootstrapSection } from "./bootstrapSections";
 import type { BusinessDataImport } from "./dataImport";
+import { reportGlobalError } from "../context/ErrorReporterContext";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api/${path}`, {
@@ -22,7 +23,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(typeof data.error === "string" ? data.error : `請求失敗 (${res.status})`);
+    const message = typeof data.error === "string" ? data.error : `API 操作失敗 (${res.status})`;
+    reportGlobalError(new Error(message), {
+      title: "操作失敗",
+      location: `API ${options.method ?? "GET"} /api/${path}`,
+      details: {
+        status: res.status,
+        path,
+        method: options.method ?? "GET",
+        response: data
+      }
+    });
+    throw new Error(message);
   }
   return data as T;
 }

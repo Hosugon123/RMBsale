@@ -5,12 +5,14 @@ import { clearStalePwaInDev } from "./lib/clearStalePwaInDev";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AdminRoute } from "./components/AdminRoute";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AppLayout } from "./components/AppLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SaleModalHost } from "./components/SaleModalHost";
 import { SettlementModalHost } from "./components/SettlementModalHost";
 import { TransferModalHost } from "./components/TransferModalHost";
 import { AuthProvider } from "./context/AuthContext";
+import { ErrorReporterProvider } from "./context/ErrorReporterContext";
 import { AppStoreProvider } from "./features/AppStore";
 import { ThemeProvider } from "./features/ThemeProvider";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -35,14 +37,18 @@ void clearStalePwaInDev().finally(() => {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <AppRoutes />
-              <PwaUpdateHost />
-            </BrowserRouter>
-          </AuthProvider>
-        </ThemeProvider>
+        <ErrorReporterProvider>
+          <AppErrorBoundary>
+            <ThemeProvider>
+              <AuthProvider>
+                <BrowserRouter>
+                  <AppRoutes />
+                  <PwaUpdateHost />
+                </BrowserRouter>
+              </AuthProvider>
+            </ThemeProvider>
+          </AppErrorBoundary>
+        </ErrorReporterProvider>
       </QueryClientProvider>
     </React.StrictMode>
   );
