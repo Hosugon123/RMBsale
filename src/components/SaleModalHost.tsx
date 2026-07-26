@@ -6,6 +6,7 @@ import { useSaleCustomerSource } from "../hooks/useSaleCustomerSource";
 import { previewSaleProfit } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb } from "../lib/currencyStyles";
+import { reportValidationError } from "../lib/validationReport";
 import { fmtMoney } from "../lib/utils";
 import { CustomerManagerModal } from "./CustomerManagerModal";
 import { SaleAmountSummary } from "./SaleAmountSummary";
@@ -128,6 +129,12 @@ export function SaleModalHost() {
     });
     if (validationError) {
       setError(validationError);
+      reportValidationError(validationError, "售出彈窗 / 表單送出", {
+        customerName,
+        hasRmbAccount: Boolean(form.rmbAccountId),
+        hasRmbAmount: Boolean(form.rmbAmount.trim()),
+        hasExchangeRate: Boolean(form.exchangeRate.trim())
+      });
       return;
     }
     setError("");

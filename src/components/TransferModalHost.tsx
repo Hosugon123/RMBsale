@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
 import { fieldControlClass, modalOverlayClass } from "../lib/formStyles";
+import { reportValidationError } from "../lib/validationReport";
 import { cn } from "../lib/utils";
 
 const TRANSFER_OPEN_EVENT = "rmb:open-transfer";
@@ -91,7 +92,16 @@ export function TransferModalHost() {
 
   const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.toAccountId || !form.amount.trim()) return;
+    if (!form.toAccountId || !form.amount.trim()) {
+      const message = !form.toAccountId ? "請選擇轉入帳戶" : "請填寫轉帳金額";
+      setError(message);
+      reportValidationError(message, "轉帳彈窗 / 表單送出", {
+        hasFromAccount: Boolean(form.fromAccountId),
+        hasToAccount: Boolean(form.toAccountId),
+        hasAmount: Boolean(form.amount.trim())
+      });
+      return;
+    }
     setError("");
     setConfirmOpen(true);
   };

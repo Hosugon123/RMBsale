@@ -13,6 +13,7 @@ import { runMutation, useIsMutating } from "../lib/runMutation";
 import { rmb, twd } from "../lib/currencyStyles";
 import { purchasePaymentStatusLabel } from "../lib/purchaseUtils";
 import { fieldControlClass } from "../lib/formStyles";
+import { reportValidationError } from "../lib/validationReport";
 import { cn, fmtMoney, fmtRate, parseMoneyInput, toTwdMoney } from "../lib/utils";
 
 const fieldSelectClass = fieldControlClass;
@@ -140,6 +141,14 @@ export function PurchasePage() {
               });
               if (error) {
                 setFormError(error);
+                reportValidationError(error, "買入登記 / 表單送出", {
+                  channelName,
+                  paymentStatus: form.paymentStatus,
+                  hasPaymentAccount: Boolean(form.paymentAccountId),
+                  hasDepositAccount: Boolean(form.depositAccountId),
+                  hasRmbAmount: Boolean(form.rmbAmount.trim()),
+                  hasExchangeRate: Boolean(form.exchangeRate.trim())
+                });
                 return;
               }
               setConfirmOpen(true);

@@ -6,6 +6,7 @@ import { defaultSettlementAmount, d, fmtMoney, parseMoneyInput } from "../lib/ut
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { describeReceivable, fmtReceivableBalance, settlementReceivablePreview } from "../lib/receivableDisplay";
 import { fieldControlClass } from "../lib/formStyles";
+import { reportValidationError } from "../lib/validationReport";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -114,7 +115,13 @@ export function SettlementModalHost() {
   const openConfirm = (event: React.FormEvent) => {
     event.preventDefault();
     if (!canProceed) {
-      setError(amountHint || "請完整填寫收帳資訊");
+      const message = amountHint || "請完整填寫收帳資訊";
+      setError(message);
+      reportValidationError(message, "收帳彈窗 / 表單送出", {
+        hasCustomer: Boolean(selectedCustomer),
+        hasAccount: Boolean(form.accountId),
+        amountTwd: form.amountTwd
+      });
       return;
     }
     setError("");

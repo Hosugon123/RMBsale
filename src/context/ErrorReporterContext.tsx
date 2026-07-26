@@ -99,12 +99,6 @@ function describeInvalidField(target: EventTarget | null) {
   return `${getPageLocation()} / 欄位：${compactText(label || name, "未命名欄位")}`;
 }
 
-function describeForm(form: HTMLFormElement) {
-  const title = form.getAttribute("aria-label") || form.closest("[aria-label]")?.getAttribute("aria-label");
-  const heading = form.closest("section, article, div")?.querySelector("h1, h2, h3")?.textContent;
-  return `${getPageLocation()} / 表單：${compactText(title || heading, "未命名表單")}`;
-}
-
 function createReport(error: unknown, options: ErrorReportOptions = {}): ErrorReport {
   const now = new Date();
   const normalized = normalizeError(error);
@@ -191,37 +185,15 @@ export function ErrorReporterProvider({ children }: { children: React.ReactNode 
       });
     };
 
-    const handleSubmit = (event: Event) => {
-      const form = event.target;
-      if (!(form instanceof HTMLFormElement)) return;
-      window.setTimeout(() => {
-        const errorNode = Array.from(
-          form.querySelectorAll<HTMLElement>('[role="alert"], [data-error-message], p.text-destructive, div.text-destructive')
-        ).find((node) => {
-          const text = node.textContent?.replace(/\s+/g, " ").trim() ?? "";
-          return text.length > 1 && text !== "*" && !node.closest("[data-error-reporter-ignore]");
-        });
-        const message = errorNode?.textContent?.replace(/\s+/g, " ").trim();
-        if (!message) return;
-        reportError(message, {
-          title: "表單資料有誤",
-          location: describeForm(form),
-          severity: "warning"
-        });
-      }, 100);
-    };
-
     window.addEventListener(ERROR_EVENT, handleCustomError as EventListener);
     window.addEventListener("error", handleWindowError);
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
     document.addEventListener("invalid", handleInvalid, true);
-    document.addEventListener("submit", handleSubmit, true);
     return () => {
       window.removeEventListener(ERROR_EVENT, handleCustomError as EventListener);
       window.removeEventListener("error", handleWindowError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
       document.removeEventListener("invalid", handleInvalid, true);
-      document.removeEventListener("submit", handleSubmit, true);
     };
   }, [reportError]);
 

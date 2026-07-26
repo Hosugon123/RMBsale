@@ -18,6 +18,7 @@ import { previewSaleProfit } from "../lib/localStore";
 import { runMutation, useIsMutating } from "../lib/runMutation";
 import { profit, receivable, rmb } from "../lib/currencyStyles";
 import { fieldControlClass } from "../lib/formStyles";
+import { reportValidationError } from "../lib/validationReport";
 import { cn, fmtMoney, fmtRate, parseMoneyInput, toTwdMoney } from "../lib/utils";
 import type { Sale } from "../lib/types";
 
@@ -150,6 +151,12 @@ export function SalePage() {
               });
               if (error) {
                 setFormError(error);
+                reportValidationError(error, "售出錄入 / 表單送出", {
+                  customerName,
+                  hasRmbAccount: Boolean(form.rmbAccountId),
+                  hasRmbAmount: Boolean(form.rmbAmount.trim()),
+                  hasExchangeRate: Boolean(form.exchangeRate.trim())
+                });
                 return;
               }
               setFormError("");
