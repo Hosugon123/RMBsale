@@ -47,6 +47,10 @@ export async function createPurchase(input: {
   paymentStatus: "paid" | "unpaid";
 }, actor: Actor) {
   const db = getDb();
+  if (money(input.rmbAmount).lte(0)) throw new Error("RMB 金額必須大於 0");
+  if (money(input.exchangeRate).lte(0)) throw new Error("匯率必須大於 0");
+  if (input.paymentStatus !== "paid" && input.paymentStatus !== "unpaid") throw new Error("付款狀態不正確");
+  if (input.paymentStatus === "paid" && !input.paymentAccountId) throw new Error("已付款時請選擇付款帳戶");
   const twdCost = calcTwd(input.rmbAmount, input.exchangeRate);
 
   return db.transaction(async (tx) => {
@@ -148,6 +152,8 @@ export async function createSale(input: {
   exchangeRate: string;
 }, actor: Actor) {
   const db = getDb();
+  if (money(input.rmbAmount).lte(0)) throw new Error("RMB 金額必須大於 0");
+  if (money(input.exchangeRate).lte(0)) throw new Error("匯率必須大於 0");
   const twdAmount = calcTwd(input.rmbAmount, input.exchangeRate);
 
   return db.transaction(async (tx) => {
@@ -494,6 +500,9 @@ export async function createTransfer(input: {
     if (!from || !to) throw new Error("找不到帳戶");
     if (from.currency !== to.currency) throw new Error("轉帳帳戶幣別必須相同");
 
+    if (from.id === to.id) throw new Error("轉出與轉入帳戶不可相同");
+    if (money(input.amount).lte(0)) throw new Error("轉帳金額必須大於 0");
+
     const transferAmount = from.currency === "TWD" ? toDbTwd(input.amount) : toDbMoney(input.amount);
 
     const [transfer] = await tx.insert(transfers).values({
@@ -560,7 +569,14 @@ async function addAccountDelta(
 ) {
   const dbAmount = currency === "TWD" ? toDbTwd(amount) : toDbMoney(amount);
   const dbAbsoluteAmount = currency === "TWD" ? toDbTwd(Math.abs(Number(amount))) : toDbMoney(Math.abs(Number(amount)));
-  const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
+  const [before] = await tx.select({ balance: accounts.balance, currency: accounts.currency }).from(accounts).where(eq(accounts.id, accountId));
+  if (!before) throw new Error("找不到帳戶");
+  if (before.currency !== currency) throw new Error("帳戶幣別不符");
+  const delta = money(dbAmount);
+  if (delta.lt(0) && money(before.balance).lt(delta.abs())) {
+    const shortfall = delta.abs().sub(before.balance);
+    throw new Error(`${currency} 帳戶餘額不足，尚缺 ${currency === "TWD" ? toDbTwd(shortfall) : toDbMoney(shortfall)}`);
+  }
   const [after] = await tx
     .update(accounts)
     .set({ balance: sql`${accounts.balance} + ${dbAmount}` })
@@ -796,12 +812,29 @@ export async function payPurchasePayment(
     const amount = twdMoney(input.amountTwd);
     if (amount.lte(0)) throw new Error("金額必須大於 0");
     if (amount.gt(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
+    const [paidRow] = await tx
+      .select({ paidTwd: sql<string>`coalesce(sum(${ledgerEntries.amount}), 0)` })
+      .from(ledgerEntries)
+      .where(
+        and(
+          eq(ledgerEntries.relatedTable, "purchases"),
+          eq(ledgerEntries.relatedId, purchase.id),
+          eq(ledgerEntries.direction, "out"),
+          eq(ledgerEntries.currency, "TWD"),
+          eq(ledgerEntries.isReversal, false)
+        )
+      );
+    const paidSoFar = money(paidRow?.paidTwd ?? 0);
+    const remaining = money(purchase.twdCost).sub(paidSoFar);
+    if (remaining.lte(0)) throw new Error("已付款，不能重複付款");
+    if (amount.gt(remaining)) throw new Error("付款金額超過應付餘額");
     const amountTwd = toDbTwd(amount);
+    const nextPaid = paidSoFar.add(amount);
 
     await tx
       .update(purchases)
       .set({
-        paymentStatus: amount.gte(purchase.twdCost) ? "paid" : "unpaid",
+        paymentStatus: nextPaid.gte(purchase.twdCost) ? "paid" : "partial",
         paymentAccountId: input.accountId
       })
       .where(eq(purchases.id, purchase.id));

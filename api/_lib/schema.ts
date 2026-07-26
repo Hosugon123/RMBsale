@@ -80,7 +80,7 @@ export const purchases = pgTable("purchases", {
   rmbAmount: numeric("rmb_amount", { precision: 14, scale: 2 }).notNull(),
   exchangeRate: numeric("exchange_rate", { precision: 12, scale: 6 }).notNull(),
   twdCost: numeric("twd_cost", { precision: 14, scale: 2 }).notNull(),
-  paymentStatus: text("payment_status", { enum: ["paid", "unpaid"] }).notNull().default("paid"),
+  paymentStatus: text("payment_status", { enum: ["paid", "unpaid", "partial"] }).notNull().default("paid"),
   status: text("status", { enum: ["active", "reversed"] }).notNull().default("active"),
   operatorId: integer("operator_id").notNull().references(() => users.id),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

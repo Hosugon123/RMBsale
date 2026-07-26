@@ -141,7 +141,8 @@ export async function importBusinessData(payload: BusinessDataImport, operatorId
   await bumpSequence(tx, "channels");
 
   for (const row of payload.purchases ?? []) {
-    const paymentStatus = row.paymentStatus === "paid" ? "paid" : "unpaid";
+    const paymentStatus =
+      row.paymentStatus === "paid" || row.paymentStatus === "partial" ? row.paymentStatus : "unpaid";
     await tx.insert(purchases).values({
       id: row.id,
       channelId: row.channelId > 0 ? row.channelId : null,

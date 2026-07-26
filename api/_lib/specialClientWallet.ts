@@ -182,6 +182,11 @@ async function applyCashAccountDelta(
   reversesLedgerId?: number
 ) {
   const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
+  if (!before) throw new Error("找不到公司 RMB 帳戶");
+  const delta = money(amount);
+  if (delta.lt(0) && money(before.balance).lt(delta.abs())) {
+    throw new Error(`公司 RMB 帳戶餘額不足，尚缺 ${toDbMoney(delta.abs().sub(before.balance))}`);
+  }
   const [after] = await tx
     .update(accounts)
     .set({ balance: sql`${accounts.balance} + ${toDbMoney(amount)}` })
@@ -458,6 +463,7 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
     const client = await assertActiveClient(tx, input.clientId);
     const account = await assertActiveRmbAccount(tx, input.cashAccountId);
     const balanceBefore = money(await getClientBalanceInTx(tx, input.clientId));
+    if (balanceBefore.lt(payout)) throw new Error(`特殊客戶餘額不足，尚缺 ${toDbMoney(payout.sub(balanceBefore))}`);
     const balanceAfter = balanceBefore.sub(payoutRmb);
 
     const vendorLabel = input.vendorName?.trim() || input.purpose?.trim() || "代付";

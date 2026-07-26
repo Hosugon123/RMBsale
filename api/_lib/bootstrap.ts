@@ -1,5 +1,6 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "./db.js";
+import { money, toDbTwd } from "./money.js";
 import { type BootstrapSection, wantsSection } from "./bootstrapSections.js";
 import { toAppUser } from "./userPermissions.js";
 import {
@@ -88,7 +89,8 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
       saleRows,
       lotRows,
       allocationRows,
-      ledgerRows
+      ledgerRows,
+      purchasePaymentRows
     ] = await Promise.all([
       needsOperatorRows(sections)
         ? db.select().from(users).orderBy(asc(users.username))
@@ -149,6 +151,23 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
         : Promise.resolve([]),
       wantsSection(sections, "ledger")
         ? db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)).limit(500)
+        : Promise.resolve([]),
+      needsPurchaseRows(sections)
+        ? db
+            .select({
+              purchaseId: ledgerEntries.relatedId,
+              paidTwd: sql<string>`coalesce(sum(${ledgerEntries.amount}), 0)`
+            })
+            .from(ledgerEntries)
+            .where(
+              and(
+                eq(ledgerEntries.relatedTable, "purchases"),
+                eq(ledgerEntries.direction, "out"),
+                eq(ledgerEntries.currency, "TWD"),
+                eq(ledgerEntries.isReversal, false)
+              )
+            )
+            .groupBy(ledgerEntries.relatedId)
         : Promise.resolve([])
     ]);
     console.timeEnd(`${timingLabel} db`);
@@ -162,6 +181,11 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
       purchaseRows.map((row) => [row.id, row.channelId ? channelMap.get(row.channelId) ?? "未命名渠道" : "未命名渠道"])
     );
     const lotMap = new Map(lotRows.map((row) => [row.id, row]));
+    const purchasePaymentMap = new Map(
+      purchasePaymentRows
+        .filter((row) => row.purchaseId != null)
+        .map((row) => [row.purchaseId as number, row.paidTwd])
+    );
 
     const result: Record<string, unknown> & { sessionUserId: number } = {
       sessionUserId
@@ -205,7 +229,13 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
       }));
     }
     if (loadAll || wantsSection(sections, "purchases")) {
-      result.purchases = purchaseRows.map((row) => ({
+      result.purchases = purchaseRows.map((row) => {
+        const rawPaidTwd = purchasePaymentMap.get(row.id) ?? (row.paymentStatus === "paid" ? String(row.twdCost) : "0.00");
+        const paidAmount = money(rawPaidTwd);
+        const costAmount = money(row.twdCost);
+        const paidTwd = toDbTwd(paidAmount.gt(costAmount) ? costAmount : paidAmount);
+        const paymentStatus = paidAmount.gte(costAmount) ? "paid" : paidAmount.gt(0) ? "partial" : "unpaid";
+        return {
         id: row.id,
         channelId: row.channelId ?? 0,
         channelName: purchaseChannelMap.get(row.id) ?? "未命名渠道",
@@ -214,12 +244,13 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
         rmbAmount: String(row.rmbAmount),
         exchangeRate: String(row.exchangeRate),
         twdCost: String(row.twdCost),
-        paidTwd: row.paymentStatus === "paid" ? String(row.twdCost) : "0.00",
-        paymentStatus: row.paymentStatus as "paid" | "unpaid",
+        paidTwd,
+        paymentStatus,
         status: row.status as "active" | "reversed",
         operatorName: operatorMap.get(row.operatorId) ?? "未知",
         createdAt: row.createdAt.toISOString()
-      }));
+        };
+      });
     }
     if (loadAll || wantsSection(sections, "sales")) {
       result.sales = saleRows.map((row) => ({

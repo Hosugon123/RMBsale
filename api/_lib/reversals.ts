@@ -111,26 +111,26 @@ export async function reversePurchase(purchaseId: number, actor: Actor) {
       );
     }
 
-    if (purchase.paymentStatus === "paid" && purchase.paymentAccountId) {
-      const [payLedger] = await tx
+    {
+      const payLedgers = await tx
         .select()
         .from(ledgerEntries)
         .where(
           and(
-            eq(ledgerEntries.relatedTable, "purchase"),
+            sql`${ledgerEntries.relatedTable} in ('purchase', 'purchases')`,
             eq(ledgerEntries.relatedId, purchaseId),
-            eq(ledgerEntries.accountId, purchase.paymentAccountId),
             eq(ledgerEntries.direction, "out"),
+            eq(ledgerEntries.currency, "TWD"),
             eq(ledgerEntries.isReversal, false)
           )
-        )
-        .limit(1);
+        );
+      for (const payLedger of payLedgers) {
       if (payLedger?.accountId) {
         await postReversalDelta(
           tx,
           payLedger.accountId,
           "TWD",
-          purchase.twdCost,
+          payLedger.amount,
           "in",
           "purchase",
           purchaseId,
@@ -139,6 +139,7 @@ export async function reversePurchase(purchaseId: number, actor: Actor) {
           payLedger.id,
           "買入作廢"
         );
+      }
       }
     }
 
