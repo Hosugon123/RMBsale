@@ -26,9 +26,20 @@ const baseNav = [
 ];
 
 const adminNavItem = { to: "/admin", label: "管理後台", icon: Settings };
+const MOBILE_BREAKPOINT_PX = 1024;
+const SIDEBAR_SWIPE_EDGE_PX = 36;
+const SIDEBAR_SWIPE_THRESHOLD_PX = 64;
+const SIDEBAR_SWIPE_VERTICAL_LIMIT_PX = 48;
+
+type SidebarSwipeState = {
+  x: number;
+  y: number;
+  edge: "left" | "right" | "open" | null;
+};
 
 export function AppLayout() {
   const [open, setOpen] = React.useState(false);
+  const sidebarSwipeRef = React.useRef<SidebarSwipeState | null>(null);
   const { sessionUser, refresh } = useAppStore();
   const { logout } = useAuth();
   const location = useLocation();
@@ -63,6 +74,62 @@ export function AppLayout() {
       window.location.assign("/login");
     });
   };
+
+  React.useEffect(() => {
+    const isMobileLayout = () => window.innerWidth < MOBILE_BREAKPOINT_PX;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (!isMobileLayout() || event.touches.length !== 1) {
+        sidebarSwipeRef.current = null;
+        return;
+      }
+
+      const touch = event.touches[0];
+      const viewportWidth = window.innerWidth;
+      const edge = open
+        ? "open"
+        : touch.clientX <= SIDEBAR_SWIPE_EDGE_PX
+          ? "left"
+          : touch.clientX >= viewportWidth - SIDEBAR_SWIPE_EDGE_PX
+            ? "right"
+            : null;
+
+      sidebarSwipeRef.current = edge ? { x: touch.clientX, y: touch.clientY, edge } : null;
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const start = sidebarSwipeRef.current;
+      sidebarSwipeRef.current = null;
+      if (!start || !isMobileLayout()) return;
+
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - start.x;
+      const deltaY = touch.clientY - start.y;
+      if (Math.abs(deltaY) > SIDEBAR_SWIPE_VERTICAL_LIMIT_PX) return;
+
+      if (start.edge === "open" && deltaX <= -SIDEBAR_SWIPE_THRESHOLD_PX) {
+        setOpen(false);
+        return;
+      }
+
+      if (start.edge === "left" && deltaX >= SIDEBAR_SWIPE_THRESHOLD_PX) {
+        setOpen(true);
+        return;
+      }
+
+      if (start.edge === "right" && deltaX <= -SIDEBAR_SWIPE_THRESHOLD_PX) {
+        setOpen(true);
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [open]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
