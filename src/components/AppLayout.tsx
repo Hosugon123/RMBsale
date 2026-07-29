@@ -27,19 +27,27 @@ const baseNav = [
 
 const adminNavItem = { to: "/admin", label: "管理後台", icon: Settings };
 const MOBILE_BREAKPOINT_PX = 1024;
-const SIDEBAR_SWIPE_EDGE_PX = 36;
-const SIDEBAR_SWIPE_THRESHOLD_PX = 64;
-const SIDEBAR_SWIPE_VERTICAL_LIMIT_PX = 48;
+const SIDEBAR_WIDTH_PX = 256;
+const SIDEBAR_SWIPE_THRESHOLD_PX = 72;
+const SIDEBAR_SWIPE_VERTICAL_CANCEL_PX = 22;
+const SIDEBAR_SWIPE_ACTIVATE_PX = 8;
 
 type SidebarSwipeState = {
   x: number;
   y: number;
-  edge: "left" | "right" | "open" | null;
+  mode: "open" | "close";
+  active: boolean;
 };
+
+function clampSidebarOffset(value: number) {
+  return Math.max(0, Math.min(SIDEBAR_WIDTH_PX, value));
+}
 
 export function AppLayout() {
   const [open, setOpen] = React.useState(false);
   const sidebarSwipeRef = React.useRef<SidebarSwipeState | null>(null);
+  const swipeOffsetRef = React.useRef<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = React.useState<number | null>(null);
   const { sessionUser, refresh } = useAppStore();
   const { logout } = useAuth();
   const location = useLocation();
@@ -75,80 +83,137 @@ export function AppLayout() {
     });
   };
 
-  React.useEffect(() => {
-    const isMobileLayout = () => window.innerWidth < MOBILE_BREAKPOINT_PX;
+  const setSwipeOffsetValue = React.useCallback((value: number | null) => {
+    swipeOffsetRef.current = value;
+    setSwipeOffset(value);
+  }, []);
 
-    const handleTouchStart = (event: TouchEvent) => {
+  const isMobileLayout = React.useCallback(() => window.innerWidth < MOBILE_BREAKPOINT_PX, []);
+
+  const beginSidebarSwipe = React.useCallback(
+    (event: React.TouchEvent, mode: "open" | "close") => {
       if (!isMobileLayout() || event.touches.length !== 1) {
         sidebarSwipeRef.current = null;
         return;
       }
+      const touch = event.touches[0];
+      sidebarSwipeRef.current = { x: touch.clientX, y: touch.clientY, mode, active: false };
+      setSwipeOffsetValue(mode === "close" ? SIDEBAR_WIDTH_PX : 0);
+    },
+    [isMobileLayout, setSwipeOffsetValue]
+  );
+
+  const updateSidebarSwipe = React.useCallback(
+    (event: React.TouchEvent) => {
+      const start = sidebarSwipeRef.current;
+      if (!start || event.touches.length !== 1 || !isMobileLayout()) return;
 
       const touch = event.touches[0];
-      const viewportWidth = window.innerWidth;
-      const edge = open
-        ? "open"
-        : touch.clientX <= SIDEBAR_SWIPE_EDGE_PX
-          ? "left"
-          : touch.clientX >= viewportWidth - SIDEBAR_SWIPE_EDGE_PX
-            ? "right"
-            : null;
-
-      sidebarSwipeRef.current = edge ? { x: touch.clientX, y: touch.clientY, edge } : null;
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      const start = sidebarSwipeRef.current;
-      sidebarSwipeRef.current = null;
-      if (!start || !isMobileLayout()) return;
-
-      const touch = event.changedTouches[0];
       const deltaX = touch.clientX - start.x;
       const deltaY = touch.clientY - start.y;
-      if (Math.abs(deltaY) > SIDEBAR_SWIPE_VERTICAL_LIMIT_PX) return;
 
-      if (start.edge === "open" && deltaX <= -SIDEBAR_SWIPE_THRESHOLD_PX) {
-        setOpen(false);
-        return;
+      if (!start.active) {
+        if (Math.abs(deltaY) > SIDEBAR_SWIPE_VERTICAL_CANCEL_PX && Math.abs(deltaY) > Math.abs(deltaX)) {
+          sidebarSwipeRef.current = null;
+          setSwipeOffsetValue(null);
+          return;
+        }
+        if (Math.abs(deltaX) < SIDEBAR_SWIPE_ACTIVATE_PX) return;
+        if ((start.mode === "open" && deltaX < 0) || (start.mode === "close" && deltaX > 0)) {
+          sidebarSwipeRef.current = null;
+          setSwipeOffsetValue(null);
+          return;
+        }
+        sidebarSwipeRef.current = { ...start, active: true };
       }
 
-      if (start.edge === "left" && deltaX >= SIDEBAR_SWIPE_THRESHOLD_PX) {
-        setOpen(true);
-        return;
-      }
+      event.preventDefault();
+      const nextOffset =
+        start.mode === "open"
+          ? clampSidebarOffset(deltaX)
+          : clampSidebarOffset(SIDEBAR_WIDTH_PX + deltaX);
+      setSwipeOffsetValue(nextOffset);
+    },
+    [isMobileLayout, setSwipeOffsetValue]
+  );
 
-      if (start.edge === "right" && deltaX <= -SIDEBAR_SWIPE_THRESHOLD_PX) {
-        setOpen(true);
-      }
-    };
+  const finishSidebarSwipe = React.useCallback(() => {
+    const start = sidebarSwipeRef.current;
+    const currentOffset = swipeOffsetRef.current;
+    sidebarSwipeRef.current = null;
+    setSwipeOffsetValue(null);
+    if (!start || currentOffset == null) return;
 
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    if (start.mode === "open") {
+      setOpen(currentOffset >= SIDEBAR_SWIPE_THRESHOLD_PX);
+      return;
+    }
 
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [open]);
+    setOpen(currentOffset >= SIDEBAR_WIDTH_PX - SIDEBAR_SWIPE_THRESHOLD_PX);
+  }, [setSwipeOffsetValue]);
+
+  const cancelSidebarSwipe = React.useCallback(() => {
+    sidebarSwipeRef.current = null;
+    setSwipeOffsetValue(null);
+  }, [setSwipeOffsetValue]);
+
+  const effectiveSidebarOffset = swipeOffset ?? (open ? SIDEBAR_WIDTH_PX : 0);
+  const sidebarProgress = Math.max(0, Math.min(1, effectiveSidebarOffset / SIDEBAR_WIDTH_PX));
+  const sidebarStyle =
+    swipeOffset !== null || open
+      ? { transform: `translate3d(${effectiveSidebarOffset - SIDEBAR_WIDTH_PX}px, 0, 0)` }
+      : undefined;
+  const overlayVisible = open || swipeOffset !== null;
+  const overlayOpacity = open ? 0.5 : Math.min(0.45, sidebarProgress * 0.45);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {open ? (
+    <div className="min-h-screen bg-background text-foreground" style={{ overscrollBehaviorX: "contain" }}>
+      {overlayVisible ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className={cn(
+            "fixed inset-0 z-40 bg-black transition-opacity duration-200 lg:hidden",
+            swipeOffset !== null && "pointer-events-none"
+          )}
+          style={{ opacity: overlayOpacity }}
           onClick={() => setOpen(false)}
           aria-label="關閉選單"
         />
       ) : null}
+      {!open ? (
+        <div
+          aria-hidden="true"
+          className="fixed inset-y-0 left-0 z-30 w-8 touch-pan-y lg:hidden"
+          style={{ touchAction: "pan-y" }}
+          onTouchStart={(event) => beginSidebarSwipe(event, "open")}
+          onTouchMove={updateSidebarSwipe}
+          onTouchEnd={finishSidebarSwipe}
+          onTouchCancel={cancelSidebarSwipe}
+        >
+          <div
+            className={cn(
+              "absolute left-1 top-1/2 h-16 w-1 -translate-y-1/2 rounded-full bg-primary/40 shadow-[0_0_18px_rgba(59,130,246,0.35)] transition-opacity duration-200",
+              swipeOffset !== null ? "opacity-100" : "opacity-35"
+            )}
+          />
+        </div>
+      ) : null}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r shadow-xl",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r shadow-xl will-change-transform",
           "border-slate-200 bg-white text-slate-900",
           "dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100",
+          swipeOffset === null && "transition-transform duration-300 ease-out",
           "lg:z-40 lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full"
         )}
+        style={sidebarStyle}
+        onTouchStart={(event) => {
+          if (open) beginSidebarSwipe(event, "close");
+        }}
+        onTouchMove={updateSidebarSwipe}
+        onTouchEnd={finishSidebarSwipe}
+        onTouchCancel={cancelSidebarSwipe}
       >
         <div
           className={cn(
