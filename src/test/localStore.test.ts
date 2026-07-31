@@ -718,6 +718,23 @@ describe("local demo store", () => {
     expect(profitLedger(state).map((entry) => entry.direction)).toEqual(["out", "in"]);
   });
 
+  it("restores available profit after a profit withdrawal is reversed", () => {
+    const state = createSeedState();
+
+    adjustAccount(state, { accountId: 1, direction: "out", amount: "100", withdrawType: "profit", note: "owner payout" });
+    const withdrawal = state.ledger.find((entry) => entry.relatedTable === "profit" && entry.direction === "out");
+    expect(withdrawal).toBeTruthy();
+    expect(totals(state).profit).toBe("231.00");
+
+    reverseOperation(state, { entityType: "adjustment", entityId: withdrawal!.id });
+
+    expect(totals(state).profit).toBe("331.00");
+    expect(() =>
+      adjustAccount(state, { accountId: 1, direction: "out", amount: "331", withdrawType: "profit", note: "owner payout again" })
+    ).not.toThrow();
+    expect(totals(state).profit).toBe("0.00");
+  });
+
   it("sums special client wallet deposit profit in RMB", () => {
     const state = createSeedState();
     state.ledger.unshift(

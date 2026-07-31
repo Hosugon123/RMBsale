@@ -174,7 +174,13 @@ export async function getAvailableProfitTwd(tx: DbTx) {
         eq(ledgerEntries.relatedTable, "profit"),
         eq(ledgerEntries.direction, "out"),
         eq(ledgerEntries.currency, "TWD"),
-        eq(ledgerEntries.isReversal, false)
+        eq(ledgerEntries.isReversal, false),
+        sql`not exists (
+          select 1
+          from ledger_entries reversal
+          where reversal.reverses_ledger_id = ${ledgerEntries.id}
+            and reversal.is_reversal = true
+        )`
       )
     );
   const withdrawn = withdrawals.reduce((sum, row) => sum.add(row.amount), money(0));

@@ -20,6 +20,14 @@ const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const twdMoney = (value: Decimal.Value) => toTwdMoney(value);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
 
+function reversedLedgerIds(state: AppState) {
+  return new Set(
+    state.ledger
+      .filter((entry) => entry.isReversal && entry.reversesLedgerId != null)
+      .map((entry) => entry.reversesLedgerId!)
+  );
+}
+
 function customerHasActiveSettlements(state: AppState, customerId: number) {
   const reversedLedgerIds = new Set(
     state.ledger
@@ -550,13 +558,21 @@ export function replaceBusinessData(state: AppState, next: AppState): AppState {
 }
 
 export function totals(state: AppState) {
+  const reversedIds = reversedLedgerIds(state);
   const saleProfitEarned = state.sales.reduce((sum, sale) => sum.add(sale.profitTwd), d(0));
   const openingProfitEarned = state.ledger
     .filter((entry) => entry.relatedTable === "opening_profit" && entry.direction === "in" && entry.currency === "TWD" && !entry.isReversal)
     .reduce((sum, entry) => sum.add(entry.amount), d(0));
   const profitEarned = saleProfitEarned.add(openingProfitEarned);
   const profitWithdrawals = state.ledger
-    .filter((entry) => entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD")
+    .filter(
+      (entry) =>
+        entry.relatedTable === "profit" &&
+        entry.direction === "out" &&
+        entry.currency === "TWD" &&
+        !entry.isReversal &&
+        !reversedIds.has(entry.id)
+    )
     .reduce((sum, entry) => sum.add(entry.amount), d(0));
   const walletDepositProfitRmb = state.ledger
     .filter(
@@ -693,6 +709,19 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       const before = after.sub(entry.amount);
       contextById.set(entry.id, {
         subjectLabel: "累計利潤",
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      profitPool = before;
+      continue;
+    }
+
+    if (entry.relatedTable === "profit" && entry.direction === "in" && entry.currency === "TWD" && entry.isReversal) {
+      const after = profitPool;
+      const before = after.sub(entry.amount);
+      contextById.set(entry.id, {
+        subjectLabel: "蝝航??拇膜",
         balanceBefore: money(before),
         balanceAfter: money(after),
         balanceCurrency: "TWD"
