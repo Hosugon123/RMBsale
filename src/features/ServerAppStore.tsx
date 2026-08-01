@@ -27,13 +27,13 @@ const INITIAL_BOOTSTRAP_SECTIONS = [
   "accounts",
   "customers",
   "channels",
+  "sales",
+  "rmbLots",
   "ledger"
 ] as const;
 
 const BACKGROUND_BOOTSTRAP_SECTIONS = [
   "purchases",
-  "sales",
-  "rmbLots",
   "saleAllocations"
 ] as const;
 

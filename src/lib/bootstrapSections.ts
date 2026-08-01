@@ -15,7 +15,7 @@ export const REFRESH_PROFILES = {
   purchase: ["users", "channels", "accounts", "purchases", "rmbLots", "ledger"],
   settlement: ["customers", "accounts", "ledger"],
   purchasePay: ["users", "channels", "purchases", "accounts", "ledger"],
-  adjustment: ["users", "channels", "accounts", "purchases", "rmbLots", "ledger"],
+  adjustment: ["users", "channels", "accounts", "purchases", "sales", "rmbLots", "ledger"],
   transfer: ["users", "accounts", "ledger"],
   holderAdmin: ["holders", "accounts"],
   accountAdmin: ["holders", "accounts"],
