@@ -150,7 +150,28 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
         ? db.select().from(saleAllocations).orderBy(asc(saleAllocations.id))
         : Promise.resolve([]),
       wantsSection(sections, "ledger")
-        ? db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)).limit(500)
+        ? (async () => {
+            const [recentRows, profitRows] = await Promise.all([
+              db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)).limit(500),
+              db
+                .select()
+                .from(ledgerEntries)
+                .where(
+                  sql`(
+                    ${ledgerEntries.relatedTable} in ('profit', 'opening_profit')
+                    or (${ledgerEntries.entryType} = '利潤' and ${ledgerEntries.currency} = 'TWD')
+                  )`
+                )
+                .orderBy(desc(ledgerEntries.createdAt))
+            ]);
+            const byId = new Map<number, (typeof recentRows)[number]>();
+            for (const row of recentRows) byId.set(row.id, row);
+            for (const row of profitRows) byId.set(row.id, row);
+            return [...byId.values()].sort((a, b) => {
+              const byTime = b.createdAt.getTime() - a.createdAt.getTime();
+              return byTime !== 0 ? byTime : b.id - a.id;
+            });
+          })()
         : Promise.resolve([]),
       needsPurchaseRows(sections)
         ? db

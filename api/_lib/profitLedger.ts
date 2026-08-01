@@ -3,6 +3,8 @@ import { getDb, type DbTx } from "./db.js";
 import { money, toDbTwd, twdMoney } from "./money.js";
 import { customers, ledgerEntries, sales } from "./schema.js";
 
+type DbReader = DbTx | ReturnType<typeof getDb>;
+
 export async function insertSaleProfitLedger(
   tx: DbTx,
   params: {
@@ -146,7 +148,7 @@ export async function ensureProfitLedgerEntries() {
   return inserted;
 }
 
-export async function getAvailableProfitTwd(tx: DbTx) {
+export async function getAvailableProfitTwd(tx: DbReader) {
   const activeSales = await tx
     .select({ profitTwd: sales.profitTwd })
     .from(sales)
