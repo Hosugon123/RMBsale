@@ -12,7 +12,7 @@ import type { AppState, AppUser } from "../lib/types";
 import type { AppStore } from "./AppStore";
 import { AppStoreContext } from "./AppStore";
 
-type RefreshOptions = { full?: boolean; profile?: RefreshProfile };
+type RefreshOptions = { full?: boolean; profile?: RefreshProfile; ledgerMode?: "recent" | "full" };
 
 type SettlementInput = {
   customerId: number;
@@ -160,11 +160,11 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     setLoadError("");
     if (options?.profile) {
       const sections = [...REFRESH_PROFILES[options.profile]];
-      const { state: patch } = await serverApi.bootstrap({ sections });
+      const { state: patch } = await serverApi.bootstrap({ sections, ledgerMode: options.ledgerMode });
       setState((prev) => (prev ? mergeBootstrapState(prev, patch) : stateFromPartial(patch)));
       return;
     }
-    const { state: next } = await serverApi.bootstrap();
+    const { state: next } = await serverApi.bootstrap({ ledgerMode: options?.ledgerMode });
     setState(next);
   }, []);
 
@@ -265,8 +265,8 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
     state,
     sessionUser,
     summary: totals(state),
-    refresh: () => {
-      void refresh({ full: true });
+    refresh: (options) => {
+      void refresh({ full: true, ledgerMode: options?.ledgerMode });
     },
     resetDemo: () => {
       throw new Error("線上環境不提供重置示範資料，請使用「清除帳務資料」。");

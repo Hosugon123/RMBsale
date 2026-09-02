@@ -18,12 +18,13 @@ import {
 import { cn, fmtMoney, parseMoneyInput, toTwdMoney } from "../lib/utils";
 
 export function LedgerPage() {
-  const { state, summary, createOpeningProfit } = useAppStore();
+  const { state, summary, createOpeningProfit, refresh } = useAppStore();
   const isMutating = useIsMutating();
   const { resolveVoidTarget, requestVoid, pending, error, cancelVoid, confirmVoid } = useLedgerVoid();
   const [openingProfitOpen, setOpeningProfitOpen] = React.useState(false);
   const [openingProfitForm, setOpeningProfitForm] = React.useState({ amountTwd: "", note: "" });
   const [openingProfitError, setOpeningProfitError] = React.useState("");
+  const requestedFullLedgerRef = React.useRef(false);
   const openingProfitAmount = parseMoneyInput(openingProfitForm.amountTwd);
   const voidProps = {
     resolveVoidTarget,
@@ -35,6 +36,11 @@ export function LedgerPage() {
   const twdLedgerRows = React.useMemo(() => cashLedgerRows.filter((entry) => entry.currency === "TWD"), [cashLedgerRows]);
   const rmbLedgerRows = React.useMemo(() => cashLedgerRows.filter((entry) => entry.currency === "RMB"), [cashLedgerRows]);
   const profitLedgerRows = React.useMemo(() => sortedProfitLedgerWithBalances(state), [state]);
+  React.useEffect(() => {
+    if (requestedFullLedgerRef.current) return;
+    requestedFullLedgerRef.current = true;
+    void refresh({ ledgerMode: "full" });
+  }, [refresh]);
   const exportCsv = () => {
     const rows = overviewRows.map((row) => [
       row.id,

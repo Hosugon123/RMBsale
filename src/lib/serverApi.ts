@@ -66,8 +66,11 @@ export const serverApi = {
     return data.user;
   },
 
-  bootstrap: (options?: { sections?: BootstrapSection[] }) => {
-    const query = options?.sections?.length ? `?sections=${options.sections.join(",")}` : "";
+  bootstrap: (options?: { sections?: BootstrapSection[]; ledgerMode?: "recent" | "full" }) => {
+    const search = new URLSearchParams();
+    if (options?.sections?.length) search.set("sections", options.sections.join(","));
+    if (options?.ledgerMode === "full") search.set("ledgerMode", "full");
+    const query = search.toString() ? `?${search.toString()}` : "";
     return request<{ state: AppState; partial?: boolean }>(`bootstrap${query}`);
   },
 

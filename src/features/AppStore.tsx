@@ -68,7 +68,7 @@ export type AppStore = {
   state: AppState;
   sessionUser: AppUser;
   summary: ReturnType<typeof totals>;
-  refresh: () => void | Promise<void>;
+  refresh: (options?: { ledgerMode?: "recent" | "full" }) => void | Promise<void>;
   resetDemo: () => void;
   clearData: () => void | Promise<void>;
   importBusinessData: (payload: BusinessDataImport) => void | Promise<void>;

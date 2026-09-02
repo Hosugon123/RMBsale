@@ -71,7 +71,13 @@ function needsPurchaseRows(sections?: BootstrapSection[]) {
   );
 }
 
-export async function loadBootstrapState(sessionUserId: number, sections?: BootstrapSection[]) {
+export type LedgerLoadMode = "recent" | "full";
+
+export async function loadBootstrapState(
+  sessionUserId: number,
+  sections?: BootstrapSection[],
+  options?: { ledgerMode?: LedgerLoadMode }
+) {
   const db = getDb();
   const loadAll = !sections || sections.length === 0;
   const timingLabel = loadAll ? "[bootstrap] full" : `[bootstrap] partial:${sections.join(",")}`;
@@ -150,7 +156,9 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
         ? db.select().from(saleAllocations).orderBy(asc(saleAllocations.id))
         : Promise.resolve([]),
       wantsSection(sections, "ledger")
-        ? (async () => {
+        ? options?.ledgerMode === "full"
+          ? db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt))
+          : (async () => {
             const [recentRows, profitRows] = await Promise.all([
               db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)).limit(500),
               db
@@ -346,7 +354,7 @@ export async function loadBootstrapState(sessionUserId: number, sections?: Boots
 }
 
 export async function loadFullBootstrapState(sessionUserId: number) {
-  return loadBootstrapState(sessionUserId) as Promise<
+  return loadBootstrapState(sessionUserId, undefined, { ledgerMode: "full" }) as Promise<
     Awaited<ReturnType<typeof loadBootstrapState>> & {
       users: NonNullable<Awaited<ReturnType<typeof loadBootstrapState>>["users"]>;
       holders: NonNullable<Awaited<ReturnType<typeof loadBootstrapState>>["holders"]>;

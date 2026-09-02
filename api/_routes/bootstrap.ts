@@ -11,9 +11,10 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const user = requireUser(req);
       const sections = parseBootstrapSections(req.query.sections);
+      const ledgerMode = req.query.ledgerMode === "full" ? "full" : "recent";
       if (!sections || sections.includes("ledger")) await ensureProfitLedgerEntries();
       const state = sections
-        ? await loadBootstrapState(user.id, sections)
+        ? await loadBootstrapState(user.id, sections, { ledgerMode })
         : await loadFullBootstrapState(user.id);
       return ok(res, { state, user, partial: Boolean(sections) });
     } catch (error) {
