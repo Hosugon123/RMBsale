@@ -610,6 +610,25 @@ export type LedgerBalanceContext = {
   balanceCurrency: Currency;
 };
 
+function isTwdProfitPoolEntry(
+  entry: Pick<LedgerEntry, "entryType" | "relatedTable" | "currency">
+) {
+  return (
+    entry.currency === "TWD" &&
+    (
+      (entry.entryType === "利潤" && (entry.relatedTable === "sales" || entry.relatedTable === "opening_profit")) ||
+      entry.relatedTable === "profit" ||
+      entry.entryType === "分潤"
+    )
+  );
+}
+
+function isWalletProfitPoolEntry(
+  entry: Pick<LedgerEntry, "entryType" | "relatedTable" | "currency">
+) {
+  return entry.entryType === "利潤" && entry.relatedTable === "special_client_wallet" && entry.currency === "RMB";
+}
+
 export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial<LedgerBalanceContext>> {
   const accountBalances = new Map(state.accounts.map((account) => [account.id, d(account.balance)]));
   const customerReceivables = new Map(state.customers.map((customer) => [customer.id, d(customer.receivableTwd)]));
@@ -627,6 +646,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
   const purchaseById = new Map(state.purchases.map((purchase) => [purchase.id, purchase]));
   const contextById = new Map<number, LedgerBalanceContext>();
   let profitPool = d(totals(state).profit);
+  let walletProfitPool = d(totals(state).walletDepositProfitRmb);
 
   const resolvePayableChannelId = (entry: LedgerEntry) => {
     if (entry.channelId !== undefined) return entry.channelId;
@@ -645,6 +665,33 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
   for (const entry of sorted) {
     const delta =
       entry.direction === "in" ? d(entry.amount) : entry.direction === "out" ? d(entry.amount).neg() : d(0);
+
+    if (isTwdProfitPoolEntry(entry)) {
+      const after = profitPool;
+      const before = after.sub(delta);
+      const account = entry.accountId ? accountById.get(entry.accountId) : undefined;
+      contextById.set(entry.id, {
+        subjectLabel: account ? `${account.holderName} / ${account.name}` : "累計利潤",
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "TWD"
+      });
+      profitPool = before;
+      continue;
+    }
+
+    if (isWalletProfitPoolEntry(entry)) {
+      const after = walletProfitPool;
+      const before = after.sub(delta);
+      contextById.set(entry.id, {
+        subjectLabel: "儲值利潤",
+        balanceBefore: money(before),
+        balanceAfter: money(after),
+        balanceCurrency: "RMB"
+      });
+      walletProfitPool = before;
+      continue;
+    }
 
     if (entry.accountId) {
       const account = accountById.get(entry.accountId);
@@ -704,43 +751,6 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       continue;
     }
 
-    if (entry.entryType === "利潤" && entry.direction === "in") {
-      const after = profitPool;
-      const before = after.sub(entry.amount);
-      contextById.set(entry.id, {
-        subjectLabel: "累計利潤",
-        balanceBefore: money(before),
-        balanceAfter: money(after),
-        balanceCurrency: "TWD"
-      });
-      profitPool = before;
-      continue;
-    }
-
-    if (entry.relatedTable === "profit" && entry.direction === "in" && entry.currency === "TWD" && entry.isReversal) {
-      const after = profitPool;
-      const before = after.sub(entry.amount);
-      contextById.set(entry.id, {
-        subjectLabel: "蝝航??拇膜",
-        balanceBefore: money(before),
-        balanceAfter: money(after),
-        balanceCurrency: "TWD"
-      });
-      profitPool = before;
-      continue;
-    }
-
-    if (entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD") {
-      const after = profitPool;
-      const before = after.add(entry.amount);
-      contextById.set(entry.id, {
-        subjectLabel: "累計利潤",
-        balanceBefore: money(before),
-        balanceAfter: money(after),
-        balanceCurrency: "TWD"
-      });
-      profitPool = before;
-    }
   }
 
   return state.ledger.map((entry) => ({
@@ -759,12 +769,7 @@ export function sortedLedgerWithBalances(state: AppState) {
 export function isProfitLedgerEntry(
   entry: Pick<LedgerEntry, "entryType" | "direction" | "relatedTable" | "currency" | "description">
 ) {
-  return (
-    entry.entryType === "利潤" ||
-    entry.entryType === "分潤" ||
-    (entry.relatedTable === "profit" && entry.direction === "out" && entry.currency === "TWD") ||
-    entry.description.includes("利潤")
-  );
+  return isTwdProfitPoolEntry(entry) || isWalletProfitPoolEntry(entry);
 }
 
 export function sortedProfitLedgerWithBalances(state: AppState) {

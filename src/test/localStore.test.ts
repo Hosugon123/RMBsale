@@ -718,6 +718,42 @@ describe("local demo store", () => {
     expect(profitLedger(state).map((entry) => entry.direction)).toEqual(["out", "in"]);
   });
 
+  it("shows profit pool balances on profit withdrawals instead of cash account balances", () => {
+    const state = createSeedState();
+
+    adjustAccount(state, { accountId: 1, direction: "out", amount: "100", withdrawType: "profit", note: "owner payout" });
+
+    const withdrawal = sortedProfitLedgerWithBalances(state).find(
+      (entry) => entry.relatedTable === "profit" && entry.direction === "out"
+    );
+    expect(withdrawal).toMatchObject({
+      balanceBefore: "331.00",
+      balanceAfter: "231.00",
+      balanceCurrency: "TWD"
+    });
+    expect(withdrawal?.balanceBefore).not.toBe(state.accounts.find((account) => account.id === 1)?.balance);
+  });
+
+  it("does not classify capital withdrawals as profit just because the description mentions profit", () => {
+    const state = createSeedState();
+    state.ledger.unshift({
+      id: 9000,
+      createdAt: "2026-08-01T10:00:00.000Z",
+      entryType: "撤資",
+      accountId: 1,
+      direction: "out",
+      currency: "TWD",
+      amount: "12960.00",
+      description: "0107台 撤資：利潤誤差所以用撤資紀錄",
+      operatorName: "管理員",
+      relatedTable: "撤資",
+      relatedId: 9000
+    });
+
+    expect(sortedProfitLedgerWithBalances(state).some((entry) => entry.id === 9000)).toBe(false);
+    expect(sortedCashLedgerWithBalances(state).some((entry) => entry.id === 9000)).toBe(true);
+  });
+
   it("restores available profit after a profit withdrawal is reversed", () => {
     const state = createSeedState();
 
@@ -767,5 +803,13 @@ describe("local demo store", () => {
     );
 
     expect(totals(state).walletDepositProfitRmb).toBe("900.00");
+    const rows = sortedProfitLedgerWithBalances(state);
+    const walletProfit = rows.find((entry) => entry.id === 9002);
+    expect(walletProfit).toMatchObject({
+      balanceBefore: "1100.00",
+      balanceAfter: "900.00",
+      balanceCurrency: "RMB",
+      subjectLabel: "儲值利潤"
+    });
   });
 });

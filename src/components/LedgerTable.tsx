@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { LedgerBalanceContext } from "../lib/localStore";
-import { ledgerOperationGroupKey } from "../lib/localStore";
+import { isProfitLedgerEntry, ledgerOperationGroupKey } from "../lib/localStore";
 import type { ReversalTarget } from "../lib/reversalUi";
 import type { LedgerEntry } from "../lib/types";
 import { Button } from "./ui/button";
@@ -40,15 +40,6 @@ type LedgerTableProps = {
   resolveVoidTarget?: (entry: LedgerTableRow) => ReversalTarget | null;
   onVoid?: (entry: LedgerTableRow, target: ReversalTarget) => void;
 };
-
-function isProfitLedgerEntry(entry: LedgerTableRow) {
-  return (
-    entry.entryType === "利潤" ||
-    entry.entryType === "分潤" ||
-    entry.relatedTable === "profit" ||
-    entry.description.includes("利潤")
-  );
-}
 
 function ledgerAmountClass(entry: LedgerTableRow) {
   if (isProfitLedgerEntry(entry)) return profit.text;
