@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { allocateFifo, calcProfit, calcTwd } from "../../api/_lib/money";
+import { allocateFifo, assertReasonableRmbCostRate, calcProfit, calcTwd } from "../../api/_lib/money";
 
 describe("money calculations", () => {
   it("rounds TWD up to a whole number", () => {
@@ -21,6 +21,11 @@ describe("money calculations", () => {
 
   it("rejects insufficient FIFO inventory by default", () => {
     expect(() => allocateFifo([{ id: 1, remainingRmb: "100.00", unitCostTwd: "4.4" }], "101.00")).toThrow(/insufficient/i);
+  });
+
+  it("rejects implausibly low RMB cost rates", () => {
+    expect(() => assertReasonableRmbCostRate("0.010000")).toThrow("RMB 成本匯率不可低於 1");
+    expect(() => assertReasonableRmbCostRate("4.750000")).not.toThrow();
   });
 
   it("allows short allocation when enabled", () => {

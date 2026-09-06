@@ -1,6 +1,16 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
-import { allocateFifo, calcProfit, calcTwd, money, toDbMoney, toDbRate, toDbTwd, twdMoney } from "./money.js";
+import {
+  allocateFifo,
+  assertReasonableRmbCostRate,
+  calcProfit,
+  calcTwd,
+  money,
+  toDbMoney,
+  toDbRate,
+  toDbTwd,
+  twdMoney
+} from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { assertPurchaseEditable } from "./locks.js";
@@ -49,6 +59,7 @@ export async function createPurchase(input: {
   const db = getDb();
   if (money(input.rmbAmount).lte(0)) throw new Error("RMB 金額必須大於 0");
   if (money(input.exchangeRate).lte(0)) throw new Error("匯率必須大於 0");
+  assertReasonableRmbCostRate(input.exchangeRate);
   if (input.paymentStatus !== "paid" && input.paymentStatus !== "unpaid") throw new Error("付款狀態不正確");
   if (input.paymentStatus === "paid" && !input.paymentAccountId) throw new Error("已付款時請選擇付款帳戶");
   const twdCost = calcTwd(input.rmbAmount, input.exchangeRate);
@@ -618,6 +629,7 @@ async function rmbDepositLot(
   operatorId: number
 ) {
   const channelId = await ensureChannelId(tx, DEPOSIT_CHANNEL);
+  assertReasonableRmbCostRate(exchangeRate);
   const twdCost = calcTwd(rmbAmount, exchangeRate);
   const [purchase] = await tx
     .insert(purchases)

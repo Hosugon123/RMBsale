@@ -265,6 +265,42 @@ export const serverApi = {
       }>;
     }>("admin/rmb-inventory/reconcile", { method: "POST" }),
 
+  repairProfitFifoCosts: (mode: "dryRun" | "apply" = "dryRun") =>
+    request<{
+      report: {
+        mode: "dryRun" | "apply";
+        suspiciousUnitCostThreshold: string;
+        suspiciousLots: Array<{
+          lotId: number;
+          purchaseId: number;
+          originalUnitCostTwd: string;
+          repairedUnitCostTwd: string;
+          originalRmb: string;
+          remainingRmb: string;
+        }>;
+        impactedSales: Array<{
+          saleId: number;
+          originalCostTwd: string;
+          repairedCostTwd: string;
+          originalProfitTwd: string;
+          repairedProfitTwd: string;
+          profitDeltaTwd: string;
+        }>;
+        totals: {
+          suspiciousLots: number;
+          impactedSales: number;
+          costIncreaseTwd: string;
+          profitDeltaTwd: string;
+        };
+      };
+      backup?: {
+        id: number;
+        status: string;
+        fileName?: string | null;
+        storageTarget: string;
+      } | null;
+    }>("admin/profit-repair", { method: "POST", body: JSON.stringify({ mode }) }),
+
   backupDownloadUrl: (id: number) => `/api/admin/backups/download?id=${id}`
 };
 

@@ -28,6 +28,12 @@ export function toDbRate(value: Decimal.Value) {
   return money(value).toDecimalPlaces(6).toFixed(6);
 }
 
+export function assertReasonableRmbCostRate(rate: Decimal.Value) {
+  if (money(rate).lt(1)) {
+    throw new Error("RMB 成本匯率不可低於 1，請檢查是否誤把手續費或備註輸入為匯率");
+  }
+}
+
 export function calcTwd(rmbAmount: Decimal.Value, exchangeRate: Decimal.Value) {
   return twdMoney(money(rmbAmount).mul(exchangeRate));
 }

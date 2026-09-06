@@ -1,4 +1,4 @@
-import { Pencil, Plus, RefreshCw, Shield, Trash2, Upload, X } from "lucide-react";
+import { Calculator, Pencil, Plus, RefreshCw, Shield, Trash2, Upload, X } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { isAdmin } from "../components/AdminRoute";
@@ -101,6 +101,7 @@ export function AdminPage() {
   const [importMessage, setImportMessage] = React.useState("");
   const [inventoryRepairMessage, setInventoryRepairMessage] = React.useState("");
   const [inventoryRepairing, setInventoryRepairing] = React.useState(false);
+  const [profitRepairing, setProfitRepairing] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [createForm, setCreateForm] = React.useState(emptyCreateForm);
   const [createPermissions, setCreatePermissions] = React.useState<PermissionKey[]>([...LEVEL_PRESETS.operator.permissions]);
@@ -235,6 +236,37 @@ export function AdminPage() {
     }
   };
 
+  const repairProfitCosts = async () => {
+    setInventoryRepairMessage("");
+    setProfitRepairing(true);
+    try {
+      const preview = await serverApi.repairProfitFifoCosts("dryRun");
+      const { totals } = preview.report;
+      if (totals.impactedSales === 0) {
+        setInventoryRepairMessage("利潤成本已檢查，沒有發現低成本批次污染售出利潤。");
+        return;
+      }
+      const confirmed = window.confirm(
+        `即將修正 ${totals.impactedSales} 筆售出利潤，利潤合計異動 ${Number(totals.profitDeltaTwd).toLocaleString("zh-TW")} TWD。\n\n系統會先建立備份，再修正售出成本、利潤與利潤流水。是否繼續？`
+      );
+      if (!confirmed) {
+        setInventoryRepairMessage(
+          `利潤修復試算完成：${totals.impactedSales} 筆售出受影響，利潤合計異動 ${Number(totals.profitDeltaTwd).toLocaleString("zh-TW")} TWD，尚未套用。`
+        );
+        return;
+      }
+      const result = await serverApi.repairProfitFifoCosts("apply");
+      await Promise.resolve(refresh({ ledgerMode: "full" }));
+      setInventoryRepairMessage(
+        `利潤成本已修復：${result.report.totals.impactedSales} 筆售出，利潤合計異動 ${Number(result.report.totals.profitDeltaTwd).toLocaleString("zh-TW")} TWD。`
+      );
+    } catch (error) {
+      setInventoryRepairMessage(error instanceof Error ? error.message : "利潤成本修復失敗");
+    } finally {
+      setProfitRepairing(false);
+    }
+  };
+
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -287,6 +319,18 @@ export function AdminPage() {
               >
                 <RefreshCw className="h-4 w-4 shrink-0" />
                 {inventoryRepairing ? "修復中" : "修復 RMB 庫存"}
+              </Button>
+            ) : null}
+            {serverMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-full sm:w-auto"
+                disabled={profitRepairing}
+                onClick={() => void repairProfitCosts()}
+              >
+                <Calculator className="h-4 w-4 shrink-0" />
+                {profitRepairing ? "修復中" : "修復利潤成本"}
               </Button>
             ) : null}
             {!serverMode ? (

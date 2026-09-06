@@ -19,6 +19,11 @@ const txNow = () => transactionTimestamp ?? now();
 const money = (value: Decimal.Value) => d(value).toDecimalPlaces(2).toFixed(2);
 const twdMoney = (value: Decimal.Value) => toTwdMoney(value);
 const rate = (value: Decimal.Value) => d(value).toDecimalPlaces(6).toFixed(6);
+const assertReasonableRmbCostRate = (value: Decimal.Value) => {
+  if (d(value).lt(1)) {
+    throw new Error("RMB 成本匯率不可低於 1，請檢查是否誤把手續費或備註輸入為匯率");
+  }
+};
 
 function reversedLedgerIds(state: AppState) {
   return new Set(
@@ -898,6 +903,9 @@ export function addPurchase(state: AppState, input: {
 }) {
   const channel = getOrCreateByName(state.channels, input.channelName);
   const rmbAmount = money(input.rmbAmount);
+  if (d(rmbAmount).lte(0)) throw new Error("RMB 金額必須大於 0");
+  if (d(input.exchangeRate).lte(0)) throw new Error("匯率必須大於 0");
+  assertReasonableRmbCostRate(input.exchangeRate);
   const twdCost = twdMoney(d(input.rmbAmount).mul(input.exchangeRate));
   const purchase = {
     id: nextId(state.purchases),
@@ -1209,6 +1217,7 @@ function addRmbDepositLot(
   exchangeRate: string
 ) {
   const channel = getOrCreateByName(state.channels, DEPOSIT_CHANNEL);
+  assertReasonableRmbCostRate(exchangeRate);
   const twdCost = twdMoney(d(rmbAmount).mul(exchangeRate));
   const purchase = {
     id: nextId(state.purchases),
