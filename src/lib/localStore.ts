@@ -1664,10 +1664,10 @@ function allocateFifoPreview(state: AppState, accountId: number, requestedRmb: s
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);
-    costTwd = costTwd.add(allocated.mul(lot.unitCostTwd));
+    costTwd = costTwd.add(twdMoney(allocated.mul(lot.unitCostTwd)));
     remaining = remaining.sub(allocated);
   }
-  return { costTwd: money(costTwd), shortfallRmb: money(remaining) };
+  return { costTwd: twdMoney(costTwd), shortfallRmb: money(remaining) };
 }
 
 export function previewSaleProfit(

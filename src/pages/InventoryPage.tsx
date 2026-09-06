@@ -16,7 +16,7 @@ export function InventoryPage() {
     () =>
       state.rmbLots
         .filter((lot) => Number(lot.remainingRmb) > 0)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id),
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id),
     [state.rmbLots]
   );
   const allocations = React.useMemo(
@@ -85,7 +85,7 @@ export function InventoryPage() {
                     return (
                       <TR key={lot.id}>
                         <TD>{new Date(lot.createdAt).toLocaleDateString("zh-TW")}</TD>
-                        <TD>{lot.channelName}</TD>
+                        <TD>{lot.channelName || `批次 #${lot.id}`}</TD>
                         <TD className={rmb.moneyCell}>{fmtMoney(lot.originalRmb, "RMB")}</TD>
                         <TD className="text-right text-muted-foreground">{fmtMoney(soldRmb, "RMB")}</TD>
                         <TD className={rmb.moneyCell}>{fmtMoney(lot.remainingRmb, "RMB")}</TD>
@@ -129,7 +129,7 @@ export function InventoryPage() {
                       <TR key={allocation.id}>
                         <TD>{new Date(allocation.createdAt).toLocaleDateString("zh-TW")}</TD>
                         <TD>{allocation.sale?.customerName ?? "-"}</TD>
-                        <TD>{allocation.channelName}</TD>
+                        <TD>{allocation.channelName ? `${allocation.channelName} #${allocation.lotId}` : `批次 #${allocation.lotId}`}</TD>
                         <TD className={rmb.moneyCell}>{fmtMoney(allocation.allocatedRmb, "RMB")}</TD>
                         <TD className="text-right">{fmtRate(allocation.unitCostTwd)}</TD>
                         <TD className={twd.moneyCell}>{fmtMoney(allocation.costTwd)}</TD>

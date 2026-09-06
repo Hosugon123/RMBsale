@@ -555,6 +555,35 @@ describe("local demo store", () => {
     expect(next.saleAllocations[0]).toMatchObject({ channelName: "較早批次", allocatedRmb: "1000.00", costTwd: "4500.00" });
   });
 
+  it("previews sale profit with the same per-lot TWD rounding as real FIFO allocation", () => {
+    const state = createSeedState();
+    state.accounts.find((account) => account.id === 2)!.balance = "30000.00";
+    state.rmbLots = [
+      { id: 1, purchaseId: 1, accountId: 4, channelName: "林客人", originalRmb: "1004.66", remainingRmb: "1004.66", unitCostTwd: "4.750162", exchangeRate: "4.750162", createdAt: "2026-08-22T00:00:00.000Z" },
+      { id: 2, purchaseId: 2, accountId: 2, channelName: "庫存同步", originalRmb: "19733.18", remainingRmb: "19733.18", unitCostTwd: "4.769738", exchangeRate: "4.769738", createdAt: "2026-09-03T00:00:00.000Z" },
+      { id: 3, purchaseId: 3, accountId: 2, channelName: "成哥", originalRmb: "330293.00", remainingRmb: "330293.00", unitCostTwd: "4.750001", exchangeRate: "4.750001", createdAt: "2026-09-04T00:00:00.000Z" }
+    ];
+
+    expect(previewSaleProfit(state, { rmbAccountId: 2, rmbAmount: "1000", exchangeRate: "4.85" })).toMatchObject({
+      twdAmount: "4850.00",
+      profitTwd: "99.00",
+      profitError: null
+    });
+    expect(previewSaleProfit(state, { rmbAccountId: 2, rmbAmount: "10000", exchangeRate: "4.85" })).toMatchObject({
+      twdAmount: "48500.00",
+      profitTwd: "821.00",
+      profitError: null
+    });
+
+    const next = addSale(state, {
+      customerName: "跨批次客戶",
+      rmbAccountId: 2,
+      rmbAmount: "10000",
+      exchangeRate: "4.85"
+    });
+    expect(next.sales[0]).toMatchObject({ costTwd: "47679.00", profitTwd: "821.00" });
+  });
+
   it("creates users with checkbox permissions", () => {
     const state = createSeedState();
     createUser(state, {
