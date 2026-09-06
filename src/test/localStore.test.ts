@@ -522,6 +522,39 @@ describe("local demo store", () => {
     expect(next.saleAllocations[1]).toMatchObject({ channelName: "第二批", allocatedRmb: "10000.00", costTwd: "46500.00" });
   });
 
+  it("uses the company-wide FIFO pool even when the sale account is different", () => {
+    const state = createSeedState();
+    state.accounts.find((account) => account.id === 2)!.balance = "100000.00";
+    state.accounts.find((account) => account.id === 4)!.balance = "1000.00";
+    state.rmbLots = [
+      { id: 1, purchaseId: 1, accountId: 4, channelName: "較早批次", originalRmb: "1000.00", remainingRmb: "1000.00", unitCostTwd: "4.500000", exchangeRate: "4.500000", createdAt: "2026-06-01T00:00:00.000Z" },
+      { id: 2, purchaseId: 2, accountId: 2, channelName: "較晚批次", originalRmb: "100000.00", remainingRmb: "100000.00", unitCostTwd: "4.800000", exchangeRate: "4.800000", createdAt: "2026-06-02T00:00:00.000Z" }
+    ];
+    state.sales = [];
+    state.saleAllocations = [];
+
+    const preview = previewSaleProfit(state, {
+      rmbAccountId: 2,
+      rmbAmount: "1000",
+      exchangeRate: "4.85"
+    });
+    expect(preview).toMatchObject({ twdAmount: "4850.00", profitTwd: "350.00", profitError: null });
+
+    const next = addSale(state, {
+      customerName: "全局FIFO客戶",
+      rmbAccountId: 2,
+      rmbAmount: "1000",
+      exchangeRate: "4.85"
+    });
+
+    expect(next.accounts.find((account) => account.id === 2)?.balance).toBe("99000.00");
+    expect(next.accounts.find((account) => account.id === 4)?.balance).toBe("1000.00");
+    expect(next.rmbLots[0].remainingRmb).toBe("0.00");
+    expect(next.rmbLots[1].remainingRmb).toBe("100000.00");
+    expect(next.sales[0]).toMatchObject({ costTwd: "4500.00", profitTwd: "350.00" });
+    expect(next.saleAllocations[0]).toMatchObject({ channelName: "較早批次", allocatedRmb: "1000.00", costTwd: "4500.00" });
+  });
+
   it("creates users with checkbox permissions", () => {
     const state = createSeedState();
     createUser(state, {

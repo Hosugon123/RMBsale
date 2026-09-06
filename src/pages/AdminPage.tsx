@@ -223,7 +223,7 @@ export function AdminPage() {
       const changed = report.filter((item) => item.action !== "none");
       await Promise.resolve(refresh());
       if (!changed.length) {
-        setInventoryRepairMessage("人民幣庫存已檢查，所有 RMB 帳戶都與 FIFO 庫存一致。");
+        setInventoryRepairMessage("人民幣庫存已檢查，總 RMB 帳戶餘額與全局 FIFO 庫存一致。");
         return;
       }
       const summary = changed.map((item) => `${item.accountName}：${item.gapRmb} RMB`).join("、");

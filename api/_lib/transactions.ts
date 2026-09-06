@@ -175,7 +175,7 @@ export async function createSale(input: {
       remainingRmb: rmbLots.remainingRmb,
       unitCostTwd: rmbLots.unitCostTwd
     }).from(rmbLots)
-      .where(and(eq(rmbLots.accountId, input.rmbAccountId), gt(rmbLots.remainingRmb, "0")))
+      .where(gt(rmbLots.remainingRmb, "0"))
       .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
     const allocation = allocateFifo(lots, input.rmbAmount);
@@ -644,7 +644,7 @@ async function rmbDepositLot(
   return { purchase, twdCost: toDbTwd(twdCost) };
 }
 
-async function consumeRmbLotsFifo(tx: DbTx, accountId: number, rmbAmount: string) {
+async function consumeRmbLotsFifo(tx: DbTx, rmbAmount: string) {
   const lots = await tx
     .select({
       id: rmbLots.id,
@@ -652,7 +652,7 @@ async function consumeRmbLotsFifo(tx: DbTx, accountId: number, rmbAmount: string
       unitCostTwd: rmbLots.unitCostTwd
     })
     .from(rmbLots)
-    .where(and(eq(rmbLots.accountId, accountId), gt(rmbLots.remainingRmb, "0")))
+    .where(gt(rmbLots.remainingRmb, "0"))
     .orderBy(asc(rmbLots.createdAt), asc(rmbLots.id));
 
   const allocation = allocateFifo(lots, rmbAmount);
@@ -735,7 +735,7 @@ export async function createAccountAdjustment(
         throw new Error(`RMB 帳戶餘額不足，尚缺 ${toDbMoney(money(input.amount).sub(account.balance))} RMB`);
       }
       await reconcileRmbLotInventory(tx, actor.id);
-      const allocation = await consumeRmbLotsFifo(tx, account.id, input.amount);
+      const allocation = await consumeRmbLotsFifo(tx, input.amount);
       const nominalTwd = toDbTwd(calcTwd(input.amount, input.exchangeRate));
       const description = `${account.name} 撤資 @${toDbRate(input.exchangeRate)}，FIFO 成本 ${allocation.totalCostTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;
       await addAccountDelta(

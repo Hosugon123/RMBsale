@@ -1472,12 +1472,9 @@ export function renameAccount(state: AppState, input: { accountId: number; name:
 }
 
 function assertAccountDeletable(state: AppState, account: AppState["accounts"][number]) {
+  void state;
   if (!d(account.balance).eq(0) || !d(account.profitBalance).eq(0)) {
     throw new Error("帳戶仍有餘額，無法刪除");
-  }
-  const hasInventory = state.rmbLots.some((lot) => lot.accountId === account.id && d(lot.remainingRmb).gt(0));
-  if (hasInventory) {
-    throw new Error("帳戶仍有人民幣庫存，無法刪除");
   }
 }
 
@@ -1561,7 +1558,7 @@ function estimateAccountUnitCost(state: AppState, accountId: number): string {
   return "4.500000";
 }
 
-/** 帳戶餘額高於 FIFO 可售量時補批次（庫存盤點／對齊），與 ERP 調整單一致。 */
+/** 總 RMB 帳戶餘額高於全局 FIFO 可售量時補批次（庫存盤點／對齊），與 ERP 調整單一致。 */
 export function reconcileLocalRmbLotInventory(state: AppState) {
   if (!state.channels.some((channel) => channel.name === INVENTORY_SYNC_CHANNEL)) {
     addChannel(state, { name: INVENTORY_SYNC_CHANNEL });
@@ -1654,7 +1651,7 @@ function allocateFifoPreview(state: AppState, accountId: number, requestedRmb: s
   let costTwd = d(0);
   const lots = state.rmbLots
     .filter((lot) => d(lot.remainingRmb).gt(0))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);
@@ -1710,7 +1707,7 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
   const items: Array<{ lotId: number; purchaseId: number; channelName: string; allocatedRmb: string; unitCostTwd: string; costTwd: string }> = [];
   const lots = state.rmbLots
     .filter((lot) => d(lot.remainingRmb).gt(0))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
   const availableRmb = lots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
   if (availableRmb.lt(remaining)) {
     return { costTwd: "0.00", items, shortfallRmb: money(remaining.sub(availableRmb)) };
@@ -1742,7 +1739,7 @@ function inferSaleAllocations(state: AppState) {
       availableSoldRmb: d(lot.originalRmb).sub(lot.remainingRmb)
     }))
     .filter((item) => item.availableSoldRmb.gt(0))
-    .sort((a, b) => a.lot.createdAt.localeCompare(b.lot.createdAt));
+    .sort((a, b) => a.lot.createdAt.localeCompare(b.lot.createdAt) || a.lot.id - b.lot.id);
   const allocations: AppState["saleAllocations"] = [];
   const sales = [...state.sales].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
@@ -1750,7 +1747,7 @@ function inferSaleAllocations(state: AppState) {
     let remaining = d(sale.rmbAmount);
     for (const item of soldByLot) {
       if (remaining.lte(0)) break;
-      if (item.lot.accountId !== sale.rmbAccountId || item.availableSoldRmb.lte(0)) continue;
+      if (item.availableSoldRmb.lte(0)) continue;
       const allocated = Decimal.min(remaining, item.availableSoldRmb);
       const costTwd = toTwdMoney(allocated.mul(item.lot.unitCostTwd));
       allocations.push({
