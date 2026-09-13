@@ -20,7 +20,7 @@ import {
 } from "../lib/permissions";
 import { parseBusinessImportJson, summarizeBusinessImport } from "../lib/dataImport";
 import { modalOverlayClass } from "../lib/formStyles";
-import { cn } from "../lib/utils";
+import { cn, fmtMoney } from "../lib/utils";
 import type { AppUser, PermissionKey, UserLevel } from "../lib/types";
 
 const adminCardHeader = "gap-2 p-3 pb-2 sm:p-4 sm:pb-0";
@@ -41,6 +41,8 @@ const emptyCreateForm: UserFormState = {
   displayName: "",
   level: "operator"
 };
+
+type ProfitAuditReport = Awaited<ReturnType<typeof serverApi.auditProfit>>["report"];
 
 function UserPermissionEditor({
   level,
@@ -101,6 +103,8 @@ export function AdminPage() {
   const [importMessage, setImportMessage] = React.useState("");
   const [inventoryRepairMessage, setInventoryRepairMessage] = React.useState("");
   const [inventoryRepairing, setInventoryRepairing] = React.useState(false);
+  const [profitAuditing, setProfitAuditing] = React.useState(false);
+  const [profitAuditReport, setProfitAuditReport] = React.useState<ProfitAuditReport | null>(null);
   const [profitRepairing, setProfitRepairing] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [createForm, setCreateForm] = React.useState(emptyCreateForm);
@@ -267,6 +271,27 @@ export function AdminPage() {
     }
   };
 
+  const auditProfit = async () => {
+    setInventoryRepairMessage("");
+    setProfitAuditReport(null);
+    setProfitAuditing(true);
+    try {
+      const { report } = await serverApi.auditProfit();
+      setProfitAuditReport(report);
+      if (report.status === "ok") {
+        setInventoryRepairMessage(`利潤稽核通過：已檢查 ${report.totals.salesAudited} 筆售出，未發現 FIFO、利潤或利潤流水不一致。`);
+      } else {
+        setInventoryRepairMessage(
+          `利潤稽核完成：${report.totals.issueSales} 筆售出有疑慮，共 ${report.totals.issues} 個問題，請查看下方報告。`
+        );
+      }
+    } catch (error) {
+      setInventoryRepairMessage(error instanceof Error ? error.message : "利潤稽核失敗");
+    } finally {
+      setProfitAuditing(false);
+    }
+  };
+
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -314,6 +339,18 @@ export function AdminPage() {
                 variant="outline"
                 size="sm"
                 className="h-10 w-full sm:w-auto"
+                disabled={profitAuditing}
+                onClick={() => void auditProfit()}
+              >
+                <Shield className="h-4 w-4 shrink-0" />
+                {profitAuditing ? "稽核中" : "稽核利潤"}
+              </Button>
+            ) : null}
+            {serverMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-full sm:w-auto"
                 disabled={inventoryRepairing}
                 onClick={() => void repairRmbInventory()}
               >
@@ -345,6 +382,81 @@ export function AdminPage() {
           <div className="space-y-2">
             {inventoryRepairMessage ? (
               <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">{inventoryRepairMessage}</p>
+            ) : null}
+            {profitAuditReport ? (
+              <div className="space-y-3 rounded-md border bg-background/70 p-3 text-foreground">
+                <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <p className="text-muted-foreground">稽核狀態</p>
+                    <p className={cn("font-semibold", profitAuditReport.status === "ok" ? "text-emerald-700" : "text-destructive")}>
+                      {profitAuditReport.status === "ok" ? "通過" : "有疑慮"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">售出檢查</p>
+                    <p className="font-semibold">
+                      {profitAuditReport.totals.salesAudited} 筆 / 異常 {profitAuditReport.totals.issueSales} 筆
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">問題總數</p>
+                    <p className="font-semibold">{profitAuditReport.totals.issues}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">目前售出利潤</p>
+                    <p className="font-semibold">{fmtMoney(profitAuditReport.totals.storedSaleProfitTwd)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">重算售出利潤</p>
+                    <p className="font-semibold">{fmtMoney(profitAuditReport.totals.recalculatedSaleProfitTwd)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">重算差額</p>
+                    <p className={cn("font-semibold", Number(profitAuditReport.totals.saleProfitDeltaTwd) === 0 ? "" : "text-destructive")}>
+                      {fmtMoney(profitAuditReport.totals.saleProfitDeltaTwd)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">目前可提取利潤</p>
+                    <p className="font-semibold">{fmtMoney(profitAuditReport.totals.storedAvailableProfitTwd)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">重算可提取利潤</p>
+                    <p className="font-semibold">{fmtMoney(profitAuditReport.totals.recalculatedAvailableProfitTwd)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">可提取差額</p>
+                    <p className={cn("font-semibold", Number(profitAuditReport.totals.availableProfitDeltaTwd) === 0 ? "" : "text-destructive")}>
+                      {fmtMoney(profitAuditReport.totals.availableProfitDeltaTwd)}
+                    </p>
+                  </div>
+                </div>
+                {profitAuditReport.issues.length ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">問題明細（前 10 筆）</p>
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {profitAuditReport.issues.slice(0, 10).map((issue, index) => (
+                        <div key={`${issue.kind}-${issue.saleId ?? "global"}-${index}`} className="rounded-md border bg-muted/30 p-2 text-xs">
+                          <p className="font-medium">
+                            {issue.saleId ? `售出 #${issue.saleId} ` : ""}
+                            {issue.customerName ? `${issue.customerName}：` : ""}
+                            {issue.message}
+                          </p>
+                          <p className="mt-1 text-muted-foreground">
+                            類型 {issue.kind}
+                            {issue.expected !== undefined ? `｜應為 ${issue.expected}` : ""}
+                            {issue.actual !== undefined ? `｜目前 ${issue.actual}` : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    未發現利潤計算、FIFO 分配或利潤流水不一致。
+                  </p>
+                )}
+              </div>
             ) : null}
             <p>本機 demo 將使用者與權限存在 localStorage，密碼僅供示範，正式環境請改用 API 雜湊儲存。</p>
             <p>

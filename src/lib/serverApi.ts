@@ -301,6 +301,37 @@ export const serverApi = {
       } | null;
     }>("admin/profit-repair", { method: "POST", body: JSON.stringify({ mode }) }),
 
+  auditProfit: () =>
+    request<{
+      report: {
+        generatedAt: string;
+        status: "ok" | "has_issues";
+        totals: {
+          salesAudited: number;
+          issueSales: number;
+          issues: number;
+          storedSaleProfitTwd: string;
+          recalculatedSaleProfitTwd: string;
+          saleProfitDeltaTwd: string;
+          storedAvailableProfitTwd: string;
+          recalculatedAvailableProfitTwd: string;
+          availableProfitDeltaTwd: string;
+          suspiciousLots: number;
+        };
+        issues: Array<{
+          kind: string;
+          severity: "warning" | "error";
+          saleId?: number;
+          saleDate?: string;
+          customerName?: string;
+          message: string;
+          expected?: string;
+          actual?: string;
+          details?: Record<string, string | number | null | undefined>;
+        }>;
+      };
+    }>("admin/profit-audit", { method: "POST" }),
+
   backupDownloadUrl: (id: number) => `/api/admin/backups/download?id=${id}`
 };
 
