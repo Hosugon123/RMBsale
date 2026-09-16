@@ -73,7 +73,7 @@ describe("page audit 3/8 售出錄入", () => {
     const sale = state.sales[0];
     addSettlement(state, { customerId: sale.customerId, accountId: 1, amountTwd: "1000" });
     expect(() => reverseOperation(state, { entityType: "sale", entityId: sale.id })).toThrow(
-      "此售出已收款，請先作廢相關收帳"
+      "請先作廢至少 1000.00 TWD 的相關收帳"
     );
   });
 

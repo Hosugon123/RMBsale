@@ -1,6 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
-import { calcTwd, toDbMoney, toDbRate, toDbTwd } from "./money.js";
+import { calcTwd, money, toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus } from "./locks.js";
 import { reconcileRmbLotInventory } from "./rmbInventory.js";
@@ -173,8 +173,16 @@ export async function reverseSale(saleId: number, actor: Actor) {
     const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId));
     if (!sale) throw new Error("找不到售出紀錄或已作廢");
     assertNotReversedStatus(sale.status, "銷貨單");
-    if (sale.settlementStatus !== "unsettled") {
-      throw new Error("此售出已收款或部分收款，請先作廢相關收帳");
+    const [customerBefore] = await tx
+      .select({ receivableTwd: customers.receivableTwd })
+      .from(customers)
+      .where(eq(customers.id, sale.customerId));
+    const currentReceivable = money(customerBefore?.receivableTwd ?? 0);
+    if (currentReceivable.lt(sale.twdAmount)) {
+      const gap = money(sale.twdAmount).sub(currentReceivable);
+      throw new Error(
+        `此售出已有收帳影響，作廢會讓客戶變成多付。請先作廢至少 ${toDbTwd(gap)} TWD 的相關收帳後再作廢此售出。`
+      );
     }
 
     const allocations = await tx.select().from(saleAllocations).where(eq(saleAllocations.saleId, saleId));
@@ -247,6 +255,8 @@ export async function reverseSale(saleId: number, actor: Actor) {
         deleteReason: "作廢銷貨單"
       })
       .where(eq(sales.id, saleId));
+
+    await syncCustomerSalesSettlementStatus(tx, sale.customerId);
 
     await writeAudit(tx, {
       action: AuditAction.DELETE_SALE,

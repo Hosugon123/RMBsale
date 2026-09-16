@@ -174,7 +174,32 @@ describe("receivable accounting invariants", () => {
     const sale = state.sales[0];
     addSettlement(state, { customerId: sale.customerId, accountId: 1, amountTwd: "1000" });
     expect(() => reverseOperation(state, { entityType: "sale", entityId: sale.id })).toThrow(
-      "此售出已收款，請先作廢相關收帳"
+      "請先作廢至少 1000.00 TWD 的相關收帳"
     );
+  });
+
+  it("allows reversing a sale with settlement history when customer still owes enough", () => {
+    const state = createSeedState();
+    const customer = state.customers.find((item) => item.name === "阿明")!;
+    const rmbAccount = state.accounts.find((account) => account.currency === "RMB")!;
+
+    addSale(state, {
+      customerName: customer.name,
+      rmbAccountId: rmbAccount.id,
+      rmbAmount: "2000",
+      exchangeRate: "4.92"
+    });
+    const typoSale = state.sales[0];
+    expect(typoSale.twdAmount).toBe("9840.00");
+    addSettlement(state, { customerId: customer.id, accountId: 1, amountTwd: "1000" });
+    expect(typoSale.settlementStatus).toBe("partial");
+    expect(customer.receivableTwd).toBe("24641.00");
+
+    reverseOperation(state, { entityType: "sale", entityId: typoSale.id });
+
+    expect(typoSale.status).toBe("reversed");
+    expect(customer.receivableTwd).toBe("14801.00");
+    expect(state.sales.find((sale) => sale.id !== typoSale.id && sale.customerId === customer.id)?.settlementStatus).toBe("partial");
+    assertAllCustomersConsistent(state);
   });
 });

@@ -1848,12 +1848,16 @@ export function reverseOperation(
     case "sale": {
       const sale = state.sales.find((row) => row.id === input.entityId);
       if (!sale || sale.status === "reversed") throw new Error("找不到售出紀錄或已作廢");
-      if (sale.settlementStatus !== "unsettled") throw new Error("此售出已收款，請先作廢相關收帳");
+      const customer = state.customers.find((row) => row.id === sale.customerId);
+      const currentReceivable = d(customer?.receivableTwd ?? 0);
+      if (currentReceivable.lt(sale.twdAmount)) {
+        const gap = d(sale.twdAmount).sub(currentReceivable);
+        throw new Error(`此售出已有收帳影響，作廢會讓客戶變成多付。請先作廢至少 ${twdMoney(gap)} TWD 的相關收帳後再作廢此售出。`);
+      }
       for (const alloc of state.saleAllocations.filter((row) => row.saleId === sale.id)) {
         const lot = state.rmbLots.find((row) => row.id === alloc.lotId);
         if (lot) lot.remainingRmb = money(d(lot.remainingRmb).add(alloc.allocatedRmb));
       }
-      const customer = state.customers.find((row) => row.id === sale.customerId);
       if (customer) customer.receivableTwd = money(d(customer.receivableTwd).sub(sale.twdAmount));
       const accountLedger = state.ledger.find(
         (row) => row.relatedTable === "售出" && row.relatedId === sale.id && row.accountId && !row.isReversal
@@ -1876,6 +1880,7 @@ export function reverseOperation(
           });
         });
       sale.status = "reversed";
+      syncCustomerSalesSettlementStatus(state, sale.customerId);
       break;
     }
     case "settlement": {
