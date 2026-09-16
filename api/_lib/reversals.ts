@@ -2,7 +2,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import { calcTwd, toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
-import { assertNotReversedStatus, assertSaleEditable } from "./locks.js";
+import { assertNotReversedStatus } from "./locks.js";
 import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import {
@@ -172,7 +172,6 @@ export async function reverseSale(saleId: number, actor: Actor) {
   return db.transaction(async (tx) => {
     const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId));
     if (!sale) throw new Error("找不到售出紀錄或已作廢");
-    assertSaleEditable(sale);
     assertNotReversedStatus(sale.status, "銷貨單");
     if (sale.settlementStatus !== "unsettled") {
       throw new Error("此售出已收款或部分收款，請先作廢相關收帳");
