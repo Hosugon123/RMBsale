@@ -309,6 +309,10 @@ export function ServerAppStoreProvider({ children }: { children: React.ReactNode
       await serverApi.createOpeningReceivable(input);
       afterMutation("settlement");
     },
+    createInterestReceivable: async (input) => {
+      await serverApi.createInterestReceivable(input);
+      afterMutation("settlement");
+    },
     createOpeningProfit: async (input) => {
       await serverApi.createOpeningProfit(input);
       afterMutation("adjustment");

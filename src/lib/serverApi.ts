@@ -89,6 +89,9 @@ export const serverApi = {
   createOpeningReceivable: (body: { customerName: string; amountTwd: string; note?: string }) =>
     request("receivables", { method: "POST", body: JSON.stringify(body) }),
 
+  createInterestReceivable: (body: { customerId: number; amountTwd: string; note?: string }) =>
+    request("receivables/interest", { method: "POST", body: JSON.stringify(body) }),
+
   specialClientWallet: (params?: SpecialClientWalletQuery) =>
     request<SpecialClientWalletData>(`special-client-wallet${buildSpecialClientWalletQuery(params)}`),
 

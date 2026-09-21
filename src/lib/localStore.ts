@@ -713,7 +713,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       continue;
     }
 
-    if (entry.customerId && (entry.entryType === "應收" || entry.entryType === "收帳")) {
+    if (entry.customerId && (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息")) {
       const customer = customerById.get(entry.customerId);
       if (!customer) continue;
       const after = customerReceivables.get(entry.customerId)!;
@@ -790,7 +790,7 @@ export function isReceivableLedgerEntry(
   entry: Pick<LedgerEntry, "customerId" | "entryType" | "relatedTable" | "relatedId" | "accountId">
 ) {
   if (entry.entryType === "利潤" || entry.entryType === "售出") return false;
-  if (entry.customerId !== undefined && (entry.entryType === "應收" || entry.entryType === "收帳")) {
+  if (entry.customerId !== undefined && (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息")) {
     return true;
   }
   if (entry.customerId !== undefined && entry.entryType === "刪除客戶") {
@@ -1139,6 +1139,34 @@ export function createOpeningReceivable(state: AppState, input: { customerName: 
     relatedId: ledgerId
   });
 
+  return state;
+}
+
+export function createInterestReceivable(state: AppState, input: { customerId: number; amountTwd: string; note?: string }) {
+  const customer = state.customers.find((item) => item.id === input.customerId);
+  if (!customer) throw new Error("找不到客戶");
+  if (!input.amountTwd.trim()) throw new Error("請輸入利息金額");
+  const amount = parseMoneyInput(input.amountTwd);
+  if (!amount || amount.lte(0)) throw new Error("利息金額必須大於 0");
+
+  const amountTwd = twdMoney(amount);
+  const ledgerId = nextId(state.ledger);
+  const note = input.note?.trim();
+  customer.receivableTwd = twdMoney(d(customer.receivableTwd).add(amountTwd));
+  state.ledger.unshift({
+    id: ledgerId,
+    createdAt: txNow(),
+    entryType: "利息",
+    customerId: customer.id,
+    direction: "in",
+    currency: "TWD",
+    amount: amountTwd,
+    description: note ? `利息：${customer.name}（${note}）` : `利息：${customer.name}`,
+    operatorName: currentOperator(state),
+    relatedTable: "interest_receivable",
+    relatedId: ledgerId
+  });
+  syncCustomerSalesSettlementStatus(state, customer.id);
   return state;
 }
 

@@ -1,10 +1,11 @@
-import { CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, Percent, X } from "lucide-react";
 import * as React from "react";
 import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
 import { openSettlementModal } from "./SettlementModalHost";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
 import { useAppStore } from "../features/AppStore";
 import { describeReceivable, fmtReceivableBalance } from "../lib/receivableDisplay";
@@ -24,7 +25,12 @@ function settlementLabel(status: string) {
 }
 
 export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModalProps) {
-  const { state } = useAppStore();
+  const { state, createInterestReceivable } = useAppStore();
+  const [interestOpen, setInterestOpen] = React.useState(false);
+  const [interestAmount, setInterestAmount] = React.useState("");
+  const [interestNote, setInterestNote] = React.useState("");
+  const [interestError, setInterestError] = React.useState("");
+  const [interestSubmitting, setInterestSubmitting] = React.useState(false);
   const selectedCustomer = state.customers.find((customer) => customer.id === customerId);
   const ledgerRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
 
@@ -42,6 +48,14 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
     );
   }, [customerId, customerSales, ledgerRows]);
 
+  const interestTotal = React.useMemo(
+    () =>
+      ledgerRows
+        .filter((entry) => entry.customerId === customerId && entry.entryType === "利息" && !entry.isReversal)
+        .reduce((sum, entry) => sum + Number(entry.amount), 0),
+    [customerId, ledgerRows]
+  );
+
   const customerSummary = React.useMemo(
     () => ({
       rmb: customerSales.reduce((sum, sale) => sum + Number(sale.rmbAmount), 0),
@@ -52,6 +66,29 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
   );
 
   if (!selectedCustomer) return null;
+
+  const submitInterest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedCustomer) return;
+    setInterestError("");
+    setInterestSubmitting(true);
+    try {
+      await Promise.resolve(
+        createInterestReceivable({
+          customerId: selectedCustomer.id,
+          amountTwd: interestAmount,
+          note: interestNote
+        })
+      );
+      setInterestAmount("");
+      setInterestNote("");
+      setInterestOpen(false);
+    } catch (error) {
+      setInterestError(error instanceof Error ? error.message : "新增利息失敗");
+    } finally {
+      setInterestSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -64,7 +101,10 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
             <CardTitle className="text-base sm:text-lg">{selectedCustomer.name} 個人帳務流水</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground sm:text-sm">彙整此客戶的售出、應收與收帳紀錄</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:gap-2">
+            <div className="hidden rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground sm:block">
+              利息 <span className="font-semibold text-foreground">{fmtMoney(interestTotal)}</span>
+            </div>
             <Button
               type="button"
               size="sm"
@@ -78,12 +118,56 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
               <CheckCircle2 className="h-4 w-4" />
               收帳
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9"
+              onClick={() => {
+                setInterestError("");
+                setInterestOpen((value) => !value);
+              }}
+            >
+              <Percent className="h-4 w-4" />
+              利息
+            </Button>
             <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </CardHeader>
         <CardContent className="max-h-[calc(88vh-5rem)] space-y-5 overflow-y-auto p-3 sm:p-4">
+          {interestOpen ? (
+            <form onSubmit={submitInterest} className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
+              <label className="space-y-1 text-sm font-medium">
+                <span>利息金額</span>
+                <Input
+                  inputMode="decimal"
+                  placeholder="例如 360"
+                  value={interestAmount}
+                  onChange={(event) => setInterestAmount(event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 text-sm font-medium">
+                <span>備註</span>
+                <Input
+                  placeholder="例如 9月利息"
+                  value={interestNote}
+                  onChange={(event) => setInterestNote(event.target.value)}
+                />
+              </label>
+              <Button type="submit" className="h-10" disabled={interestSubmitting}>
+                {interestSubmitting ? "處理中" : "新增利息"}
+              </Button>
+              {interestError ? (
+                <p className="text-sm text-destructive sm:col-span-3">{interestError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground sm:col-span-3">
+                  利息會直接增加此客戶應收，並在帳務流水以「利息」獨立記錄。
+                </p>
+              )}
+            </form>
+          ) : null}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <div className="rounded-md border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">目前應收</p>

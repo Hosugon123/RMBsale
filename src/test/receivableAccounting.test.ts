@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addSale,
   addSettlement,
+  createInterestReceivable,
   createOpeningReceivable,
   createSeedState,
   reverseOperation,
@@ -21,7 +22,7 @@ function latestCustomerReceivableRow(state: AppState, customerId: number) {
     (entry) =>
       entry.customerId === customerId &&
       !entry.accountId &&
-      (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "作廢")
+      (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息" || entry.entryType === "作廢")
   );
 }
 
@@ -118,6 +119,26 @@ describe("receivable accounting invariants", () => {
     expect(accountRow?.direction).toBe("in");
     expect(customerRow?.amount).toBe("500.00");
     expect(accountRow?.amount).toBe("500.00");
+  });
+
+  it("adds manual interest to customer receivable without changing cash accounts", () => {
+    const state = createSeedState();
+    const customer = state.customers.find((item) => item.name === "阿明")!;
+    const accountBalanceBefore = state.accounts.find((account) => account.id === 1)!.balance;
+
+    createInterestReceivable(state, { customerId: customer.id, amountTwd: "360", note: "9月利息" });
+
+    expect(customer.receivableTwd).toBe("16161.00");
+    expect(state.accounts.find((account) => account.id === 1)!.balance).toBe(accountBalanceBefore);
+    const interestRow = sortedReceivableLedgerWithBalances(state).find((entry) => entry.entryType === "利息");
+    expect(interestRow).toMatchObject({
+      customerId: customer.id,
+      direction: "in",
+      amount: "360.00",
+      balanceBefore: "15801.00",
+      balanceAfter: "16161.00"
+    });
+    assertAllCustomersConsistent(state);
   });
 
   it("handles multiple sales with cumulative settlement and reversal", () => {

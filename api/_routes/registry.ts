@@ -7,6 +7,7 @@ import { handler as ledger } from "./ledger.js";
 import { handler as purchases } from "./purchases.js";
 import { handler as profit } from "./profit.js";
 import { handler as receivables } from "./receivables.js";
+import { handler as receivablesInterest } from "./receivables-interest.js";
 import { handler as sales } from "./sales.js";
 import { handler as settlements } from "./settlements.js";
 import { handler as transfers } from "./transfers.js";
@@ -55,6 +56,7 @@ export const routes: Record<string, RouteHandler> = {
   profit,
   purchases,
   receivables,
+  "receivables/interest": receivablesInterest,
   "special-client-wallet": specialClientWallet,
   "special-client-wallet/deposit": specialClientWalletDeposit,
   "special-client-wallet/payout": specialClientWalletPayout,

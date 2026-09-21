@@ -458,6 +458,60 @@ export async function createOpeningReceivable(input: {
   });
 }
 
+export async function createInterestReceivable(input: {
+  customerId: number;
+  amountTwd: string;
+  note?: string;
+}, actor: Actor) {
+  const db = getDb();
+  if (!input.customerId) throw new Error("請選擇客戶");
+  if (!input.amountTwd.trim()) throw new Error("請輸入利息金額");
+  const amount = twdMoney(input.amountTwd);
+  if (amount.lte(0)) throw new Error("利息金額必須大於 0");
+  const amountTwd = toDbTwd(amount);
+
+  return db.transaction(async (tx) => {
+    const [customer] = await tx.select().from(customers).where(eq(customers.id, input.customerId));
+    if (!customer) throw new Error("找不到客戶");
+
+    await tx
+      .update(customers)
+      .set({ receivableTwd: sql`${customers.receivableTwd} + ${amountTwd}` })
+      .where(eq(customers.id, customer.id));
+
+    const note = input.note?.trim();
+    const description = note ? `利息：${customer.name}（${note}）` : `利息：${customer.name}`;
+    const [entry] = await tx
+      .insert(ledgerEntries)
+      .values({
+        entryType: "interest",
+        customerId: customer.id,
+        relatedTable: "interest_receivable",
+        direction: "in",
+        currency: "TWD",
+        amount: amountTwd,
+        description,
+        operatorId: actor.id
+      })
+      .returning();
+
+    await tx.update(ledgerEntries).set({ relatedId: entry.id }).where(eq(ledgerEntries.id, entry.id));
+    await syncCustomerSalesSettlementStatus(tx, customer.id);
+
+    const [customerAfter] = await tx.select().from(customers).where(eq(customers.id, customer.id));
+
+    await writeAudit(tx, {
+      action: AuditAction.CREATE_OPENING_RECEIVABLE,
+      targetType: "interest_receivable",
+      targetId: entry.id,
+      after: { customer: customerAfter, ledgerEntry: { ...entry, relatedId: entry.id } },
+      actor
+    });
+
+    return { customer: customerAfter, ledgerEntry: { ...entry, relatedId: entry.id } };
+  });
+}
+
 export async function createOpeningProfit(input: {
   amountTwd: string;
   note?: string;
