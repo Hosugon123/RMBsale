@@ -1,4 +1,4 @@
-import { CheckCircle2, Percent, X } from "lucide-react";
+import { CheckCircle2, Droplet, X } from "lucide-react";
 import * as React from "react";
 import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
 import { PortalOverlay } from "./PortalOverlay";
@@ -129,7 +129,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
                   setInterestOpen((value) => !value);
                 }}
               >
-                <Percent className="h-4 w-4" />
+                <Droplet className="h-4 w-4" />
                 利息
               </Button>
               <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
