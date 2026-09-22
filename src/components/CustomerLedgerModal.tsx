@@ -3,12 +3,14 @@ import * as React from "react";
 import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
 import { PortalOverlay } from "./PortalOverlay";
 import { openSettlementModal } from "./SettlementModalHost";
+import { VoidOperationDialog } from "./VoidOperationDialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "./ui/table";
 import { useAppStore } from "../features/AppStore";
+import { useLedgerVoid } from "../hooks/useLedgerVoid";
 import { describeReceivable, fmtReceivableBalance } from "../lib/receivableDisplay";
 import { profit, receivable, rmb, twd } from "../lib/currencyStyles";
 import { sortedLedgerWithBalances } from "../lib/localStore";
@@ -32,6 +34,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
   const [interestNote, setInterestNote] = React.useState("");
   const [interestError, setInterestError] = React.useState("");
   const [interestSubmitting, setInterestSubmitting] = React.useState(false);
+  const { resolveVoidTarget, requestVoid, pending, error: voidError, cancelVoid, confirmVoid } = useLedgerVoid();
   const selectedCustomer = state.customers.find((customer) => customer.id === customerId);
   const ledgerRows = React.useMemo(() => sortedLedgerWithBalances(state), [state]);
 
@@ -251,12 +254,29 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">帳務流水</h3>
             <div className="overflow-x-auto rounded-md border">
-              <PaginatedLedgerTable entries={customerLedgerRows} emptyMessage="尚無帳務流水" showBalances />
+              <PaginatedLedgerTable
+                entries={customerLedgerRows}
+                emptyMessage="尚無帳務流水"
+                showBalances
+                resolveVoidTarget={resolveVoidTarget}
+                onVoid={requestVoid}
+              />
             </div>
           </section>
           </CardContent>
         </Card>
       </div>
+      <VoidOperationDialog
+        open={Boolean(pending)}
+        description={
+          pending
+            ? `確定要作廢「${pending.entry.description}」嗎？\n\n系統會以沖銷還原相關餘額，原始紀錄仍保留供查帳。`
+            : undefined
+        }
+        error={voidError}
+        onClose={cancelVoid}
+        onConfirm={() => void confirmVoid()}
+      />
     </PortalOverlay>
   );
 }

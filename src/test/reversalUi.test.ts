@@ -70,4 +70,37 @@ describe("reversal UI", () => {
 
     expect(canVoidLedgerEntry(stateWithLedger([entry, reversal]), entry)).toBeNull();
   });
+
+  it("allows manual interest receivable entries to be reversed once", () => {
+    const entry: LedgerEntry = {
+      id: 20,
+      createdAt: "2026-09-21T00:00:00.000Z",
+      entryType: "利息",
+      customerId: 3,
+      direction: "in",
+      currency: "TWD",
+      amount: "360.00",
+      description: "利息：芸草（9月利息）",
+      operatorName: "6186",
+      relatedTable: "interest_receivable",
+      relatedId: 20
+    };
+    const reversal: LedgerEntry = {
+      ...entry,
+      id: 21,
+      entryType: "利息作廢",
+      direction: "out",
+      description: "作廢：利息：芸草（9月利息）",
+      isReversal: true,
+      reversesLedgerId: 20
+    };
+
+    expect(canVoidLedgerEntry(stateWithLedger([entry]), entry)).toEqual({
+      entityType: "interest",
+      entityId: 20,
+      label: "作廢利息"
+    });
+    expect(canVoidLedgerEntry(stateWithLedger([entry, reversal]), entry)).toBeNull();
+    expect(canVoidLedgerEntry(stateWithLedger([entry, reversal]), reversal)).toBeNull();
+  });
 });

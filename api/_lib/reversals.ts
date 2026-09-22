@@ -25,7 +25,7 @@ type Actor = {
   userAgent?: string;
 };
 
-export type ReversalEntityType = "purchase" | "sale" | "settlement" | "transfer" | "adjustment";
+export type ReversalEntityType = "purchase" | "sale" | "settlement" | "transfer" | "adjustment" | "interest";
 
 const DEPOSIT_CHANNEL = "入金";
 
@@ -539,6 +539,62 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
   });
 }
 
+export async function reverseInterestReceivable(ledgerEntryId: number, actor: Actor) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(ledgerEntries).where(eq(ledgerEntries.id, ledgerEntryId));
+    if (
+      !entry ||
+      entry.isReversal ||
+      entry.entryType !== "interest" ||
+      entry.relatedTable !== "interest_receivable" ||
+      !entry.customerId
+    ) {
+      throw new Error("找不到利息紀錄或已作廢");
+    }
+    await assertNotReversed(tx, ledgerEntryId);
+
+    const [before] = await tx
+      .select({ receivableTwd: customers.receivableTwd })
+      .from(customers)
+      .where(eq(customers.id, entry.customerId));
+    if (!before) throw new Error("找不到客戶");
+
+    const [after] = await tx
+      .update(customers)
+      .set({ receivableTwd: sql`${customers.receivableTwd} - ${toDbTwd(entry.amount)}` })
+      .where(eq(customers.id, entry.customerId))
+      .returning({ receivableTwd: customers.receivableTwd });
+
+    await tx.insert(ledgerEntries).values({
+      entryType: "interest_reversal",
+      customerId: entry.customerId,
+      relatedTable: "interest_receivable",
+      relatedId: entry.relatedId ?? entry.id,
+      direction: "out",
+      currency: "TWD",
+      amount: entry.amount,
+      balanceBefore: before.receivableTwd,
+      balanceAfter: after.receivableTwd,
+      description: `作廢：${entry.description}`,
+      isReversal: true,
+      reversesLedgerId: entry.id,
+      operatorId: actor.id
+    });
+
+    await syncCustomerSalesSettlementStatus(tx, entry.customerId);
+    await writeAudit(tx, {
+      action: AuditAction.REVERSE_OPERATION,
+      targetType: "interest_receivable",
+      targetId: ledgerEntryId,
+      before: entry,
+      actor
+    });
+
+    return entry;
+  });
+}
+
 export async function reverseOperation(
   input: { entityType: ReversalEntityType; entityId: number },
   actor: Actor
@@ -554,6 +610,8 @@ export async function reverseOperation(
       return reverseTransfer(input.entityId, actor);
     case "adjustment":
       return reverseAdjustment(input.entityId, actor);
+    case "interest":
+      return reverseInterestReceivable(input.entityId, actor);
     default:
       throw new Error("不支援的作廢類型");
   }

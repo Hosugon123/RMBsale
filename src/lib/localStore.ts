@@ -713,7 +713,13 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
       continue;
     }
 
-    if (entry.customerId && (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息")) {
+    if (
+      entry.customerId &&
+      (entry.entryType === "應收" ||
+        entry.entryType === "收帳" ||
+        entry.entryType === "利息" ||
+        entry.entryType === "利息作廢")
+    ) {
       const customer = customerById.get(entry.customerId);
       if (!customer) continue;
       const after = customerReceivables.get(entry.customerId)!;
@@ -790,7 +796,13 @@ export function isReceivableLedgerEntry(
   entry: Pick<LedgerEntry, "customerId" | "entryType" | "relatedTable" | "relatedId" | "accountId">
 ) {
   if (entry.entryType === "利潤" || entry.entryType === "售出") return false;
-  if (entry.customerId !== undefined && (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息")) {
+  if (
+    entry.customerId !== undefined &&
+    (entry.entryType === "應收" ||
+      entry.entryType === "收帳" ||
+      entry.entryType === "利息" ||
+      entry.entryType === "利息作廢")
+  ) {
     return true;
   }
   if (entry.customerId !== undefined && entry.entryType === "刪除客戶") {
@@ -1852,7 +1864,17 @@ function reverseAccountLedger(
 
 export function reverseOperation(
   state: AppState,
-  input: { entityType: "purchase" | "sale" | "settlement" | "transfer" | "adjustment" | "specialClientWallet"; entityId: number }
+  input: {
+    entityType:
+      | "purchase"
+      | "sale"
+      | "settlement"
+      | "transfer"
+      | "adjustment"
+      | "interest"
+      | "specialClientWallet";
+    entityId: number;
+  }
 ) {
   switch (input.entityType) {
     case "purchase": {
@@ -1991,6 +2013,35 @@ export function reverseOperation(
         addRmbDepositLot(state, entry.accountId!, entry.amount, exchangeRate);
       }
       reverseAccountLedger(state, entry, `作廢：${entry.description}`, `${entry.entryType}作廢`);
+      break;
+    }
+    case "interest": {
+      const entry = state.ledger.find(
+        (row) =>
+          row.id === input.entityId &&
+          !row.isReversal &&
+          row.entryType === "利息" &&
+          row.relatedTable === "interest_receivable" &&
+          row.customerId
+      );
+      if (!entry || !entry.customerId) throw new Error("找不到利息紀錄或已作廢");
+      if (state.ledger.some((row) => row.reversesLedgerId === entry.id)) throw new Error("此筆操作已作廢");
+      const customer = state.customers.find((row) => row.id === entry.customerId);
+      if (!customer) throw new Error("找不到客戶");
+      customer.receivableTwd = twdMoney(d(customer.receivableTwd).sub(entry.amount));
+      addLedger(state, {
+        entryType: "利息作廢",
+        customerId: entry.customerId,
+        direction: "out",
+        currency: "TWD",
+        amount: entry.amount,
+        description: `作廢：${entry.description}`,
+        relatedTable: entry.relatedTable,
+        relatedId: entry.relatedId ?? entry.id,
+        isReversal: true,
+        reversesLedgerId: entry.id
+      });
+      syncCustomerSalesSettlementStatus(state, entry.customerId);
       break;
     }
     case "specialClientWallet":

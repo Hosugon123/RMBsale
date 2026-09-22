@@ -22,7 +22,11 @@ function latestCustomerReceivableRow(state: AppState, customerId: number) {
     (entry) =>
       entry.customerId === customerId &&
       !entry.accountId &&
-      (entry.entryType === "應收" || entry.entryType === "收帳" || entry.entryType === "利息" || entry.entryType === "作廢")
+      (entry.entryType === "應收" ||
+        entry.entryType === "收帳" ||
+        entry.entryType === "利息" ||
+        entry.entryType === "利息作廢" ||
+        entry.entryType === "作廢")
   );
 }
 
@@ -138,6 +142,35 @@ describe("receivable accounting invariants", () => {
       balanceBefore: "15801.00",
       balanceAfter: "16161.00"
     });
+    assertAllCustomersConsistent(state);
+  });
+
+  it("allows reversing manual interest receivable without changing cash accounts", () => {
+    const state = createSeedState();
+    const customer = state.customers.find((item) => item.name === "阿明")!;
+    const accountBalanceBefore = state.accounts.find((account) => account.id === 1)!.balance;
+
+    createInterestReceivable(state, { customerId: customer.id, amountTwd: "360", note: "9月利息" });
+    const interestRow = state.ledger.find((entry) => entry.entryType === "利息" && entry.customerId === customer.id);
+    expect(interestRow).toBeTruthy();
+
+    reverseOperation(state, { entityType: "interest", entityId: interestRow!.id });
+
+    expect(customer.receivableTwd).toBe("15801.00");
+    expect(state.accounts.find((account) => account.id === 1)!.balance).toBe(accountBalanceBefore);
+    const reversalRow = sortedReceivableLedgerWithBalances(state).find(
+      (entry) => entry.entryType === "利息作廢" && entry.reversesLedgerId === interestRow!.id
+    );
+    expect(reversalRow).toMatchObject({
+      customerId: customer.id,
+      direction: "out",
+      amount: "360.00",
+      balanceBefore: "16161.00",
+      balanceAfter: "15801.00"
+    });
+    expect(() => reverseOperation(state, { entityType: "interest", entityId: interestRow!.id })).toThrow(
+      "此筆操作已作廢"
+    );
     assertAllCustomersConsistent(state);
   });
 

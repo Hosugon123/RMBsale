@@ -1,6 +1,13 @@
 import type { AppState, LedgerEntry } from "./types";
 
-export type ReversalEntityType = "purchase" | "sale" | "settlement" | "transfer" | "adjustment" | "specialClientWallet";
+export type ReversalEntityType =
+  | "purchase"
+  | "sale"
+  | "settlement"
+  | "transfer"
+  | "adjustment"
+  | "interest"
+  | "specialClientWallet";
 
 export type ReversalTarget = {
   entityType: ReversalEntityType;
@@ -40,6 +47,14 @@ export function getReversalTarget(entry: LedgerEntry): ReversalTarget | null {
     return { entityType: "adjustment", entityId: entry.id, label: "作廢" };
   }
   if (
+    entry.customerId &&
+    entry.entryType === "利息" &&
+    entry.relatedTable === "interest_receivable" &&
+    entry.relatedId != null
+  ) {
+    return { entityType: "interest", entityId: entry.relatedId, label: "作廢利息" };
+  }
+  if (
     entry.accountId &&
     entry.relatedTable === "special_client_wallet" &&
     entry.relatedId != null &&
@@ -56,6 +71,7 @@ export function isVoidAnchor(entry: LedgerEntry): boolean {
     return Boolean(entry.accountId);
   }
   if (entry.entryType === "入金" && table === "入金") return true;
+  if (entry.entryType === "利息" && table === "interest_receivable") return true;
   if (["撤資", "分潤"].includes(entry.entryType)) return true;
   if (table === "profit") return true;
   if (table === "special_client_wallet" && ["特殊客戶儲值", "特殊客戶代付"].includes(entry.entryType)) {
