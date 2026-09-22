@@ -103,7 +103,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:gap-2">
             <div className="hidden rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground sm:block">
-              利息 <span className="font-semibold text-foreground">{fmtMoney(interestTotal)}</span>
+              總利息 <span className="font-semibold text-foreground">{fmtMoney(interestTotal)}</span>
             </div>
             <Button
               type="button"
@@ -121,8 +121,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-9"
+              className="h-9 bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500"
               onClick={() => {
                 setInterestError("");
                 setInterestOpen((value) => !value);
@@ -163,7 +162,7 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
                 <p className="text-sm text-destructive sm:col-span-3">{interestError}</p>
               ) : (
                 <p className="text-xs text-muted-foreground sm:col-span-3">
-                  利息會直接增加此客戶應收，並在帳務流水以「利息」獨立記錄。
+                  利息會直接增加此客戶應收，並新增到下方個人帳務流水的「利息」紀錄。
                 </p>
               )}
             </form>
