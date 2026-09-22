@@ -385,6 +385,10 @@ export function buildProfitAuditReport(input: ProfitAuditInput): ProfitAuditRepo
         !reversedLedgerIds.has(entry.id)
     )
     .reduce((sum, row) => sum.add(row.amount), money(0));
+  const interestProfit = input.ledgerEntries
+    .filter((entry) => entry.relatedTable === "interest_receivable" && entry.currency === "TWD" &&
+      (entry.entryType === "interest" || entry.entryType === "interest_reversal"))
+    .reduce((sum, row) => row.direction === "in" ? sum.add(row.amount) : sum.sub(row.amount), money(0));
   const withdrawals = input.ledgerEntries
     .filter(
       (entry) =>
@@ -396,8 +400,8 @@ export function buildProfitAuditReport(input: ProfitAuditInput): ProfitAuditRepo
     )
     .reduce((sum, row) => sum.add(row.amount), money(0));
 
-  const storedAvailableProfit = storedSaleProfit.add(openingProfit).sub(withdrawals);
-  const recalculatedAvailableProfit = recalculatedSaleProfit.add(openingProfit).sub(withdrawals);
+  const storedAvailableProfit = storedSaleProfit.add(openingProfit).add(interestProfit).sub(withdrawals);
+  const recalculatedAvailableProfit = recalculatedSaleProfit.add(openingProfit).add(interestProfit).sub(withdrawals);
 
   return {
     generatedAt: new Date().toISOString(),

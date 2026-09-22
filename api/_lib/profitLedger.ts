@@ -168,6 +168,18 @@ export async function getAvailableProfitTwd(tx: DbReader) {
     );
   const openingEarned = openingProfits.reduce((sum, row) => sum.add(row.amount), money(0));
 
+  const interestEntries = await tx
+    .select({ amount: ledgerEntries.amount, direction: ledgerEntries.direction })
+    .from(ledgerEntries)
+    .where(and(
+      eq(ledgerEntries.relatedTable, "interest_receivable"),
+      eq(ledgerEntries.currency, "TWD"),
+      sql`${ledgerEntries.entryType} in ('interest', 'interest_reversal')`
+    ));
+  const interestEarned = interestEntries.reduce(
+    (sum, row) => row.direction === "in" ? sum.add(row.amount) : sum.sub(row.amount), money(0)
+  );
+
   const withdrawals = await tx
     .select({ amount: ledgerEntries.amount })
     .from(ledgerEntries)
@@ -187,5 +199,5 @@ export async function getAvailableProfitTwd(tx: DbReader) {
     );
   const withdrawn = withdrawals.reduce((sum, row) => sum.add(row.amount), money(0));
 
-  return saleEarned.add(openingEarned).sub(withdrawn);
+  return saleEarned.add(openingEarned).add(interestEarned).sub(withdrawn);
 }

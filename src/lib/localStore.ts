@@ -568,7 +568,13 @@ export function totals(state: AppState) {
   const openingProfitEarned = state.ledger
     .filter((entry) => entry.relatedTable === "opening_profit" && entry.direction === "in" && entry.currency === "TWD" && !entry.isReversal)
     .reduce((sum, entry) => sum.add(entry.amount), d(0));
-  const profitEarned = saleProfitEarned.add(openingProfitEarned);
+  const interestProfit = state.ledger
+    .filter((entry) => entry.relatedTable === "interest_receivable" && entry.entryType === "利息" && !entry.isReversal)
+    .reduce((sum, entry) => sum.add(entry.amount), d(0));
+  const reversedInterest = state.ledger
+    .filter((entry) => entry.relatedTable === "interest_receivable" && entry.entryType === "利息作廢" && entry.isReversal)
+    .reduce((sum, entry) => sum.add(entry.amount), d(0));
+  const profitEarned = saleProfitEarned.add(openingProfitEarned).add(interestProfit).sub(reversedInterest);
   const profitWithdrawals = state.ledger
     .filter(
       (entry) =>
@@ -731,6 +737,7 @@ export function ledgerWithBalances(state: AppState): Array<LedgerEntry & Partial
         balanceCurrency: "TWD"
       });
       customerReceivables.set(entry.customerId, before);
+      if (entry.relatedTable === "interest_receivable") profitPool = profitPool.sub(delta);
       continue;
     }
 
@@ -780,16 +787,26 @@ export function sortedLedgerWithBalances(state: AppState) {
 export function isProfitLedgerEntry(
   entry: Pick<LedgerEntry, "entryType" | "direction" | "relatedTable" | "currency" | "description">
 ) {
-  return isTwdProfitPoolEntry(entry) || isWalletProfitPoolEntry(entry);
+  return isTwdProfitPoolEntry(entry) || isWalletProfitPoolEntry(entry) ||
+    (entry.relatedTable === "interest_receivable" && entry.currency === "TWD" &&
+      (entry.entryType === "利息" || entry.entryType === "利息作廢"));
 }
 
 export function sortedProfitLedgerWithBalances(state: AppState) {
-  return sortedLedgerWithBalances(state).filter(isProfitLedgerEntry);
+  let balance = d(totals(state).profit);
+  return sortedLedgerWithBalances(state).filter(isProfitLedgerEntry).map((entry) => {
+    if (entry.currency !== "TWD") return entry;
+    const after = balance;
+    balance = entry.direction === "in" ? balance.sub(entry.amount) : balance.add(entry.amount);
+    return entry.relatedTable === "interest_receivable"
+      ? { ...entry, subjectLabel: "累計利潤", balanceBefore: money(balance), balanceAfter: money(after), balanceCurrency: "TWD" as const }
+      : entry;
+  });
 }
 
 /** 完整帳務流水（含帳戶、應收、應付、買入、收帳等），僅排除利潤專區列。 */
 export function sortedCashLedgerWithBalances(state: AppState) {
-  return sortedLedgerWithBalances(state).filter((entry) => !isProfitLedgerEntry(entry));
+  return sortedLedgerWithBalances(state).filter((entry) => !isProfitLedgerEntry(entry) || entry.relatedTable === "interest_receivable");
 }
 
 export function isReceivableLedgerEntry(

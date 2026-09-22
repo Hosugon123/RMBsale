@@ -169,7 +169,7 @@ export async function loadBootstrapState(
                 .from(ledgerEntries)
                 .where(
                   sql`(
-                    ${ledgerEntries.relatedTable} in ('profit', 'opening_profit')
+                    ${ledgerEntries.relatedTable} in ('profit', 'opening_profit', 'interest_receivable')
                     or (${ledgerEntries.entryType} = '利潤' and ${ledgerEntries.currency} = 'TWD')
                   )`
                 )

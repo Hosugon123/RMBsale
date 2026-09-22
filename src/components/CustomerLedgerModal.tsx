@@ -55,8 +55,8 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
   const interestTotal = React.useMemo(
     () =>
       ledgerRows
-        .filter((entry) => entry.customerId === customerId && entry.entryType === "利息" && !entry.isReversal)
-        .reduce((sum, entry) => sum + Number(entry.amount), 0),
+        .filter((entry) => entry.customerId === customerId && (entry.entryType === "利息" || entry.entryType === "利息作廢"))
+        .reduce((sum, entry) => sum + (entry.direction === "in" ? 1 : -1) * Number(entry.amount), 0),
     [customerId, ledgerRows]
   );
 

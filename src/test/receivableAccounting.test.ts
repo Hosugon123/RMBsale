@@ -6,6 +6,7 @@ import {
   createOpeningReceivable,
   createSeedState,
   reverseOperation,
+  sortedProfitLedgerWithBalances,
   sortedReceivableLedgerWithBalances,
   totals
 } from "../lib/localStore";
@@ -129,11 +130,19 @@ describe("receivable accounting invariants", () => {
     const state = createSeedState();
     const customer = state.customers.find((item) => item.name === "阿明")!;
     const accountBalanceBefore = state.accounts.find((account) => account.id === 1)!.balance;
+    const profitBefore = totals(state).profit;
 
     createInterestReceivable(state, { customerId: customer.id, amountTwd: "360", note: "9月利息" });
 
     expect(customer.receivableTwd).toBe("16161.00");
     expect(state.accounts.find((account) => account.id === 1)!.balance).toBe(accountBalanceBefore);
+    expect(Number(totals(state).profit) - Number(profitBefore)).toBe(360);
+    const profitRow = sortedProfitLedgerWithBalances(state).find((entry) => entry.entryType === "利息");
+    expect(profitRow).toMatchObject({
+      balanceBefore: profitBefore,
+      balanceAfter: totals(state).profit,
+      amount: "360.00"
+    });
     const interestRow = sortedReceivableLedgerWithBalances(state).find((entry) => entry.entryType === "利息");
     expect(interestRow).toMatchObject({
       customerId: customer.id,
@@ -149,6 +158,7 @@ describe("receivable accounting invariants", () => {
     const state = createSeedState();
     const customer = state.customers.find((item) => item.name === "阿明")!;
     const accountBalanceBefore = state.accounts.find((account) => account.id === 1)!.balance;
+    const profitBefore = totals(state).profit;
 
     createInterestReceivable(state, { customerId: customer.id, amountTwd: "360", note: "9月利息" });
     const interestRow = state.ledger.find((entry) => entry.entryType === "利息" && entry.customerId === customer.id);
@@ -158,6 +168,9 @@ describe("receivable accounting invariants", () => {
 
     expect(customer.receivableTwd).toBe("15801.00");
     expect(state.accounts.find((account) => account.id === 1)!.balance).toBe(accountBalanceBefore);
+    expect(totals(state).profit).toBe(profitBefore);
+    const profitReversal = sortedProfitLedgerWithBalances(state).find((entry) => entry.entryType === "利息作廢");
+    expect(profitReversal).toMatchObject({ balanceAfter: profitBefore, amount: "360.00" });
     const reversalRow = sortedReceivableLedgerWithBalances(state).find(
       (entry) => entry.entryType === "利息作廢" && entry.reversesLedgerId === interestRow!.id
     );
