@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { PaginatedLedgerTable } from "../components/PaginatedLedgerTable";
+import { PortalOverlay } from "../components/PortalOverlay";
 import { VoidOperationDialog } from "../components/VoidOperationDialog";
 import { useLedgerVoid } from "../hooks/useLedgerVoid";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/table";
@@ -562,6 +563,7 @@ export function AccountsPage() {
       />
 
       {ledgerAccount ? (
+        <PortalOverlay>
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
           onClick={() => setLedgerAccountId(null)}
@@ -603,6 +605,7 @@ export function AccountsPage() {
             </CardContent>
           </Card>
         </div>
+        </PortalOverlay>
       ) : null}
 
       {renameTarget ? (

@@ -1,6 +1,7 @@
 import { CheckCircle2, Percent, X } from "lucide-react";
 import * as React from "react";
 import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
+import { PortalOverlay } from "./PortalOverlay";
 import { openSettlementModal } from "./SettlementModalHost";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -91,51 +92,52 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
-      onClick={onClose}
-    >
-      <Card className="max-h-[88vh] w-full max-w-5xl overflow-hidden" onClick={(event) => event.stopPropagation()}>
-        <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
-          <div className="min-w-0">
-            <CardTitle className="text-base sm:text-lg">{selectedCustomer.name} 個人帳務流水</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">彙整此客戶的售出、應收與收帳紀錄</p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:gap-2">
-            <div className="hidden rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground sm:block">
-              總利息 <span className="font-semibold text-foreground">{fmtMoney(interestTotal)}</span>
+    <PortalOverlay>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
+        onClick={onClose}
+      >
+        <Card className="max-h-[88vh] w-full max-w-5xl overflow-hidden" onClick={(event) => event.stopPropagation()}>
+          <CardHeader className="flex-row items-start justify-between gap-4 border-b p-3 sm:p-4">
+            <div className="min-w-0">
+              <CardTitle className="text-base sm:text-lg">{selectedCustomer.name} 個人帳務流水</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">彙整此客戶的售出、應收與收帳紀錄</p>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              className="h-9"
-              onClick={() => {
-                const id = selectedCustomer.id;
-                onClose();
-                queueMicrotask(() => openSettlementModal(id));
-              }}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              收帳
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="h-9 bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500"
-              onClick={() => {
-                setInterestError("");
-                setInterestOpen((value) => !value);
-              }}
-            >
-              <Percent className="h-4 w-4" />
-              利息
-            </Button>
-            <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="max-h-[calc(88vh-5rem)] space-y-5 overflow-y-auto p-3 sm:p-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:gap-2">
+              <div className="hidden rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground sm:block">
+                總利息 <span className="font-semibold text-foreground">{fmtMoney(interestTotal)}</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  const id = selectedCustomer.id;
+                  onClose();
+                  queueMicrotask(() => openSettlementModal(id));
+                }}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                收帳
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500"
+                onClick={() => {
+                  setInterestError("");
+                  setInterestOpen((value) => !value);
+                }}
+              >
+                <Percent className="h-4 w-4" />
+                利息
+              </Button>
+              <Button aria-label="關閉" onClick={onClose} size="icon" variant="ghost">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="max-h-[calc(88vh-5rem)] space-y-5 overflow-y-auto p-3 sm:p-4">
           {interestOpen ? (
             <form onSubmit={submitInterest} className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
               <label className="space-y-1 text-sm font-medium">
@@ -252,8 +254,9 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
               <PaginatedLedgerTable entries={customerLedgerRows} emptyMessage="尚無帳務流水" showBalances />
             </div>
           </section>
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PortalOverlay>
   );
 }
