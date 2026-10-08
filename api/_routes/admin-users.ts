@@ -5,6 +5,7 @@ import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { getDb } from "../_lib/db.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser, setSessionCookie, signSession } from "../_lib/http.js";
 import { users } from "../_lib/schema.js";
+import { normalizePassword, normalizeUsername } from "../_lib/authCredentials.js";
 import {
   deriveRole,
   normalizePermissionsInput,
@@ -42,9 +43,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "POST") {
       const createAdmin = await requireAdmin(req);
       const body = await readJson<CreateBody>(req);
-      const username = body.username?.trim() ?? "";
+      const username = normalizeUsername(body.username);
       const displayName = body.displayName?.trim() ?? "";
-      const password = body.password ?? "";
+      const password = normalizePassword(body.password);
       if (!username) return fail(res, 400, "請輸入帳號");
       if (!displayName) return fail(res, 400, "請輸入名稱");
       if (password.length < 4) return fail(res, 400, "密碼至少 4 碼");
@@ -99,9 +100,9 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
 
       const isSelf = targetId === session.id;
 
-      const username = body.username !== undefined ? body.username.trim() : target.username;
+      const username = body.username !== undefined ? normalizeUsername(body.username) : target.username;
       const displayName = body.displayName !== undefined ? body.displayName.trim() : target.displayName ?? target.username;
-      const password = body.password?.trim() ?? "";
+      const password = normalizePassword(body.password);
 
       if (!username) return fail(res, 400, "請輸入帳號");
       if (!displayName) return fail(res, 400, "請輸入名稱");

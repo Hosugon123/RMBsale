@@ -1,6 +1,7 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { normalizePassword, normalizeUsername } from "../_lib/authCredentials.js";
 import { getDb } from "../_lib/db.js";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, setSessionCookie, signSession } from "../_lib/http.js";
@@ -17,10 +18,15 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = await readJson<LoginBody>(req);
-    const loginName = body.username?.trim() ?? "";
+    const loginName = normalizeUsername(body.username);
+    const password = normalizePassword(body.password);
     const meta = getClientMeta(req);
     const db = getDb();
-    const [user] = await db.select().from(users).where(eq(users.username, loginName));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.username}) = lower(${loginName})`)
+      .limit(1);
 
     if (!user || !user.isActive) {
       await writeAudit(db, {
@@ -31,7 +37,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return fail(res, 401, "帳號或密碼錯誤");
     }
-    const valid = await bcrypt.compare(body.password, user.passwordHash);
+    const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       await writeAudit(db, {
         action: AuditAction.LOGIN_FAILED,
