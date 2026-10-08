@@ -228,11 +228,11 @@ export function AdminPage() {
       const changed = report.filter((item) => item.action !== "none");
       await Promise.resolve(refresh());
       if (!changed.length) {
-        setInventoryRepairMessage("人民幣庫存已檢查，總 RMB 帳戶餘額與全局 FIFO 庫存一致。");
+        setInventoryRepairMessage("人民幣庫存已檢查，公司自有 RMB 與全局 FIFO 庫存一致。");
         return;
       }
       const summary = changed.map((item) => `${item.accountName}：${item.gapRmb} RMB`).join("、");
-      setInventoryRepairMessage(`人民幣庫存已修復：${summary}`);
+      setInventoryRepairMessage(`發現人民幣庫存差異（未自動改帳）：${summary}。請依原始交易查明來源後調整。`);
     } catch (error) {
       setInventoryRepairMessage(error instanceof Error ? error.message : "人民幣庫存修復失敗");
     } finally {

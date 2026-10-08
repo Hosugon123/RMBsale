@@ -1,10 +1,8 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { parseBootstrapSections } from "../_lib/bootstrapSections.js";
 import { loadBootstrapState, loadFullBootstrapState } from "../_lib/bootstrap.js";
-import { fail, ok, loadAuthUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
-import { ensureProfitLedgerEntries } from "../_lib/profitLedger.js";
+import { ok, loadAuthUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
 import { withRouteTiming } from "../_lib/requestTiming.js";
-import { repairPurchasePaymentStatuses } from "../_lib/purchasePaymentRepair.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -13,8 +11,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       const user = await loadAuthUser(req);
       const sections = parseBootstrapSections(req.query.sections);
       const ledgerMode = req.query.ledgerMode === "full" ? "full" : "recent";
-      await repairPurchasePaymentStatuses();
-      if (!sections || sections.includes("ledger")) await ensureProfitLedgerEntries();
       const state = sections
         ? await loadBootstrapState(user.id, sections, { ledgerMode })
         : await loadFullBootstrapState(user.id);

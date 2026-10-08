@@ -79,16 +79,13 @@ export async function ensureAuditBackupSchema() {
   ensured = true;
 }
 
-let inventoryReconciled = false;
+let inventorySchemaEnsured = false;
 
-/** 一次性對齊帳戶餘額與 FIFO 批次（修正內轉未搬移批次的歷史資料）。 */
+/** Ensure the legacy transfer column exists without mutating financial data. */
 export async function ensureRmbLotInventorySchema(operatorId = 1) {
-  if (inventoryReconciled) return;
+  void operatorId;
+  if (inventorySchemaEnsured) return;
   const db = getDb();
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`ALTER TABLE "rmb_lots" ADD COLUMN IF NOT EXISTS "transfer_id" integer`);
-    const { reconcileRmbLotInventory } = await import("./rmbInventory.js");
-    await reconcileRmbLotInventory(tx, operatorId);
-  });
-  inventoryReconciled = true;
+  await db.execute(sql`ALTER TABLE "rmb_lots" ADD COLUMN IF NOT EXISTS "transfer_id" integer`);
+  inventorySchemaEnsured = true;
 }

@@ -15,6 +15,16 @@ describe("money calculations", () => {
     expect(result.totalCostTwd).toBe("6650.00");
   });
 
+  it("rounds one sale once instead of once per FIFO lot", () => {
+    const result = allocateFifo([
+      { id: 1, remainingRmb: "1.00", unitCostTwd: "4.100001" },
+      { id: 2, remainingRmb: "1.00", unitCostTwd: "4.100001" },
+      { id: 3, remainingRmb: "1.00", unitCostTwd: "4.100001" }
+    ], "3.00");
+    expect(result.totalCostTwd).toBe("13.00");
+    expect(result.allocations.reduce((sum, row) => sum + Number(row.allocatedCostTwd), 0)).toBe(13);
+  });
+
   it("calculates profit", () => {
     expect(calcProfit("7000.00", "6650.00")).toBe("350.00");
   });

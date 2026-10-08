@@ -158,11 +158,9 @@ function normalizeState(state: AppState): AppState {
   state.sales.forEach((sale) => {
     if (!sale.operatorName) sale.operatorName = fallback;
   });
-  ensureProfitLedgerEntries(state);
   ensureSettlementReceivableEntries(state);
   removeDepositPayableLedger(state);
   ensurePayableLedgerEntries(state);
-  reconcileLocalRmbLotInventory(state);
   ensureSpecialClientWalletState(state);
   state.purchases.forEach((purchase) => {
     if (isDepositPurchase(purchase)) return;
@@ -185,31 +183,6 @@ export function purchasePayableTwd(purchase: Pick<Purchase, "twdCost" | "paidTwd
   if (purchase.status === "reversed") return "0.00";
   if (isDepositPurchase(purchase)) return "0.00";
   return twdMoney(Decimal.max(0, d(purchase.twdCost).sub(purchase.paidTwd)));
-}
-
-function ensureProfitLedgerEntries(state: AppState) {
-  let added = false;
-  for (const sale of state.sales) {
-    if (d(sale.profitTwd).lte(0)) continue;
-    const exists = state.ledger.some(
-      (entry) => entry.entryType === "利潤" && entry.relatedTable === "sales" && entry.relatedId === sale.id
-    );
-    if (exists) continue;
-    state.ledger.push({
-      id: nextId(state.ledger),
-      createdAt: sale.createdAt,
-      entryType: "利潤",
-      direction: "in",
-      currency: "TWD",
-      amount: sale.profitTwd,
-      description: `${sale.customerName} 售出利潤`,
-      operatorName: sale.operatorName,
-      relatedTable: "sales",
-      relatedId: sale.id
-    });
-    added = true;
-  }
-  if (added) saveState(state);
 }
 
 function ensureSettlementReceivableEntries(state: AppState) {
@@ -1609,79 +1582,13 @@ export function accountFifoRmb(state: AppState, accountId: number): string {
 }
 
 
-const INVENTORY_SYNC_CHANNEL = "庫存對齊";
-
-function estimateAccountUnitCost(state: AppState, accountId: number): string {
-  void accountId;
-  const lots = state.rmbLots.filter((lot) => d(lot.remainingRmb).gt(0));
-  if (lots.length) {
-    const totalRmb = lots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
-    const totalCost = lots.reduce((sum, lot) => sum.add(d(lot.remainingRmb).mul(lot.unitCostTwd)), d(0));
-    if (totalRmb.gt(0)) return rate(totalCost.div(totalRmb));
-  }
-  const recentPurchase = state.purchases[0];
-  if (recentPurchase) return recentPurchase.exchangeRate;
-  return "4.500000";
-}
-
-/** 總 RMB 帳戶餘額高於全局 FIFO 可售量時補批次（庫存盤點／對齊），與 ERP 調整單一致。 */
+/** Demo-mode inventory audit. It deliberately never changes lots or costs. */
 export function reconcileLocalRmbLotInventory(state: AppState) {
-  if (!state.channels.some((channel) => channel.name === INVENTORY_SYNC_CHANNEL)) {
-    addChannel(state, { name: INVENTORY_SYNC_CHANNEL });
-  }
-  const channel = state.channels.find((item) => item.name === INVENTORY_SYNC_CHANNEL)!;
   const rmbAccounts = state.accounts.filter((item) => item.currency === "RMB");
   const accountTotal = rmbAccounts.reduce((sum, account) => sum.add(account.balance), d(0));
   const lotTotal = state.rmbLots.reduce((sum, lot) => sum.add(lot.remainingRmb), d(0));
   const gap = accountTotal.sub(lotTotal);
-  if (gap.abs().lte(0.01)) return;
-
-  if (gap.lt(0)) {
-    let remaining = gap.abs();
-    const lots = [...state.rmbLots].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
-    for (const lot of lots) {
-      if (remaining.lte(0)) break;
-      const available = d(lot.remainingRmb);
-      if (available.lte(0)) continue;
-      const reduce = Decimal.min(available, remaining);
-      lot.remainingRmb = money(available.sub(reduce));
-      remaining = remaining.sub(reduce);
-    }
-    saveState(state);
-    return;
-  }
-
-  const account = rmbAccounts.find((item) => item.isActive) ?? rmbAccounts[0];
-  if (!account) return;
-  const exchangeRate = estimateAccountUnitCost(state, account.id);
-  const rmbAmount = money(gap);
-  const twdCost = twdMoney(gap.mul(exchangeRate));
-  const purchaseId = nextId(state.purchases);
-  state.purchases.unshift({
-    id: purchaseId,
-    channelId: channel.id,
-    channelName: channel.name,
-    depositAccountId: account.id,
-    rmbAmount,
-    exchangeRate: rate(exchangeRate),
-    twdCost,
-    paidTwd: twdCost,
-    paymentStatus: "paid",
-    operatorName: currentOperator(state),
-    createdAt: txNow()
-  });
-  state.rmbLots.push({
-    id: nextId(state.rmbLots),
-    purchaseId,
-    accountId: account.id,
-    channelName: channel.name,
-    originalRmb: rmbAmount,
-    remainingRmb: rmbAmount,
-    unitCostTwd: rate(exchangeRate),
-    exchangeRate: rate(exchangeRate),
-    createdAt: txNow()
-  });
-  saveState(state);
+  return { accountTotal: money(accountTotal), lotTotal: money(lotTotal), gapRmb: money(gap) };
 }
 
 
@@ -1721,7 +1628,7 @@ function allocateFifoPreview(state: AppState, accountId: number, requestedRmb: s
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);
-    costTwd = costTwd.add(twdMoney(allocated.mul(lot.unitCostTwd)));
+    costTwd = costTwd.add(allocated.mul(lot.unitCostTwd));
     remaining = remaining.sub(allocated);
   }
   return { costTwd: twdMoney(costTwd), shortfallRmb: money(remaining) };
@@ -1769,7 +1676,8 @@ export function previewSaleProfit(
 function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: string) {
   void accountId;
   let remaining = d(requestedRmb);
-  let costTwd = d(0);
+  let rawCostTwd = d(0);
+  let roundedCumulative = d(0);
   const items: Array<{ lotId: number; purchaseId: number; channelName: string; allocatedRmb: string; unitCostTwd: string; costTwd: string }> = [];
   const lots = state.rmbLots
     .filter((lot) => d(lot.remainingRmb).gt(0))
@@ -1782,9 +1690,11 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
   for (const lot of lots) {
     if (remaining.lte(0)) break;
     const allocated = Decimal.min(remaining, lot.remainingRmb);
-    const allocatedCostTwd = twdMoney(allocated.mul(lot.unitCostTwd));
+    rawCostTwd = rawCostTwd.add(allocated.mul(lot.unitCostTwd));
+    const nextRoundedCumulative = d(twdMoney(rawCostTwd));
+    const allocatedCostTwd = nextRoundedCumulative.sub(roundedCumulative);
+    roundedCumulative = nextRoundedCumulative;
     lot.remainingRmb = money(d(lot.remainingRmb).sub(allocated));
-    costTwd = costTwd.add(allocatedCostTwd);
     items.push({
       lotId: lot.id,
       purchaseId: lot.purchaseId,
@@ -1795,7 +1705,7 @@ function allocateLocalFifo(state: AppState, accountId: number, requestedRmb: str
     });
     remaining = remaining.sub(allocated);
   }
-  return { costTwd: twdMoney(costTwd), items, shortfallRmb: money(remaining) };
+  return { costTwd: twdMoney(rawCostTwd), items, shortfallRmb: money(remaining) };
 }
 
 function inferSaleAllocations(state: AppState) {

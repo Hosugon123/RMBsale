@@ -171,13 +171,15 @@ describe("local demo store", () => {
     expect(state.sales).toHaveLength(1);
   });
 
-  it("reconciles fifo inventory when account balance exceeds lots", () => {
+  it("reports fifo differences without inventing inventory", () => {
     const state = createSeedState();
     const account = state.accounts.find((item) => item.id === 4)!;
     account.balance = "20000.00";
     state.rmbLots = state.rmbLots.filter((lot) => lot.accountId !== 4);
-    reconcileLocalRmbLotInventory(state);
-    expect(accountFifoRmb(state, 4)).toBe("58000.00");
+    const beforeLots = JSON.stringify(state.rmbLots);
+    const report = reconcileLocalRmbLotInventory(state);
+    expect(JSON.stringify(state.rmbLots)).toBe(beforeLots);
+    expect(report?.gapRmb).not.toBe("0.00");
     const preview = previewSaleProfit(state, {
       rmbAccountId: 4,
       rmbAmount: "3000",
@@ -571,7 +573,7 @@ describe("local demo store", () => {
     });
     expect(previewSaleProfit(state, { rmbAccountId: 2, rmbAmount: "10000", exchangeRate: "4.85" })).toMatchObject({
       twdAmount: "48500.00",
-      profitTwd: "821.00",
+      profitTwd: "822.00",
       profitError: null
     });
 
@@ -581,7 +583,7 @@ describe("local demo store", () => {
       rmbAmount: "10000",
       exchangeRate: "4.85"
     });
-    expect(next.sales[0]).toMatchObject({ costTwd: "47679.00", profitTwd: "821.00" });
+    expect(next.sales[0]).toMatchObject({ costTwd: "47678.00", profitTwd: "822.00" });
   });
 
   it("creates users with checkbox permissions", () => {

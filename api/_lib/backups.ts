@@ -65,24 +65,27 @@ export async function exportBackupPayload(type: BackupType = "manual") {
     ledgerRows,
     auditRows,
     snapshotRows
-  ] = await Promise.all([
-    db.select().from(users),
-    db.select().from(holders),
-    db.select().from(customers),
-    db.select().from(channels),
-    db.select().from(accounts),
-    db.select().from(purchases),
-    db.select().from(sales),
-    db.select().from(rmbLots),
-    db.select().from(saleAllocations),
-    db.select().from(settlements),
-    db.select().from(transfers),
-    db.select().from(specialClients),
-    db.select().from(specialClientWalletEntries).orderBy(desc(specialClientWalletEntries.createdAt)),
-    db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)),
-    db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(5000),
-    db.select().from(dailySnapshots).orderBy(desc(dailySnapshots.snapshotDate)).limit(365)
-  ]);
+  ] = await db.transaction(async (tx) => {
+    await tx.execute(sql`set transaction isolation level repeatable read read only`);
+    return Promise.all([
+      tx.select().from(users),
+      tx.select().from(holders),
+      tx.select().from(customers),
+      tx.select().from(channels),
+      tx.select().from(accounts),
+      tx.select().from(purchases),
+      tx.select().from(sales),
+      tx.select().from(rmbLots),
+      tx.select().from(saleAllocations),
+      tx.select().from(settlements),
+      tx.select().from(transfers),
+      tx.select().from(specialClients),
+      tx.select().from(specialClientWalletEntries).orderBy(desc(specialClientWalletEntries.createdAt)),
+      tx.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)),
+      tx.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(5000),
+      tx.select().from(dailySnapshots).orderBy(desc(dailySnapshots.snapshotDate)).limit(365)
+    ]);
+  });
 
   const payload: Record<string, unknown> = {
     exportedAt: new Date().toISOString(),

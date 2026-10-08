@@ -15,7 +15,6 @@ import { AuditAction, writeAudit } from "./audit.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
 import { getAvailableProfitTwd, insertSaleProfitLedger, syncSaleProfitLedger } from "./profitLedger.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
-import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { lockTransactionResources } from "./transactionLocks.js";
 import {
   accounts,
@@ -89,7 +88,7 @@ export async function createPurchase(input: {
       accountId: input.depositAccountId,
       originalRmb: toDbMoney(input.rmbAmount),
       remainingRmb: toDbMoney(input.rmbAmount),
-      unitCostTwd: toDbRate(twdCost.div(input.rmbAmount)),
+      unitCostTwd: toDbRate(input.exchangeRate),
       exchangeRate: toDbRate(input.exchangeRate)
     });
 
@@ -180,8 +179,6 @@ export async function createSale(input: {
     if (money(rmbAccount.balance).lt(input.rmbAmount)) {
       throw new Error(`RMB 帳戶餘額不足，尚缺 ${toDbMoney(money(input.rmbAmount).sub(rmbAccount.balance))} RMB`);
     }
-
-    await reconcileRmbLotInventory(tx, actor.id);
 
     const lots = await tx.select({
       id: rmbLots.id,
@@ -589,10 +586,6 @@ export async function createTransfer(input: {
     const transferNote = input.note?.trim() ? `轉帳：${input.note.trim()}` : "帳戶轉帳";
     await addAccountDelta(tx, input.fromAccountId, from.currency as Currency, `-${transferAmount}`, "out", "transfer", transfer.id, actor.id, transferNote);
     await addAccountDelta(tx, input.toAccountId, to.currency as Currency, transferAmount, "in", "transfer", transfer.id, actor.id, transferNote);
-    if (from.currency === "RMB") {
-      await reconcileRmbLotInventory(tx, actor.id);
-    }
-
     await writeAudit(tx, {
       action: AuditAction.CREATE_TRANSFER,
       targetType: "transfer",
@@ -712,7 +705,7 @@ async function rmbDepositLot(
     accountId,
     originalRmb: toDbMoney(rmbAmount),
     remainingRmb: toDbMoney(rmbAmount),
-    unitCostTwd: toDbRate(twdCost.div(rmbAmount)),
+    unitCostTwd: toDbRate(exchangeRate),
     exchangeRate: toDbRate(exchangeRate)
   });
 
@@ -810,7 +803,6 @@ export async function createAccountAdjustment(
       if (money(account.balance).lt(input.amount)) {
         throw new Error(`RMB 帳戶餘額不足，尚缺 ${toDbMoney(money(input.amount).sub(account.balance))} RMB`);
       }
-      await reconcileRmbLotInventory(tx, actor.id);
       const allocation = await consumeRmbLotsFifo(tx, input.amount);
       const nominalTwd = toDbTwd(calcTwd(input.amount, input.exchangeRate));
       const description = `${account.name} 撤資 @${toDbRate(input.exchangeRate)}，FIFO 成本 ${allocation.totalCostTwd} TWD，名目 ${nominalTwd} TWD${noteSuffix}`;

@@ -16,7 +16,6 @@ import {
   profitLedgerStatusLabel,
   reversalStatusLabel
 } from "./specialClientWalletLabels.js";
-import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { lockTransactionResources } from "./transactionLocks.js";
 
 export type WalletEntryTypeFilter = "all" | "deposit" | "payout" | "reversal";
@@ -282,32 +281,7 @@ export function serializeWalletEntry(row: WalletEntryRow) {
   };
 }
 
-export async function repairSpecialClientWalletBalances() {
-  const db = getDb();
-  await db.transaction(async (tx) => {
-    await lockTransactionResources(tx, "special-wallet-balances");
-    await tx.execute(sql`
-      with recalculated as (
-        select id,
-          sum(case
-            when type = 'deposit' then coalesce(net_credit_rmb, 0)
-            when type = 'payout' then -coalesce(payout_rmb, 0)
-            when type = 'reversal' and net_credit_rmb is not null then net_credit_rmb
-            when type = 'reversal' then coalesce(payout_rmb, 0)
-            else 0
-          end) over (partition by client_id order by id rows unbounded preceding) as expected_balance
-        from special_client_wallet_entries
-      )
-      update special_client_wallet_entries e
-      set balance_after_rmb = r.expected_balance
-      from recalculated r
-      where e.id = r.id and e.balance_after_rmb is distinct from r.expected_balance
-    `);
-  });
-}
-
 export async function getSpecialClientWallet(params: WalletQueryParams = {}) {
-  await repairSpecialClientWalletBalances();
   const db = getDb();
   const clients = await db
     .select({
@@ -443,8 +417,6 @@ export async function createSpecialClientDeposit(input: DepositInput, actor: Aud
       "特殊客戶儲值"
     );
 
-    await reconcileRmbLotInventory(tx, actor.id ?? 0);
-
     const profitDescription = `特殊客戶代付服務費｜客戶：${client.name}｜結匯 ${fmtRmbAmount(breakdown.grossRmb)}｜費率 ${formatFeeRatePercent(breakdown.feeRate)}`;
     const [profitEntry] = await tx
       .insert(ledgerEntries)
@@ -524,8 +496,6 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
       `特殊客戶代付 ${client.name} → ${vendorLabel} ${fmtRmbAmount(payoutRmb)}`,
       "特殊客戶代付"
     );
-
-    await reconcileRmbLotInventory(tx, actor.id ?? 0);
 
     await writeAudit(tx, {
       action: AuditAction.CREATE_SPECIAL_CLIENT_PAYOUT,
@@ -624,8 +594,6 @@ export async function reverseSpecialClientWalletEntry(
         cashLedger?.id
       );
 
-      await reconcileRmbLotInventory(tx, actor.id ?? 0);
-
       if (original.profitLedgerId) {
         await assertProfitLedgerNotReversed(tx, original.profitLedgerId);
         const profitDescription = `沖銷特殊客戶代付服務費｜客戶：${client.name}｜結匯 ${fmtRmbAmount(original.grossRmb ?? "0")}｜費率 ${formatFeeRatePercent(original.feeRate ?? "0.011")}`;
@@ -699,7 +667,6 @@ export async function reverseSpecialClientWalletEntry(
         "特殊客戶沖銷",
         cashLedger?.id
       );
-      await reconcileRmbLotInventory(tx, actor.id ?? 0);
     } else {
       throw new Error("不支援的流水類型");
     }

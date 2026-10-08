@@ -27,6 +27,21 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
   const depositChannelIds = depositChannelRows.map((row) => row.id);
   const excludeDeposit =
     depositChannelIds.length > 0 ? notInArray(purchases.channelId, depositChannelIds) : sql`true`;
+  const paidTwd = sql`coalesce((
+    select sum(payment.amount)
+    from ledger_entries payment
+    where payment.related_table = 'purchases'
+      and payment.related_id = ${purchases.id}
+      and payment.direction = 'out'
+      and payment.currency = 'TWD'
+      and payment.account_id is not null
+      and payment.is_reversal = false
+      and not exists (
+        select 1 from ledger_entries reversal
+        where reversal.reverses_ledger_id = payment.id and reversal.is_reversal = true
+      )
+  ), 0)`;
+  const outstandingTwd = sql`greatest(${purchases.twdCost} - ${paidTwd}, 0)`;
 
   const [[twdRow], [rmbRow], [recvRow], [payableRow], [openSales], [openPurchases], [ledgerCount]] =
     await Promise.all([
@@ -44,9 +59,9 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
         })
         .from(customers),
       db
-        .select({ total: sql<string>`coalesce(sum(${purchases.twdCost}), 0)` })
+        .select({ total: sql<string>`coalesce(sum(${outstandingTwd}), 0)` })
         .from(purchases)
-        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"), excludeDeposit)),
+        .where(and(eq(purchases.status, "active"), sql`${outstandingTwd} > 0`, excludeDeposit)),
       db
         .select({ total: count() })
         .from(sales)
@@ -54,7 +69,7 @@ export async function computeFinancialSnapshot(snapshotDate = todayDateString())
       db
         .select({ total: count() })
         .from(purchases)
-        .where(and(eq(purchases.status, "active"), ne(purchases.paymentStatus, "paid"), excludeDeposit)),
+        .where(and(eq(purchases.status, "active"), sql`${outstandingTwd} > 0`, excludeDeposit)),
       db.select({ total: count() }).from(ledgerEntries)
     ]);
 

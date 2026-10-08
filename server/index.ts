@@ -6,7 +6,6 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { formatDatabaseIsolationReport, assertDevOnlineDatabaseSafe } from "../api/_lib/databaseEnv.js";
 import { ensureAuditBackupSchema, ensureRmbLotInventorySchema } from "../api/_lib/ensureAuditBackupSchema.js";
-import { ensureProfitLedgerEntries } from "../api/_lib/profitLedger.js";
 import { ensureUserProfileColumns } from "../api/_lib/ensureUserColumns.js";
 import { getDb } from "../api/_lib/db.js";
 import { createApiRouter } from "./apiRouter.js";
@@ -125,18 +124,6 @@ if (useViteDev) {
 if (isProduction && !useViteDev) {
   assertDistExists(distDir);
 }
-if (process.env.DATABASE_URL) {
-  try {
-    const backfilled = await ensureProfitLedgerEntries();
-    if (backfilled > 0) {
-      console.log(`Backfilled ${backfilled} missing profit ledger entries.`);
-    }
-  } catch (error) {
-    console.error("Profit ledger backfill failed:", error);
-    if (isProduction) process.exit(1);
-  }
-}
-
 if (process.env.DATABASE_URL && runStartupDbMaintenance) {
   try {
     await ensureUserProfileColumns();

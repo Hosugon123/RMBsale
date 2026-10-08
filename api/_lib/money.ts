@@ -56,8 +56,8 @@ export function allocateFifo(
   options?: { allowShort?: boolean }
 ) {
   let remaining = toCents(requestedRmb);
-  const allocations: FifoAllocation[] = [];
-  let totalCost = money(0);
+  const rawAllocations: Array<{ lotId: number; allocatedRmb: Decimal; rawCostTwd: Decimal }> = [];
+  let rawTotalCost = money(0);
 
   for (const lot of lots) {
     if (remaining.lte(0)) break;
@@ -65,14 +65,9 @@ export function allocateFifo(
     if (available.lte(0)) continue;
 
     const allocated = Decimal.min(available, remaining);
-    const cost = twdMoney(allocated.mul(lot.unitCostTwd));
-
-    allocations.push({
-      lotId: lot.id,
-      allocatedRmb: allocated.toFixed(2),
-      allocatedCostTwd: cost.toFixed(2)
-    });
-    totalCost = totalCost.add(cost);
+    const rawCostTwd = allocated.mul(lot.unitCostTwd);
+    rawAllocations.push({ lotId: lot.id, allocatedRmb: allocated, rawCostTwd });
+    rawTotalCost = rawTotalCost.add(rawCostTwd);
     remaining = remaining.sub(allocated);
   }
 
@@ -80,9 +75,23 @@ export function allocateFifo(
     throw new Error(`RMB inventory is insufficient. Missing ${remaining.toFixed(2)} RMB.`);
   }
 
+  let roundedCumulative = money(0);
+  let rawCumulative = money(0);
+  const allocations: FifoAllocation[] = rawAllocations.map((item) => {
+    rawCumulative = rawCumulative.add(item.rawCostTwd);
+    const nextRoundedCumulative = twdMoney(rawCumulative);
+    const allocatedCostTwd = nextRoundedCumulative.sub(roundedCumulative);
+    roundedCumulative = nextRoundedCumulative;
+    return {
+      lotId: item.lotId,
+      allocatedRmb: item.allocatedRmb.toFixed(2),
+      allocatedCostTwd: allocatedCostTwd.toFixed(2)
+    };
+  });
+
   return {
     allocations,
-    totalCostTwd: toDbTwd(totalCost),
+    totalCostTwd: toDbTwd(rawTotalCost),
     shortfallRmb: remaining.gt(0) ? remaining.toFixed(2) : "0.00"
   };
 }

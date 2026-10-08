@@ -23,6 +23,6 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
 
     return ok(res, { report });
   } catch (error) {
-    return handleRouteError(res, error, { fallback: "人民幣庫存修復失敗", validationStatus: 500 });
+    return handleRouteError(res, error, { fallback: "人民幣庫存稽核失敗", validationStatus: 500 });
   }
 }

@@ -264,7 +264,7 @@ export const serverApi = {
         inventoryBeforeRmb: string;
         inventoryAfterRmb: string;
         gapRmb: string;
-        action: "none" | "created_lot" | "reduced_lots";
+        action: "none" | "mismatch";
       }>;
     }>("admin/rmb-inventory/reconcile", { method: "POST" }),
 

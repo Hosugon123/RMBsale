@@ -3,7 +3,6 @@ import { getDb, type DbTx } from "./db.js";
 import { calcTwd, money, toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus } from "./locks.js";
-import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import { lockTransactionResources } from "./transactionLocks.js";
 import {
@@ -230,7 +229,12 @@ export async function reverseSale(saleId: number, actor: Actor) {
           eq(ledgerEntries.customerId, sale.customerId),
           eq(ledgerEntries.relatedTable, "sales"),
           eq(ledgerEntries.relatedId, saleId),
-          eq(ledgerEntries.isReversal, false)
+          eq(ledgerEntries.isReversal, false),
+          sql`not exists (
+            select 1 from ledger_entries reversal
+            where reversal.reverses_ledger_id = ${ledgerEntries.id}
+              and reversal.is_reversal = true
+          )`
         )
       );
     for (const row of receivableLedgers) {
@@ -365,10 +369,6 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
     if (!transfer) throw new Error("找不到轉帳紀錄或已作廢");
     assertNotReversedStatus(transfer.status, "轉帳紀錄");
 
-    const [fromAccount] = await tx
-      .select({ currency: accounts.currency })
-      .from(accounts)
-      .where(eq(accounts.id, transfer.fromAccountId));
     const ledgers = await tx
       .select()
       .from(ledgerEntries)
@@ -393,10 +393,6 @@ export async function reverseTransfer(transferId: number, actor: Actor) {
         row.id,
         "轉帳作廢"
       );
-    }
-
-    if (fromAccount?.currency === "RMB") {
-      await reconcileRmbLotInventory(tx, actor.id);
     }
 
     await tx
@@ -519,7 +515,7 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
         accountId: entry.accountId,
         originalRmb: entry.amount,
         remainingRmb: entry.amount,
-        unitCostTwd: toDbRate(twdCost.div(entry.amount)),
+        unitCostTwd: toDbRate(exchangeRate),
         exchangeRate: toDbRate(exchangeRate)
       });
     }
