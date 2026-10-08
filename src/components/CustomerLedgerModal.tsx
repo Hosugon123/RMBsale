@@ -4,7 +4,6 @@ import { PaginatedLedgerTable } from "./PaginatedLedgerTable";
 import { PortalOverlay } from "./PortalOverlay";
 import { openSettlementModal } from "./SettlementModalHost";
 import { VoidOperationDialog } from "./VoidOperationDialog";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -20,12 +19,6 @@ type CustomerLedgerModalProps = {
   customerId: number | null;
   onClose: () => void;
 };
-
-function settlementLabel(status: string) {
-  if (status === "settled") return "已結清";
-  if (status === "partial") return "部分收款";
-  return "待收款";
-}
 
 export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModalProps) {
   const { state, createInterestReceivable } = useAppStore();
@@ -215,7 +208,6 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
                     <TH className="text-right">應收</TH>
                     <TH className="hidden text-right md:table-cell">成本</TH>
                     <TH className="hidden text-right md:table-cell">利潤</TH>
-                    <TH>狀態</TH>
                   </TR>
                 </THead>
                 <TBody>
@@ -232,16 +224,11 @@ export function CustomerLedgerModal({ customerId, onClose }: CustomerLedgerModal
                         <TD className={cn("hidden text-right md:table-cell", profit.moneyCell)}>
                           {fmtMoney(sale.profitTwd)}
                         </TD>
-                        <TD>
-                          <Badge tone={sale.settlementStatus === "settled" ? "rmb" : "danger"}>
-                            {settlementLabel(sale.settlementStatus)}
-                          </Badge>
-                        </TD>
                       </TR>
                     ))
                   ) : (
                     <TR>
-                      <TD className="py-6 text-center text-muted-foreground" colSpan={7}>
+                      <TD className="py-6 text-center text-muted-foreground" colSpan={6}>
                         尚無售出紀錄
                       </TD>
                     </TR>
