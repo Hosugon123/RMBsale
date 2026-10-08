@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import type { DbTx } from "./db.js";
 import { toDbMoney, toDbRate, toDbTwd } from "./money.js";
 import { accounts, channels, purchases, rmbLots } from "./schema.js";
+import { lockTransactionResources } from "./transactionLocks.js";
 
 const INVENTORY_SYNC_CHANNEL = "庫存同步";
 const INVENTORY_SYNC_TOLERANCE_RMB = new Decimal("0.01");
@@ -176,5 +177,6 @@ async function reconcileGlobalRmbInventory(tx: DbTx, operatorId: number): Promis
  * RMB accounts track where cash is held; FIFO lots track the company's cost pool.
  */
 export async function reconcileRmbLotInventory(tx: DbTx, operatorId: number) {
+  await lockTransactionResources(tx, "inventory:global-rmb");
   return [await reconcileGlobalRmbInventory(tx, operatorId)];
 }

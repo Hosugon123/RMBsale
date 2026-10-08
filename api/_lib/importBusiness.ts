@@ -84,6 +84,18 @@ export type BusinessDataImport = {
   }[];
 };
 
+const REQUIRED_IMPORT_KEYS = ["holders", "accounts", "customers", "channels", "purchases", "sales", "saleAllocations", "rmbLots", "ledger"] as const;
+
+export function validateBusinessImportPayload(payload: unknown): asserts payload is BusinessDataImport {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("匯入內容必須為 JSON 物件");
+  const record = payload as Record<string, unknown>;
+  const missing = REQUIRED_IMPORT_KEYS.filter((key) => !Object.prototype.hasOwnProperty.call(record, key));
+  if (missing.length) throw new Error(`匯入檔缺少必要欄位：${missing.join("、")}`);
+  for (const key of REQUIRED_IMPORT_KEYS) {
+    if (!Array.isArray(record[key])) throw new Error(`${key} 必須為陣列`);
+  }
+}
+
 async function bumpSequence(
   tx: DbTx,
   table: "holders" | "accounts" | "customers" | "channels" | "purchases" | "rmb_lots" | "sales" | "sale_allocations" | "ledger_entries"
@@ -103,6 +115,7 @@ async function bumpSequence(
 }
 
 export async function importBusinessData(payload: BusinessDataImport, operatorId: number) {
+  validateBusinessImportPayload(payload);
   const db = getDb();
   return db.transaction(async (tx) => {
     await clearBusinessTablesInTx(tx);

@@ -17,6 +17,7 @@ import {
   reversalStatusLabel
 } from "./specialClientWalletLabels.js";
 import { reconcileRmbLotInventory } from "./rmbInventory.js";
+import { lockTransactionResources } from "./transactionLocks.js";
 
 export type WalletEntryTypeFilter = "all" | "deposit" | "payout" | "reversal";
 
@@ -181,6 +182,7 @@ async function applyCashAccountDelta(
   entryType: string,
   reversesLedgerId?: number
 ) {
+  await lockTransactionResources(tx, `account:${accountId}`);
   const [before] = await tx.select({ balance: accounts.balance }).from(accounts).where(eq(accounts.id, accountId));
   if (!before) throw new Error("找不到公司 RMB 帳戶");
   const delta = money(amount);
@@ -280,7 +282,32 @@ export function serializeWalletEntry(row: WalletEntryRow) {
   };
 }
 
+export async function repairSpecialClientWalletBalances() {
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    await lockTransactionResources(tx, "special-wallet-balances");
+    await tx.execute(sql`
+      with recalculated as (
+        select id,
+          sum(case
+            when type = 'deposit' then coalesce(net_credit_rmb, 0)
+            when type = 'payout' then -coalesce(payout_rmb, 0)
+            when type = 'reversal' and net_credit_rmb is not null then net_credit_rmb
+            when type = 'reversal' then coalesce(payout_rmb, 0)
+            else 0
+          end) over (partition by client_id order by id rows unbounded preceding) as expected_balance
+        from special_client_wallet_entries
+      )
+      update special_client_wallet_entries e
+      set balance_after_rmb = r.expected_balance
+      from recalculated r
+      where e.id = r.id and e.balance_after_rmb is distinct from r.expected_balance
+    `);
+  });
+}
+
 export async function getSpecialClientWallet(params: WalletQueryParams = {}) {
+  await repairSpecialClientWalletBalances();
   const db = getDb();
   const clients = await db
     .select({
@@ -379,6 +406,7 @@ export async function createSpecialClientDeposit(input: DepositInput, actor: Aud
 
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `account:${input.cashAccountId}`, `special-client:${input.clientId}`);
     const client = await assertActiveClient(tx, input.clientId);
     const account = await assertActiveRmbAccount(tx, input.cashAccountId);
     const balanceBefore = money(await getClientBalanceInTx(tx, input.clientId));
@@ -460,6 +488,7 @@ export async function createSpecialClientPayout(input: PayoutInput, actor: Audit
   const db = getDb();
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `account:${input.cashAccountId}`, `special-client:${input.clientId}`);
     const client = await assertActiveClient(tx, input.clientId);
     const account = await assertActiveRmbAccount(tx, input.cashAccountId);
     const balanceBefore = money(await getClientBalanceInTx(tx, input.clientId));
@@ -519,6 +548,7 @@ export async function reverseSpecialClientWalletEntry(
 
   const db = getDb();
   await db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `special-wallet-entry:${input.entryId}`);
     const [original] = await tx
       .select()
       .from(specialClientWalletEntries)

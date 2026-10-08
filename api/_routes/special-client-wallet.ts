@@ -11,8 +11,8 @@ import {
   methodNotAllowed,
   ok,
   readJson,
-  requireUser,
-  requireWriteAccess
+  loadAuthUser,
+  requirePermission
 } from "../_lib/http.js";
 
 function parseQuery(req: VercelRequest): WalletQueryParams {
@@ -44,13 +44,13 @@ function parseQuery(req: VercelRequest): WalletQueryParams {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === "GET") {
-      requireUser(req);
+      await loadAuthUser(req);
       const data = await getSpecialClientWallet(parseQuery(req));
       return ok(res, data);
     }
 
     if (req.method === "POST") {
-      const user = await requireWriteAccess(req);
+      const user = await requirePermission(req, "specialClientWallet");
       const body = await readJson<{ name?: string; feeRate?: string | null }>(req);
       const data = await createSpecialClient(
         { name: body.name ?? "", feeRate: body.feeRate ?? undefined },

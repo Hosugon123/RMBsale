@@ -3,7 +3,7 @@ import { reverseSpecialClientWalletEntry } from "../_lib/specialClientWallet.js"
 import {
   getClientMeta,
   ok,
-  requireWriteAccess,
+  requirePermission,
   methodNotAllowed,
   handleRouteError,
   readJson
@@ -18,7 +18,7 @@ type ReverseBody = {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
   try {
-    const user = await requireWriteAccess(req);
+    const user = await requirePermission(req, "specialClientWallet");
     const body = await readJson<ReverseBody>(req);
     const wallet = await reverseSpecialClientWalletEntry(body, { id: user.id, ...getClientMeta(req) });
     return ok(res, wallet, 201);

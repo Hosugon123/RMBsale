@@ -3,14 +3,14 @@ import { asc, eq } from "drizzle-orm";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
 import { insertCustomerDeleteLedger } from "../_lib/adminLedger.js";
 import { getDb } from "../_lib/db.js";
-import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin, requireUser } from "../_lib/http.js";
+import { fail, getClientMeta, handleRouteError, loadAuthUser, methodNotAllowed, ok, readJson, requireAdmin, requirePermission } from "../_lib/http.js";
 import { customers } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    requireUser(req);
     const db = getDb();
     if (req.method === "POST") {
+      await requirePermission(req, "receivables");
       const body = await readJson<{ name: string }>(req);
       const name = body.name?.trim();
       if (!name) return fail(res, 400, "請輸入客戶名稱");
@@ -79,6 +79,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
       return ok(res, { customer: row });
     }
     if (req.method !== "GET") return methodNotAllowed(res);
+    await loadAuthUser(req);
     return ok(res, { customers: await db.select().from(customers).orderBy(asc(customers.name)) });
   } catch (error) {
     return handleRouteError(res, error, { fallback: "客戶操作失敗", validationStatus: 500 });

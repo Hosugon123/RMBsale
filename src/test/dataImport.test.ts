@@ -16,7 +16,8 @@ describe("data import", () => {
     const payload = parseBusinessImportJson(
       JSON.stringify({
         holders: [{ id: 1, name: "甲", isActive: true }],
-        accounts: []
+        accounts: [], customers: [], channels: [], purchases: [], sales: [],
+        saleAllocations: [], rmbLots: [], ledger: []
       })
     );
     expect(payload.holders).toHaveLength(1);
@@ -26,5 +27,13 @@ describe("data import", () => {
 
   it("rejects json with users", () => {
     expect(() => parseBusinessImportJson(JSON.stringify({ users: [] }))).toThrow("不可包含 users");
+  });
+
+  it("rejects incomplete files before existing business data can be replaced", () => {
+    expect(() => parseBusinessImportJson(JSON.stringify({ holders: [], accounts: [] }))).toThrow("缺少必要欄位");
+    expect(() => parseBusinessImportJson(JSON.stringify({
+      holders: [], accounts: [], customers: [], channels: [], purchases: [], sales: [],
+      saleAllocations: [], rmbLots: [], ledger: {}
+    }))).toThrow("ledger 必須為陣列");
   });
 });

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "./db.js";
 import { money, toDbTwd } from "./money.js";
 import { type BootstrapSection, wantsSection } from "./bootstrapSections.js";
@@ -196,7 +196,9 @@ export async function loadBootstrapState(
                 eq(ledgerEntries.relatedTable, "purchases"),
                 eq(ledgerEntries.direction, "out"),
                 eq(ledgerEntries.currency, "TWD"),
-                eq(ledgerEntries.isReversal, false)
+                isNotNull(ledgerEntries.accountId),
+                eq(ledgerEntries.isReversal, false),
+                sql`not exists (select 1 from ledger_entries reversal where reversal.reverses_ledger_id = ${ledgerEntries.id})`
               )
             )
             .groupBy(ledgerEntries.relatedId)

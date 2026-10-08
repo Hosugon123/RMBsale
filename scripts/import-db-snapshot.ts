@@ -14,6 +14,8 @@ import {
   saleAllocations,
   sales,
   settlements,
+  specialClients,
+  specialClientWalletEntries,
   transfers,
   users
 } from "../api/_lib/schema";
@@ -107,6 +109,14 @@ type DbSnapshot = {
     operatorId: number;
     createdAt: string;
   }[];
+  specialClients?: Array<Omit<typeof specialClients.$inferInsert, "createdAt" | "updatedAt"> & {
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  specialClientWalletEntries?: Array<Omit<typeof specialClientWalletEntries.$inferInsert, "createdAt" | "reversedAt"> & {
+    createdAt: string;
+    reversedAt?: string | null;
+  }>;
   ledger?: {
     id: number;
     createdAt: string;
@@ -141,6 +151,8 @@ async function bumpSequence(
     | "sale_allocations"
     | "settlements"
     | "transfers"
+    | "special_clients"
+    | "special_client_wallet_entries"
     | "ledger_entries"
 ) {
   await tx.execute(
@@ -154,7 +166,7 @@ const db = getDb();
 
 await db.transaction(async (tx) => {
   await tx.execute(
-    sql`TRUNCATE TABLE audit_logs, backup_runs, daily_snapshots, settlements, transfers, sale_allocations, ledger_entries, rmb_lots, sales, purchases, accounts, customers, channels, holders, users RESTART IDENTITY CASCADE`
+    sql`TRUNCATE TABLE audit_logs, backup_runs, daily_snapshots, special_client_wallet_entries, special_clients, settlements, transfers, sale_allocations, ledger_entries, rmb_lots, sales, purchases, accounts, customers, channels, holders, users RESTART IDENTITY CASCADE`
   );
 
   for (const row of snapshot.users ?? []) {
@@ -319,6 +331,24 @@ await db.transaction(async (tx) => {
     });
   }
   await bumpSequence(tx, "ledger_entries");
+
+  for (const row of snapshot.specialClients ?? []) {
+    await tx.insert(specialClients).values({
+      ...row,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt)
+    });
+  }
+  await bumpSequence(tx, "special_clients");
+
+  for (const row of snapshot.specialClientWalletEntries ?? []) {
+    await tx.insert(specialClientWalletEntries).values({
+      ...row,
+      createdAt: new Date(row.createdAt),
+      reversedAt: row.reversedAt ? new Date(row.reversedAt) : null
+    });
+  }
+  await bumpSequence(tx, "special_client_wallet_entries");
 });
 
 console.log("已匯入資料庫快照：", inputPath);

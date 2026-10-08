@@ -5,6 +5,7 @@ import { AuditAction, writeAudit } from "./audit.js";
 import { assertNotReversedStatus } from "./locks.js";
 import { reconcileRmbLotInventory } from "./rmbInventory.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
+import { lockTransactionResources } from "./transactionLocks.js";
 import {
   accounts,
   channels,
@@ -78,6 +79,7 @@ async function postReversalDelta(
 export async function reversePurchase(purchaseId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:purchase:${purchaseId}`, `purchase:${purchaseId}`, "inventory:global-rmb");
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId));
     if (!purchase) throw new Error("找不到買入紀錄或已作廢");
     assertNotReversedStatus(purchase.status, "進貨單");
@@ -170,6 +172,7 @@ export async function reversePurchase(purchaseId: number, actor: Actor) {
 export async function reverseSale(saleId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:sale:${saleId}`, "inventory:global-rmb");
     const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId));
     if (!sale) throw new Error("找不到售出紀錄或已作廢");
     assertNotReversedStatus(sale.status, "銷貨單");
@@ -274,6 +277,7 @@ export async function reverseSale(saleId: number, actor: Actor) {
 export async function reverseSettlement(settlementId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:settlement:${settlementId}`);
     const [settlement] = await tx.select().from(settlements).where(eq(settlements.id, settlementId));
     if (!settlement) throw new Error("找不到收帳紀錄或已作廢");
     assertNotReversedStatus(settlement.status, "收帳紀錄");
@@ -356,6 +360,7 @@ export async function reverseSettlement(settlementId: number, actor: Actor) {
 export async function reverseTransfer(transferId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:transfer:${transferId}`);
     const [transfer] = await tx.select().from(transfers).where(eq(transfers.id, transferId));
     if (!transfer) throw new Error("找不到轉帳紀錄或已作廢");
     assertNotReversedStatus(transfer.status, "轉帳紀錄");
@@ -430,9 +435,17 @@ async function isDepositChannelPurchase(tx: DbTx, purchaseId: number) {
 export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:ledger:${ledgerEntryId}`);
     const [entry] = await tx.select().from(ledgerEntries).where(eq(ledgerEntries.id, ledgerEntryId));
     if (!entry || entry.isReversal) throw new Error("找不到流水紀錄");
     await assertNotReversed(tx, ledgerEntryId);
+
+    const completeReversalTables = new Set([
+      "purchase", "purchases", "sale", "sales", "settlement", "settlements", "transfer", "special_client_wallet"
+    ]);
+    if (entry.relatedTable && completeReversalTables.has(entry.relatedTable)) {
+      throw new Error("此流水屬於完整交易，請從原交易執行作廢，避免只還原部分帳務");
+    }
 
     if (entry.entryType === "入金" && entry.relatedTable === "入金" && entry.relatedId && entry.accountId) {
       const purchaseId = entry.relatedId;
@@ -542,6 +555,7 @@ export async function reverseAdjustment(ledgerEntryId: number, actor: Actor) {
 export async function reverseInterestReceivable(ledgerEntryId: number, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `reversal:ledger:${ledgerEntryId}`);
     const [entry] = await tx.select().from(ledgerEntries).where(eq(ledgerEntries.id, ledgerEntryId));
     if (
       !entry ||

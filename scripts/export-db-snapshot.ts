@@ -14,6 +14,8 @@ import {
   saleAllocations,
   sales,
   settlements,
+  specialClients,
+  specialClientWalletEntries,
   transfers,
   users
 } from "../api/_lib/schema";
@@ -33,6 +35,8 @@ const [
   allocationRows,
   settlementRows,
   transferRows,
+  specialClientRows,
+  specialClientWalletRows,
   ledgerRows
 ] = await Promise.all([
   db.select().from(users).orderBy(users.id),
@@ -46,6 +50,8 @@ const [
   db.select().from(saleAllocations).orderBy(saleAllocations.id),
   db.select().from(settlements).orderBy(desc(settlements.createdAt)),
   db.select().from(transfers).orderBy(desc(transfers.createdAt)),
+  db.select().from(specialClients).orderBy(specialClients.id),
+  db.select().from(specialClientWalletEntries).orderBy(specialClientWalletEntries.id),
   db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt))
 ]);
 
@@ -152,6 +158,26 @@ const snapshot = {
     operatorId: row.operatorId,
     createdAt: row.createdAt.toISOString()
   })),
+  specialClients: specialClientRows.map((row) => ({
+    ...row,
+    feeRate: String(row.feeRate),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString()
+  })),
+  specialClientWalletEntries: specialClientWalletRows.map((row) => ({
+    ...row,
+    usdAmount: row.usdAmount == null ? null : String(row.usdAmount),
+    usdToRmbRate: row.usdToRmbRate == null ? null : String(row.usdToRmbRate),
+    grossRmb: row.grossRmb == null ? null : String(row.grossRmb),
+    feeRate: row.feeRate == null ? null : String(row.feeRate),
+    feeRmb: row.feeRmb == null ? null : String(row.feeRmb),
+    netCreditRmb: row.netCreditRmb == null ? null : String(row.netCreditRmb),
+    payoutRmb: row.payoutRmb == null ? null : String(row.payoutRmb),
+    cashAccountDelta: String(row.cashAccountDelta),
+    balanceAfterRmb: String(row.balanceAfterRmb),
+    createdAt: row.createdAt.toISOString(),
+    reversedAt: row.reversedAt?.toISOString() ?? null
+  })),
   ledger: ledgerRows.map((row) => ({
     id: row.id,
     createdAt: row.createdAt.toISOString(),
@@ -186,5 +212,7 @@ console.log({
   saleAllocations: snapshot.saleAllocations.length,
   settlements: snapshot.settlements.length,
   transfers: snapshot.transfers.length,
+  specialClients: snapshot.specialClients.length,
+  specialClientWalletEntries: snapshot.specialClientWalletEntries.length,
   ledger: snapshot.ledger.length
 });

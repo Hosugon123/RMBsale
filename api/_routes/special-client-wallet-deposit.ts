@@ -3,7 +3,7 @@ import { createSpecialClientDeposit, getSpecialClientWallet } from "../_lib/spec
 import {
   getClientMeta,
   ok,
-  requireWriteAccess,
+  requirePermission,
   methodNotAllowed,
   handleRouteError,
   readJson
@@ -23,7 +23,7 @@ type DepositBody = {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
   try {
-    const user = await requireWriteAccess(req);
+    const user = await requirePermission(req, "specialClientWallet");
     const body = await readJson<DepositBody>(req);
     await createSpecialClientDeposit(body, { id: user.id, ...getClientMeta(req) });
     const wallet = await getSpecialClientWallet({ clientId: body.clientId });

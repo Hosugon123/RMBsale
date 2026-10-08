@@ -3,7 +3,7 @@ import { createSpecialClientPayout, getSpecialClientWallet } from "../_lib/speci
 import {
   getClientMeta,
   ok,
-  requireWriteAccess,
+  requirePermission,
   methodNotAllowed,
   handleRouteError,
   readJson
@@ -22,7 +22,7 @@ type PayoutBody = {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
   try {
-    const user = await requireWriteAccess(req);
+    const user = await requirePermission(req, "specialClientWallet");
     const body = await readJson<PayoutBody>(req);
     await createSpecialClientPayout(body, { id: user.id, ...getClientMeta(req) });
     const wallet = await getSpecialClientWallet({ clientId: body.clientId });

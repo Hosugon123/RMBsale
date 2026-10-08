@@ -1,6 +1,6 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { AuditAction, writeAudit } from "../_lib/audit.js";
-import { importBusinessData, type BusinessDataImport } from "../_lib/importBusiness.js";
+import { importBusinessData, validateBusinessImportPayload, type BusinessDataImport } from "../_lib/importBusiness.js";
 import { getDb } from "../_lib/db.js";
 import { fail, getClientMeta, handleRouteError, methodNotAllowed, ok, readJson, requireAdmin } from "../_lib/http.js";
 
@@ -13,6 +13,7 @@ export async function handler(req: VercelRequest, res: VercelResponse) {
     if (payload && typeof payload === "object" && "users" in (payload as Record<string, unknown>)) {
       return fail(res, 400, "匯入檔不可包含 users，使用者請在管理後台另行維護");
     }
+    validateBusinessImportPayload(payload);
 
     await importBusinessData(payload, admin.id);
     await writeAudit(getDb(), {

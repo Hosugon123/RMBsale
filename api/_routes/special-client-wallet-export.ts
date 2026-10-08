@@ -1,6 +1,6 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { exportSpecialClientWalletXlsx, type WalletEntryTypeFilter } from "../_lib/specialClientWallet.js";
-import { getClientMeta, methodNotAllowed, handleRouteError, requireUser } from "../_lib/http.js";
+import { getClientMeta, methodNotAllowed, handleRouteError, requirePermission } from "../_lib/http.js";
 
 function parseQuery(req: VercelRequest) {
   const q = req.query ?? {};
@@ -25,7 +25,7 @@ function parseQuery(req: VercelRequest) {
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return methodNotAllowed(res);
   try {
-    const user = await requireUser(req);
+    const user = await requirePermission(req, "specialClientWallet");
     const { buffer, filename } = await exportSpecialClientWalletXlsx(parseQuery(req), {
       id: user.id,
       ...getClientMeta(req)

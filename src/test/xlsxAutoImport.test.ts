@@ -21,7 +21,10 @@ describe("xlsx auto import", () => {
   it("loads json payload when the optional import file exists", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ accounts: [] }), {
+      vi.fn(async () => new Response(JSON.stringify({
+        holders: [], accounts: [], customers: [], channels: [], purchases: [], sales: [],
+        saleAllocations: [], rmbLots: [], ledger: []
+      }), {
         headers: { "content-type": "application/json" },
         status: 200
       }))

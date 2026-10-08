@@ -20,6 +20,8 @@ import {
   saleAllocations,
   sales,
   settlements,
+  specialClients,
+  specialClientWalletEntries,
   transfers,
   users
 } from "./schema.js";
@@ -58,6 +60,8 @@ export async function exportBackupPayload(type: BackupType = "manual") {
     allocationRows,
     settlementRows,
     transferRows,
+    specialClientRows,
+    specialClientWalletRows,
     ledgerRows,
     auditRows,
     snapshotRows
@@ -73,6 +77,8 @@ export async function exportBackupPayload(type: BackupType = "manual") {
     db.select().from(saleAllocations),
     db.select().from(settlements),
     db.select().from(transfers),
+    db.select().from(specialClients),
+    db.select().from(specialClientWalletEntries).orderBy(desc(specialClientWalletEntries.createdAt)),
     db.select().from(ledgerEntries).orderBy(desc(ledgerEntries.createdAt)),
     db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(5000),
     db.select().from(dailySnapshots).orderBy(desc(dailySnapshots.snapshotDate)).limit(365)
@@ -94,6 +100,8 @@ export async function exportBackupPayload(type: BackupType = "manual") {
       sale_allocations: allocationRows,
       settlements: settlementRows,
       transfers: transferRows,
+      special_clients: specialClientRows,
+      special_client_wallet_entries: specialClientWalletRows,
       ledger_entries: ledgerRows,
       audit_logs: auditRows,
       daily_snapshots: snapshotRows

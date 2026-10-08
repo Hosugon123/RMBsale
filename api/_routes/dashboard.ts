@@ -1,14 +1,14 @@
 import type { HttpRequest as VercelRequest, HttpResponse as VercelResponse } from "../_lib/request.js";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../_lib/db.js";
-import { fail, ok, requireUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
+import { fail, ok, loadAuthUser, methodNotAllowed, handleRouteError } from "../_lib/http.js";
 import { getAvailableProfitTwd } from "../_lib/profitLedger.js";
 import { accounts, customers, ledgerEntries, rmbLots } from "../_lib/schema.js";
 
 export async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return methodNotAllowed(res);
   try {
-    requireUser(req);
+    await loadAuthUser(req);
     const db = getDb();
     const [twd] = await db.select({ value: sql<string>`coalesce(sum(${accounts.balance}), 0)` }).from(accounts).where(eq(accounts.currency, "TWD"));
     const [rmb] = await db.select({ value: sql<string>`coalesce(sum(${accounts.balance}), 0)` }).from(accounts).where(eq(accounts.currency, "RMB"));

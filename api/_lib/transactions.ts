@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { getDb, type DbTx } from "./db.js";
 import {
   allocateFifo,
@@ -13,10 +13,10 @@ import {
 } from "./money.js";
 import { AuditAction, writeAudit } from "./audit.js";
 import { assertPurchasePayable, getPurchaseChannelName, isDepositChannelName } from "./purchaseUtils.js";
-import { assertPurchaseEditable } from "./locks.js";
 import { getAvailableProfitTwd, insertSaleProfitLedger, syncSaleProfitLedger } from "./profitLedger.js";
 import { syncCustomerSalesSettlementStatus } from "./receivableUtils.js";
 import { reconcileRmbLotInventory } from "./rmbInventory.js";
+import { lockTransactionResources } from "./transactionLocks.js";
 import {
   accounts,
   channels,
@@ -65,6 +65,7 @@ export async function createPurchase(input: {
   const twdCost = calcTwd(input.rmbAmount, input.exchangeRate);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const channelId = input.channelId ?? (input.channelName
       ? (await tx.insert(channels).values({ name: input.channelName }).onConflictDoUpdate({
           target: channels.name,
@@ -168,6 +169,7 @@ export async function createSale(input: {
   const twdAmount = calcTwd(input.rmbAmount, input.exchangeRate);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `account:${input.rmbAccountId}`, "inventory:global-rmb");
     const customerId = input.customerId ?? (await tx.insert(customers).values({ name: input.customerName || "未命名客戶" }).onConflictDoUpdate({
       target: customers.name,
       set: { isActive: true }
@@ -280,6 +282,7 @@ export async function updateSaleProfit(input: {
   const profitTwd = toDbTwd(profit);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const [before] = await tx
       .select()
       .from(sales)
@@ -331,6 +334,7 @@ export async function createSettlement(input: {
   const amountTwd = toDbTwd(amount);
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const [settlement] = await tx.insert(settlements).values({
       customerId: input.customerId,
       accountId: input.accountId,
@@ -412,6 +416,7 @@ export async function createOpeningReceivable(input: {
   const amountTwd = toDbTwd(amount);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const [customer] = await tx
       .insert(customers)
       .values({ name: customerName, receivableTwd: "0.00" })
@@ -471,6 +476,7 @@ export async function createInterestReceivable(input: {
   const amountTwd = toDbTwd(amount);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const [customer] = await tx.select().from(customers).where(eq(customers.id, input.customerId));
     if (!customer) throw new Error("找不到客戶");
 
@@ -523,6 +529,7 @@ export async function createOpeningProfit(input: {
   const amountTwd = toDbTwd(amount);
 
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const note = input.note?.trim();
     const description = note ? `期初利潤（${note}）` : "期初利潤";
     const [entry] = await tx
@@ -560,6 +567,7 @@ export async function createTransfer(input: {
 }, actor: Actor) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `account:${input.fromAccountId}`, `account:${input.toAccountId}`);
     const [from] = await tx.select().from(accounts).where(eq(accounts.id, input.fromAccountId));
     const [to] = await tx.select().from(accounts).where(eq(accounts.id, input.toAccountId));
     if (!from || !to) throw new Error("找不到帳戶");
@@ -632,6 +640,7 @@ async function addAccountDelta(
   description: string,
   entryType?: string
 ) {
+  await lockTransactionResources(tx, `account:${accountId}`);
   const dbAmount = currency === "TWD" ? toDbTwd(amount) : toDbMoney(amount);
   const dbAbsoluteAmount = currency === "TWD" ? toDbTwd(Math.abs(Number(amount))) : toDbMoney(Math.abs(Number(amount)));
   const [before] = await tx.select({ balance: accounts.balance, currency: accounts.currency }).from(accounts).where(eq(accounts.id, accountId));
@@ -749,6 +758,7 @@ export async function createAccountAdjustment(
 ) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx);
     const [account] = await tx.select().from(accounts).where(eq(accounts.id, input.accountId));
     if (!account) throw new Error("找不到帳戶");
     if (Number(input.amount) <= 0) throw new Error("金額必須大於 0");
@@ -870,11 +880,11 @@ export async function payPurchasePayment(
 ) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    await lockTransactionResources(tx, `purchase:${input.purchaseId}`);
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, input.purchaseId));
     if (!purchase) throw new Error("找不到買入紀錄");
     await assertPurchasePayable(tx, purchase);
-    assertPurchaseEditable(purchase);
-    if (purchase.paymentStatus === "paid") throw new Error("此買入已付清");
+    if (purchase.status === "reversed") throw new Error("已作廢的進貨單不可付款");
     const amount = twdMoney(input.amountTwd);
     if (amount.lte(0)) throw new Error("金額必須大於 0");
     if (amount.gt(purchase.twdCost)) throw new Error("付款金額超過應付餘額");
@@ -887,7 +897,9 @@ export async function payPurchasePayment(
           eq(ledgerEntries.relatedId, purchase.id),
           eq(ledgerEntries.direction, "out"),
           eq(ledgerEntries.currency, "TWD"),
-          eq(ledgerEntries.isReversal, false)
+          isNotNull(ledgerEntries.accountId),
+          eq(ledgerEntries.isReversal, false),
+          sql`not exists (select 1 from ledger_entries reversal where reversal.reverses_ledger_id = ${ledgerEntries.id})`
         )
       );
     const paidSoFar = money(paidRow?.paidTwd ?? 0);

@@ -45,6 +45,10 @@ export function parseBusinessImportJson(raw: string): BusinessDataImport {
     throw new Error("匯入檔不可包含 users，使用者請在管理後台另行維護");
   }
 
+  const requiredKeys = ["holders", "accounts", "customers", "channels", "purchases", "sales", "saleAllocations", "rmbLots", "ledger"] as const;
+  const missing = requiredKeys.filter((key) => !Object.prototype.hasOwnProperty.call(data, key));
+  if (missing.length) throw new Error(`匯入檔缺少必要欄位：${missing.join("、")}`);
+
   return {
     holders: asArray<Holder>(data.holders, "holders"),
     accounts: asArray<Account>(data.accounts, "accounts"),

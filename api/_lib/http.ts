@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { getDb } from "./db.js";
 import { users, type UserRole } from "./schema.js";
-import { parsePermissionsJson } from "./userPermissions.js";
+import { parsePermissionsJson, type PermissionKey } from "./userPermissions.js";
 
 export type AuthUser = {
   id: number;
@@ -40,6 +40,7 @@ export function handleRouteError(
     if (error.message === "Unauthorized") return fail(res, 401, "請先登入");
     if (error.message === "Admin permission is required") return fail(res, 403, "需要管理員權限");
     if (error.message === "此帳號僅供查詢，無法執行帳務變更") return fail(res, 403, error.message);
+    if (error.message.startsWith("缺少功能權限：")) return fail(res, 403, error.message);
     if (error.message === "JWT_SECRET is not configured") return fail(res, 500, "伺服器未設定 JWT_SECRET");
     return fail(res, validationStatus, error.message);
   }
@@ -102,6 +103,13 @@ export async function requireWriteAccess(req: VercelRequest) {
   const permissions = parsePermissionsJson(row.permissionsJson, row.role);
   if (WRITE_PERMISSIONS.some((permission) => permissions.includes(permission))) return row;
   throw new Error("此帳號僅供查詢，無法執行帳務變更");
+}
+
+export async function requirePermission(req: VercelRequest, permission: PermissionKey) {
+  const row = await loadAuthUser(req);
+  const permissions = parsePermissionsJson(row.permissionsJson, row.role);
+  if (permissions.includes("admin") || permissions.includes(permission)) return row;
+  throw new Error(`缺少功能權限：${permission}`);
 }
 
 export function getClientMeta(req: VercelRequest) {
